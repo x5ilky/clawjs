@@ -1,0 +1,36 @@
+
+stat:
+    createvar x
+    createvar y
+    createvar velo_x
+    createvar velo_y
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr block "Main"
+    addcostume block music svg "pop.svg" 31 64 
+
+    warp physics @physics 0
+    insertdef physics block
+    flag block @forever
+forever:
+    set #x 0
+    set #y 180
+    set #velo_x 50
+    set #velo_y 0
+    forever @main
+main:
+    run physics 0
+physics:
+    change #velo_y -4
+    change #velo_x (mul (mul #velo_x 0.02) -1)
+    change #y #velo_y
+    change #x #velo_x
+    if (lt #y -180) @ground
+    if (or (gt #x 180) (lt #x -180)) @bounce
+    gotoxy #x #y
+ground:
+    set #velo_y (mul #velo_y -0.9)
+    set #y -180
+bounce:
+    set #velo_x (mul #velo_x -0.96)

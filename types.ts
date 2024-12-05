@@ -71,11 +71,30 @@ export type BinaryOperation =
 
 export type ScratchArgumentType = "Any" | "Boolean";
 
-export interface Project {
-    targets: Target[],
-    monitors: Monitor[],
-    extensions: any[],
-    meta: Meta
+export class Project {
+    constructor(
+        public targets: Target[],
+        public monitors: Monitor[],
+        public extensions: any[],
+        public meta: Meta,
+    ) {}
+
+    toJsonStringified(): string {
+        return JSON.stringify(this, (_key, value) => {
+            if (value instanceof Map) {
+                return Object.fromEntries(value)
+            } else return value;
+        })
+    }
+
+    fix() {
+        for (const target of this.targets) {
+            for (const [_key, value] of target.blocks) {
+                if (value.next === undefined) value.next = null;
+                if (value.parent === undefined) value.parent = null;
+            }
+        }
+    }
 };
 
 export interface Target {
@@ -114,8 +133,8 @@ export interface Broadcasts {
 
 export interface Block {
     opcode: string,
-    next?: string,
-    parent?: string,
+    next?: string | null,
+    parent: string | null,
     inputs: any,
     fields: any,
     shadow: boolean,
@@ -233,5 +252,5 @@ export type IlNode =
   | { type: "Clone"; target: string }
   | { type: "WhenClone"; target: string; label: string }
   | { type: "DeleteClone" }
-  | { type: "CreateInstanceVar"; varName: string; value: string }
+  | { type: "CreateInstanceVar"; varName: string; target: string }
   | { type: "CloneMyself" };

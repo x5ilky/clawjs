@@ -1,0 +1,18 @@
+
+stat:
+    createvar bar
+    createvar foo
+    createbroadcast "Test Broadcast"
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    flag main @L1
+    whenbroadcast main "Test Broadcast" @L1
+    clicked main @L1
+    keypress main "k" @L1
+L1:
+    broadcast "Test Broadcast"
+    broadcastwait "Test Broadcast"

@@ -1,0 +1,30 @@
+stat:
+    createvar bar
+    createvar foo
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    flag main @L1
+L1:
+    say "Hello, world!"
+    sayfor "Hello, world!" 2
+    think "Hello, world!"
+    thinkfor "Hello, world!" 2
+    switchcostume &costume:music
+    nextcostume
+    switchbackdrop &backdrop:stage
+    nextbackdrop
+    changesize 10
+    setsize 100
+    hide
+    show
+    gotolayer front
+    changelayer 1
+    say !costumenumber
+    say !costumename
+    say !backdropnumber
+    say !backdropname
+    say !size

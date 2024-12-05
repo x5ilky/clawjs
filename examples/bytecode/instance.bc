@@ -1,0 +1,38 @@
+stat:
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    createvar i
+    createinstance main x
+    createinstance main y
+    createinstance main velo_x
+    createinstance main velo_y
+
+    flag main @L1
+
+    whenclone main @clone
+L1:
+    set #i 0
+    repeat 10 @L2
+L2:
+    set #x (sub (mul #i 40) 100)
+    set #y 400
+    set #velo_x 0
+    set #velo_y 0
+    clonemyself
+    change #i 1
+clone:
+    forever @clone2
+clone2:
+    change #velo_y -4
+
+    change #x #velo_x
+    change #y #velo_y
+
+    if (lt #y 0) @ground
+    gotoxy #x #y
+ground:
+    set #y 0
+    set #velo_y (mul #velo_y -0.9)

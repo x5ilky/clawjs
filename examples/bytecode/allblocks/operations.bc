@@ -1,0 +1,44 @@
+
+stat:
+    createvar bar
+    createvar foo
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    flag main @L1
+L1:
+    say (add 34 35)
+    say (sub 34 35)
+    say (mul 34 35)
+    say (div 34 35)
+    say (mod 34 35)
+    if (and (eq 1 1) (eq 1 1)) @L2
+    if (or (eq 1 1) (eq 1 1)) @L2
+    if (eq (eq 1 1) (eq 1 1)) @L2
+    if (gt (eq 1 1) (eq 1 1)) @L2
+    if (lt (eq 1 1) (eq 1 1)) @L2
+    if (not (lt (eq 1 1) (eq 1 1))) @L2
+    say (join "Hello" "World")
+    say (letterof 1 "World")
+    say (contains "Hello" "World")
+    say (length "Hello")
+    say (round 3.6)
+    say (abs 6.9)
+    say (floor 6.9)
+    say (ceiling 6.9)
+    say (sqrt 6.9)
+    say (sin 6.9)
+    say (cos 6.9)
+    say (tan 6.9)
+    say (asin 6.9)
+    say (acos 6.9)
+    say (atan 6.9)
+    say (ln 6.9)
+    say (log 6.9)
+    say (epower 6.9)
+    say (tenpower 6.9)
+L2:
+    say "empty"

@@ -1,9 +1,9 @@
 // deno-lint-ignore-file no-explicit-any
-import { MD5 } from "./md5.js";
-import { Logger } from "./SkOutput.ts";
+import { MD5 } from "../md5.js";
+import { Logger } from "../SkOutput.ts";
 import * as path from "jsr:@std/path";
-import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Project, ScratchArgumentType, Target, UnaryOperation } from "./types.ts";
-const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
+import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "../types.ts";
+export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
 export class Convertor {
     variable_map: Map<string, string>;
     broadcasts: Map<string, string>;
@@ -23,17 +23,17 @@ export class Convertor {
     functionArgsMaps: Map<string, string>;
     resourceFolder: string;
     
-    constructor(labels: IlNode[], path: string, public logger: Logger) {
+    constructor(labels: IlNode[], resourcesFolderPath: string, public logger: Logger) {
         this.variable_map = new Map()
         this.list_map = new Map()
         this.broadcasts = new Map()
         this.variables = []
         this.sprites = new Map()
-        this.project = { 
-            targets: [],
-            monitors: [],
-            extensions: [],
-            meta: {
+        this.project = new Project(
+            /*targets: */ [],
+            /*monitors: */ [],
+            /*extensions: */ [],
+            /* meta: */ <Meta> {
                 semver: "3.0.0",
                 vm: "0.2.0",
                 agent: "",
@@ -42,7 +42,7 @@ export class Convertor {
                     url: "github.com/x5ilky/claw"
                 }
             }
-        }
+        );
         this.labels = labels
         this.functions = new Map()
         this.labelConversions = new Map()
@@ -53,7 +53,7 @@ export class Convertor {
             print_variables: false
         }
         this.blockCounter = 0
-        this.resourceFolder = path
+        this.resourceFolder = resourcesFolderPath
     }
 
     public create(): Project {
@@ -77,6 +77,7 @@ export class Convertor {
                 }
             }
         }
+        this.project.fix();
         
         return this.project
     }
@@ -93,11 +94,13 @@ export class Convertor {
             if (node.type === "InsertDef") {
                 const { func, sprites } = node;
                 const fnData = this.functions.get(func)!;
-                const argumentIds = JSON.stringify(fnData.args.entries().map(([i, _]) => MD5(`${func}:${i+1}`)));
+                const argumentIds = JSON.stringify(fnData.args.entries().map(([i, _]) => MD5(`${func}:${i+1}`)).toArray());
+                console.log(argumentIds)
                 const argumentNames = 
                     JSON.stringify(
                         fnData.args.entries()
                         .map(([i, _]) => `${func}:${i+1}`)
+                        .toArray()
                     );
                 const argumentDefaults =
                     JSON.stringify(
@@ -198,7 +201,7 @@ export class Convertor {
                     for (const [k, v] of labelNodes) {
                         spr?.blocks.set(k, v);
                     }
-                    def.next = this.labelHeads.get(label);
+                    def.next = this.labelHeads.get(label) ?? null;
                     spr?.blocks.set(defId, def);
                     spr?.blocks.set(prototypeId, prototype);
                 }
@@ -210,7 +213,7 @@ export class Convertor {
         const stat = this.labels.find(a => a.type === "Label" && a.value[0] === "stat");
         if (stat?.type !== "Label") throw new Error("No stat label, this should be impossible due to order of events");
         for (const node of stat.value[1]) {
-            const add = (value: Block) => {
+            const add = (value: () => Block) => {
                 const {target, label} = (node as Extract<IlNode, { target: string, label: string }>);
 
                 const spriteName = this.sprites.get(target)?.name;
@@ -219,7 +222,7 @@ export class Convertor {
                     (<Extract<IlNode, {type: "Label"}>>(this.labels.find(a => a.type === "Label" && a.value[0] === label)!)).value[1];
                 this.convertLabel(labelNodes, label, target);
                 
-                const sprite = this.project.targets.find(a => a.name === spriteName);
+                const sprite = this.project.targets.find(a => a.name === spriteName)!;
                 const lb = this.labelConversions.get(label);
                 if (lb === undefined) {
                     this.logger.error(`no label called ${label}`);
@@ -227,16 +230,18 @@ export class Convertor {
                 }
 
                 for (const [k, v] of lb) {
-                    sprite?.blocks.set(k, v);
+                    sprite.blocks.set(k, v);
                 }
-                sprite?.blocks.set((++this.blockCounter).toString(), value);
+                sprite.blocks.set((++this.blockCounter).toString(), value());
             }
             if (node.type === "Flag" || node.type === "Clicked") {
                 const {label} = node;
-                add(<Block>{
+                console.log("flag", node);
+                console.log(this.labelHeads)
+                add(() => <Block>{
                     opcode: node.type === "Flag" ? "event_whenflagclicked" : "event_whenthisspriteclicked",
                     next: this.labelHeads.get(label),
-                    parent: '',
+                    parent: null,
                     inputs: {},
                     fields: {},
                     shadow: false,
@@ -244,10 +249,10 @@ export class Convertor {
                 });
             } else if (node.type === "Keypress") {
                 const {label, key} = node;
-                add(<Block>{
+                add(() => <Block>{
                     opcode: "event_whenkeypressed",
                     next: this.labelHeads.get(label),
-                    parent: '',
+                    parent: null,
                     inputs: {},
                     fields: {
                         "KEY_OPTION": [ 
@@ -260,10 +265,10 @@ export class Convertor {
                 });
             } else if (node.type === "WhenBroadcast") {
                 const {label, name} = node;
-                add(<Block>{
+                add(() => <Block>{
                     opcode: "event_whenbroadcastreceived",
                     next: this.labelHeads.get(label),
-                    parent: "",
+                    parent: null,
                     inputs: {},
                     fields: {
                         "BROADCAST_OPTION": [
@@ -279,10 +284,10 @@ export class Convertor {
                 })
             } else if (node.type === "WhenClone") {
                 const {label} = node;
-                add(<Block>{
+                add(() => <Block>{
                     opcode: "control_start_as_clone",
                     next: this.labelHeads.get(label),
-                    parent: "",
+                    parent: null,
                     inputs: {},
                     fields: {},
                     shadow: false,
@@ -297,10 +302,14 @@ export class Convertor {
         value: IlValue,
         spr: string
     ): any {
+        if (value.key === "Variable") console.log(value)
         switch (value.key) {
             case "Float": {
                 const num = value.value;
                 return [1, [4, num.toString()]];
+            }
+            case "Integer": {
+                return [1, [7, value.value.toString()]]
             }
             case "String": return [1, [10, value.value.toString()]]
             case "BinaryOperation": {
@@ -439,7 +448,7 @@ export class Convertor {
             }
             case "Variable": return [
                 3,
-                [12, name, this.variable_map.get(name)!],
+                [12, value.name, this.variable_map.get(value.name)!],
                 null
             ];
             case "Argument": {
@@ -592,7 +601,7 @@ export class Convertor {
                 case "Move": {
                     add({
                         opcode: "motion_movesteps",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             STEPS: this.convertValue(blocks, node.steps, spr)
@@ -607,7 +616,7 @@ export class Convertor {
                     const value = this.convertValue(blocks, degrees, spr);
                     add(<Block> {
                         opcode: node.type === "TurnLeft" ? "motion_turnleft" : "motion_turnright",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             DEGREES: value
@@ -619,7 +628,7 @@ export class Convertor {
                 case "PointDirection": {
                     add({
                         opcode: "motion_pointindirection",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             DIRECTION: this.convertValue(blocks, node.value, spr)
@@ -632,7 +641,7 @@ export class Convertor {
                 case "GotoXY": {
                     add({
                         opcode: "motion_gotoxy",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             X: this.convertValue(blocks, node.x, spr),
@@ -646,7 +655,7 @@ export class Convertor {
                 case "GlideToXY": {
                     add({
                         opcode: "motion_glidesecstoxy",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             X: this.convertValue(blocks, node.x, spr),
@@ -661,7 +670,7 @@ export class Convertor {
                 case "SetX": {
                     add({
                         opcode: "motion_setx",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             X: this.convertValue(blocks, node.value, spr),
@@ -674,7 +683,7 @@ export class Convertor {
                 case "SetY": {
                     add({
                         opcode: "motion_sety",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             Y: this.convertValue(blocks, node.value, spr),
@@ -688,7 +697,7 @@ export class Convertor {
                 case "ChangeX": {
                     add({
                         opcode: "motion_changexby",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             DX: this.convertValue(blocks, node.value, spr),
@@ -702,7 +711,7 @@ export class Convertor {
                 case "ChangeY": {
                     add({
                         opcode: "motion_changeyby",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             DY: this.convertValue(blocks, node.value, spr),
@@ -716,7 +725,7 @@ export class Convertor {
                 case "Say": {
                     add({
                         opcode: "looks_say",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             MESSAGE: this.convertValue(blocks, node.value, spr),
@@ -729,7 +738,7 @@ export class Convertor {
                 case "SayFor": {
                     add({
                         opcode: "looks_sayforsecs",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             MESSAGE: this.convertValue(blocks, node.value, spr),
@@ -744,7 +753,7 @@ export class Convertor {
                 case "Think": {
                     add({
                         opcode: "looks_think",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             MESSAGE: this.convertValue(blocks, node.value, spr),
@@ -757,7 +766,7 @@ export class Convertor {
                 case "ThinkFor": {
                     add({
                         opcode: "looks_thinkforsecs",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             MESSAGE: this.convertValue(blocks, node.value, spr),
@@ -771,7 +780,7 @@ export class Convertor {
                 case "SwitchCostume": {
                     add({
                         opcode: "looks_switchcostumeto",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             COSTUME: this.convertValue(blocks, node.value, spr),
@@ -784,7 +793,7 @@ export class Convertor {
                 case "NextCostume": {
                     add({
                         opcode: "looks_nextcostume",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {},
                         shadow: false,
@@ -795,7 +804,7 @@ export class Convertor {
                 case "SwitchBackdrop": {
                     add({
                         opcode: "looks_switchbackdropto",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             BACKDROP: this.convertValue(blocks, node.value, spr),
@@ -808,7 +817,7 @@ export class Convertor {
                 case "NextBackdrop": {
                     add({
                         opcode: "looks_nextbackdrop",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {},
                         shadow: false,
@@ -819,7 +828,7 @@ export class Convertor {
                 case "ChangeSize": {
                     add({
                         opcode: "looks_changesizeby",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             CHANGE: this.convertValue(blocks, node.value, spr),
@@ -832,7 +841,7 @@ export class Convertor {
                 case "SetSize": {
                     add({
                         opcode: "looks_setsizeto",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             SIZE: this.convertValue(blocks, node.value, spr),
@@ -846,7 +855,7 @@ export class Convertor {
                 case "Show": {
                     add({
                         opcode: "looks_show",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {},
                         shadow: false,
@@ -857,7 +866,7 @@ export class Convertor {
                 case "Hide": {
                     add({
                         opcode: "looks_hide",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {},
                         shadow: false,
@@ -868,7 +877,7 @@ export class Convertor {
                 case "GotoLayer": {
                     add({
                         opcode: "looks_gotofrontback",
-                        parent: "",
+                        parent: null,
                         inputs: {},
                         fields: {
                             FRONT_BACK: [node.value ? "front" : "back", null],
@@ -882,7 +891,7 @@ export class Convertor {
                 case "GoForwardLayers": {
                     add({
                         opcode: "looks_goforwardbackwardlayers",
-                        parent: "",
+                        parent: null,
                         fields: {
                             "FORWARD_BACKWARD": [
                                 "forward",
@@ -912,7 +921,7 @@ export class Convertor {
                     }
                     add({
                         opcode: node.type === "Broadcast" ? "event_broadcast" : "event_broadcastandwait",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             BROADCAST_INPUT: jsonValue
@@ -926,7 +935,7 @@ export class Convertor {
                 case "Wait": {
                     add({
                         opcode: "control_wait",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             DURATION: this.convertValue(blocks, node.time, spr),
@@ -939,7 +948,7 @@ export class Convertor {
                 case "WaitUntil": {
                     add({
                         opcode: "control_wait_until",
-                        parent: "",
+                        parent: null,
                         fields: {},
                         inputs: {
                             CONDITION: this.convertValue(blocks, node.predicate, spr),
@@ -1005,7 +1014,7 @@ export class Convertor {
                     })();
 
                     blocks.set(loc, <Block> {
-                        opcode: "control_if",
+                        opcode: "control_if_else",
                         fields: {},
                         inputs: {
                             CONDITION: v,
@@ -1103,7 +1112,7 @@ export class Convertor {
                 case "Stop": {
                     add({
                         opcode: "control_stop",
-                        parent: "",
+                        parent: null,
                         fields: {
                             STOP_OPTION: [
                                 (() => {
@@ -1139,7 +1148,8 @@ export class Convertor {
                             ]
                         },
                         topLevel: false,
-                        shadow: false
+                        shadow: false,
+                        parent: null
                     });
                     blocks.set(
                         id,
@@ -1153,7 +1163,8 @@ export class Convertor {
                             },
                             fields: {},
                             shadow: false,
-                            topLevel: false
+                            topLevel: false,
+                            parent: null
                         }
                     );
                     heads.set(i, id);
@@ -1171,7 +1182,8 @@ export class Convertor {
                             ]
                         },
                         topLevel: false,
-                        shadow: false
+                        shadow: false,
+                        parent: null
                     });
                     blocks.set(
                         id,
@@ -1185,7 +1197,8 @@ export class Convertor {
                             },
                             fields: {},
                             shadow: false,
-                            topLevel: false
+                            topLevel: false,
+                            parent: null
                         }
                     );
                     heads.set(i, id);
@@ -1208,7 +1221,7 @@ export class Convertor {
                                 case "Replace": return "data_replaceitemoflist"
                             }
                         })(),
-                        parent: "",
+                        parent: null,
                         fields: {
                             LIST: [
                                 list,
@@ -1243,7 +1256,7 @@ export class Convertor {
                     const {target, value: v } = node;
                     add({
                         opcode: "data_setvariableto",
-                        parent: "",
+                        parent: null,
                         fields: {
                             VARIABLE: [
                                 target,
@@ -1261,7 +1274,7 @@ export class Convertor {
                 case "Change": {
                     add({
                         opcode: "data_changevariableby",
-                        parent: "",
+                        parent: null,
                         fields: {
                             VARIABLE: [
                                 node.target,
@@ -1278,7 +1291,7 @@ export class Convertor {
                 case "Return": {
                     add({
                         opcode: "data_setvariableto",
-                        parent: "",
+                        parent: null,
                         fields: {
                             VARIABLE: [
                                 `${FORBIDDEN_VARIABLE_NAME_PREFIX}${node.func}`,
@@ -1305,7 +1318,7 @@ export class Convertor {
                         this.logger.error(`Expected ${argAmount} arguments, got ${func.args.length}`);
                         Deno.exit(1);
                     }
-                    const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i+1}`)));
+                    const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i+1}`)).toArray());
                     const inputs = new Map();
                     let proccode = id;
                     for (const [i, arg] of args.entries()) {
@@ -1331,7 +1344,8 @@ export class Convertor {
                                 proccode,
                                 argumentids: argumentIds,
                                 warp: func.warp
-                            }
+                            },
+                            parent: null
                         }
                     )
                 }
@@ -1354,6 +1368,7 @@ export class Convertor {
             this.logger.error("Cannot convert empty label!");
             Deno.exit(1);
         }
+        console.log(name, heads.get(0))
         this.labelHeads.set(name, heads.get(0)!);
         for (const [i, _] of nodes.entries()) {
             if (heads.has(i+1)) {
@@ -1363,6 +1378,10 @@ export class Convertor {
                 blocks.get(heads.get(i)!)!.parent = heads.get(i-1)!;
             }
         };
+
+        this.labelConversions.set(
+            name, blocks
+        )
         return [blocks, heads];
     }
 
@@ -1483,7 +1502,7 @@ export class Convertor {
                     if (node.name.startsWith(FORBIDDEN_VARIABLE_NAME_PREFIX)) {
                         this.logger.warn(`Variable names probably shouldn't start with ${FORBIDDEN_VARIABLE_NAME_PREFIX}`);
                     }
-                    this.variables.push(name);
+                    this.variables.push(node.name);
                 } break;
                 case "CreateInstanceVar": {
                     if (node.varName.startsWith(FORBIDDEN_VARIABLE_NAME_PREFIX)) {
@@ -1491,7 +1510,7 @@ export class Convertor {
                     }
                     this.variables.push(node.varName);
                     const nameHash = MD5(node.varName);
-                    const tt = this.project.targets.find(a => a.name === this.sprites.get(node.value)!.name);
+                    const tt = this.project.targets.find(a => a.name === this.sprites.get(node.target)!.name);
                     tt!.variables.set(nameHash, [name, 0]);
                 } break;
                 case "CreateList": {

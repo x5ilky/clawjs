@@ -1,0 +1,38 @@
+stat:
+    createvar bar
+    createvar foo
+
+    createlist test_list
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    flag main @L1
+    def saym @L5 2 int boolean
+    insertdef saym main
+L1:
+    list push ##test_list 10
+
+    run saym 2 10 (eq 10 10)
+
+    list insert ##test_list 1 3
+    movesteps 10
+    movesteps (add 10 20)
+    set #foo 0
+    change #foo 1
+    set #bar 69
+    wait 1
+
+    sayfor (join "Hello, " "world") 2
+
+    if (and (eq #foo 50) (gt #bar 50)) @L2
+    repeat 10 @L3
+L2:
+    say "Hello, world!"
+L3:
+    nextcostume
+L5:
+    say $saym:1
+    ret saym 0

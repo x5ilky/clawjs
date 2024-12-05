@@ -1,0 +1,53 @@
+stat:
+    createvar streq_one
+
+    createvar string1
+    createvar string2
+
+    createvar output
+
+    createlist test_list
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    flag main @entry
+    def streq @streq 2 any any
+    insertdef streq main
+entry:
+    set #string1 "Hello, world!"
+    set #string2 "Hello, world!"
+
+    run streq 2 #string1 #string2
+    set #output (return streq)
+    ifelse (gt #output 0) @equal @notequal
+
+    set #string1 "This is string 1"
+    set #string2 "This is a different string"
+
+    run streq 2 #string1 #string2
+    set #output (return streq)
+    ifelse (gt #output 0) @equal @notequal
+equal:
+    sayfor (join "String " (join #string1 (join " and " (join #string2 " are equal")))) 2
+notequal:
+    sayfor (join "String " (join #string1 (join " and " (join #string2 " are not equal")))) 2
+streq:
+    ; if length of strings aren't equal return false
+    if (not (eq (length $streq:1) (length $streq:2))) @streq_return_false
+    ; iterator
+    set #streq_one 0
+    repeat (length $streq:1) @streq_loop
+    ; return true
+    ret streq 1
+    stop this
+streq_loop:
+    ; compare each letter
+    if (not (eq (letterof (add 1 #streq_one) $streq:1) (letterof (add 1 #streq_one) $streq:2))) @streq_return_false
+    ; inc the iter
+    change #streq_one 1
+streq_return_false:
+    ret streq 0
+    stop this

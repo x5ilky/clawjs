@@ -1,0 +1,23 @@
+
+stat:
+    createvar i
+
+    createlist test_list
+
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+
+    flag main @L1
+L1:
+    set #i 0
+    repeat 10 @L2
+L2:
+    list push ##test_list #i
+    sayfor (list index ##test_list #i) 2
+    sayfor (list find ##test_list #i) 2
+    sayfor (list contains ##test_list #i) 2
+    sayfor (list length ##test_list) 2
+    change #i 1
+    
