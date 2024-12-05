@@ -78,7 +78,7 @@ export interface Project {
     meta: Meta
 };
 
-interface Target {
+export interface Target {
   isStage: boolean;
   name: string;
   variables: Map<string, Variable>;
@@ -183,8 +183,8 @@ export type IlNode =
   | { type: "Forever"; label: string }
   /* Motion */
   | { type: "MoveSteps"; value: IlValue }
-  | { type: "TurnRight"; value: IlValue }
-  | { type: "TurnLeft"; value: IlValue }
+  | { type: "TurnRight"; degrees: IlValue }
+  | { type: "TurnLeft"; degrees: IlValue }
   | { type: "GotoXY"; x: IlValue; y: IlValue }
   | { type: "GlideToXY"; x: IlValue; y: IlValue; secs: IlValue }
   | { type: "PointDirection"; value: IlValue }
@@ -212,7 +212,7 @@ export type IlNode =
   | { type: "InsertDef"; func: string; sprites: string[] }
   | { type: "Run"; id: string; argAmount: number; args: IlValue[] }
   /* Events and control */
-  | { type: "Move"; value: IlValue }
+  | { type: "Move"; steps: IlValue }
   | { type: "Set"; target: string; value: IlValue }
   | { type: "Change"; target: string; value: IlValue }
   | { type: "Wait"; time: IlValue }
