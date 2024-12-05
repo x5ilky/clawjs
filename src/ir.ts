@@ -7,7 +7,7 @@ import { LogLevel, skap } from "../SkOutput.ts";
 import { logger, shape } from "./main.ts";
 import { IrParser } from "../ir/parser.ts";
 import { Convertor } from "../ir/convertor.ts";
-import { MD5 } from "../md5.js";
+import { MD5 } from "../external/md5.js";
 
 export async function irBuild(cmd: skap.SkapInfer<typeof shape>) {
     logger.start(LogLevel.INFO, "sb3 creation");

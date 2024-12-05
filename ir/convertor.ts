@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import { MD5 } from "../md5.js";
+import { MD5 } from "../external/md5.js";
 import { Logger } from "../SkOutput.ts";
 import * as path from "jsr:@std/path";
 import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "../types.ts";
