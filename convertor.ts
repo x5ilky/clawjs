@@ -113,7 +113,7 @@ export class Convertor {
                 for (const sprite of sprites) {
                     const defId = (++this.blockCounter).toString();
                     const prototypeId = (++this.blockCounter).toString();
-                    let def = <Block>{
+                    const def = <Block>{
                         opcode: "procedures_definition",
                         inputs: {
                             "custom_block": [
