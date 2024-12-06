@@ -5,6 +5,7 @@ import * as path from "jsr:@std/path";
 
 // @deno-types="npm:@types/node-wav"
 import WavDecoder from "npm:wav-decoder";
+
 import { Buffer } from "node:buffer"
 
 import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "./types.ts";
@@ -1638,6 +1639,11 @@ export class Convertor {
                         const wdata = (<any>WavDecoder.decode).sync(Buffer.from(fr));
                         rate = wdata.sampleRate;
                         sampleCount = (<any>wdata).length;
+                    } else if (format === "MP3") {
+                        this.logger.error("currently unsupported because i for the love of god cannot figure out how to parse a mp3 header in deno");
+                        this.logger.error("when i find a library for this ill add support for mp3's");
+                        this.logger.error("for now, just convert your mp3's to wav's with ffmpeg/audacity");
+                        Deno.exit(1);
                     }
 
                     // if (rate !== 48000) {
