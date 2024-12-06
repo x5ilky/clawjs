@@ -40,6 +40,11 @@ export async function irBuild(cmd: skap.SkapInfer<typeof shape>) {
             const fileName = `${MD5(file)}.${format.toLowerCase()}`;
             await zipWriter.add(fileName, new TextReader(file));
         }
+        for (const [path, format] of spr.sound_paths) {
+            const file = Deno.readTextFileSync(path);
+            const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+            await zipWriter.add(fileName, new TextReader(file));
+        }
     }
 
     await zipWriter.close();

@@ -3,6 +3,12 @@
     "dev": "deno run --watch ./src/main.ts"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1"
+    "@std/assert": "jsr:@std/assert@1",
+    "jsmediatags": "npm:jsmediatags@^3.9.7"
+  },
+  "compilerOptions": {
+    "lib": [
+      "deno.window"
+    ]
   }
 }

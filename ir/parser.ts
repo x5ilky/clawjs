@@ -1,9 +1,9 @@
 import { Logger } from "../SkOutput.ts";
-import { StopType } from "../types.ts";
-import { ScratchArgumentType } from "../types.ts";
-import { FileFormat } from "../types.ts";
-import { BuiltinValue, IlNode, ListValue } from "../types.ts";
-import { IlValue } from "../types.ts";
+import { StopType } from "./types.ts";
+import { ScratchArgumentType } from "./types.ts";
+import { FileFormat } from "./types.ts";
+import { BuiltinValue, IlNode, ListValue } from "./types.ts";
+import { IlValue } from "./types.ts";
 import { FORBIDDEN_VARIABLE_NAME_PREFIX } from "./convertor.ts";
 
 export class IrParser {
@@ -125,6 +125,29 @@ export class IrParser {
                     format: type,
                     anchorX,
                     anchorY
+                };
+            }
+            case "addsound": {
+                const id = this.getIdentifier(chars);
+                const name = this.getIdentifier(chars);
+                const type = ((type) => {
+                    switch (type) {
+                        case "wav":
+                            return "WAV";
+                        case "mp3": 
+                            return "MP3";
+                        default:
+                            this.error("Invalid file format! Sounds have to be `wav` or `mp3`");
+                            Deno.exit(1);
+                    }
+                })(this.getIdentifier(chars));
+                const file = this.getString(chars);
+                return {
+                    type: "AddSprSound",
+                    id,
+                    name,
+                    file,
+                    format: type,
                 };
             }
             case "flag": return {
@@ -340,6 +363,61 @@ export class IrParser {
                 value: this.getValue(chars)
             }
 
+            // Sounds
+
+            case "playuntildone": return {
+                type: "PlayUntilDone",
+                sound: this.getValue(chars)
+            };
+            case "play": return {
+                type: "Play",
+                sound: this.getValue(chars)
+            }
+            case "stopallsounds": return {
+                type: "StopAllSounds",
+            }
+
+            case "changeeffect": {
+                const effect = this.getIdentifier(chars);
+                if (effect !== "pan" && effect !== "pitch") {
+                    this.logger.error(`Invalid effect, valid effects are pan and pitch`);
+                    Deno.exit(1);
+                }
+                return {
+                    type: "ChangeEffectBy",
+                    // deno-lint-ignore no-explicit-any
+                    effect: effect.toLowerCase() as any,
+                    amount: this.getValue(chars)
+                }
+            }
+            case "seteffect": {
+                const effect = this.getIdentifier(chars);
+                if (effect !== "pan" && effect !== "pitch") {
+                    this.logger.error(`Invalid effect, valid effects are pan and pitch`);
+                    Deno.exit(1);
+                }
+                return {
+                    type: "SetEffectTo",
+                    // deno-lint-ignore no-explicit-any
+                    effect: effect.toLowerCase() as any,
+                    amount: this.getValue(chars)
+                }
+            }
+
+            case "cleareffects": return {
+                type: "ClearEffects",
+            }
+
+            case "changevolume": return {
+                type: "ChangeVolumeBy",
+                value: this.getValue(chars)
+            }
+            case "setvolume": return {
+                type: "SetVolumeTo",
+                value: this.getValue(chars)
+            }
+
+
             case "def":
             case "warp": {
                 const id = this.getIdentifier(chars);
@@ -513,6 +591,14 @@ export class IrParser {
         }
         return this.getIdentifier(chars);
     }
+    private getSound(chars: string[]): string {
+        this.trimStart(chars);
+        if (chars.shift() !== "%") {
+            this.error("Expected sound to start with %");
+            Deno.exit(1);
+        }
+        return this.getIdentifier(chars);
+    }
 
     private getList(chars: string[]): string {
         this.trimStart(chars);
@@ -572,6 +658,12 @@ export class IrParser {
                 name: this.getVariable(chars),
             };
         }
+        if (first == "%") {
+            return {
+                key: "Sound",
+                name: this.getSound(chars),
+            };
+        }
         if (first === "$") {
             const v = this.getArgument(chars);
             return {
@@ -591,6 +683,8 @@ export class IrParser {
                         return { key: "YPosition" };
                     case "direction":
                         return { key: "Direction" };
+                    case "volume":
+                        return { key: "Volume" };
                     case "costumenumber":
                         return { key: "Costume", numberOrName: false };
                     case "costumename":
@@ -1007,7 +1101,7 @@ export class IrParser {
     }
 
     private error(message: string) {
-        this.logger.error(`At line ${this.lineNumber-2}:`);
+        this.logger.error(`At line ${this.lineNumber-1}:`);
         this.logger.error(message);
     }
 }

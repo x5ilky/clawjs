@@ -2,7 +2,12 @@
 import { MD5 } from "../external/md5.js";
 import { Logger } from "../SkOutput.ts";
 import * as path from "jsr:@std/path";
-import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "../types.ts";
+
+// @deno-types="npm:@types/node-wav"
+import WavDecoder from "npm:wav-decoder";
+import { Buffer } from "node:buffer"
+
+import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "./types.ts";
 export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
 export class Convertor {
     variable_map: Map<string, string>;
@@ -95,7 +100,6 @@ export class Convertor {
                 const { func, sprites } = node;
                 const fnData = this.functions.get(func)!;
                 const argumentIds = JSON.stringify(fnData.args.entries().map(([i, _]) => MD5(`${func}:${i+1}`)).toArray());
-                console.log(argumentIds)
                 const argumentNames = 
                     JSON.stringify(
                         fnData.args.entries()
@@ -236,8 +240,6 @@ export class Convertor {
             }
             if (node.type === "Flag" || node.type === "Clicked") {
                 const {label} = node;
-                console.log("flag", node);
-                console.log(this.labelHeads)
                 add(() => <Block>{
                     opcode: node.type === "Flag" ? "event_whenflagclicked" : "event_whenthisspriteclicked",
                     next: this.labelHeads.get(label),
@@ -302,7 +304,6 @@ export class Convertor {
         value: IlValue,
         spr: string
     ): any {
-        if (value.key === "Variable") console.log(value)
         switch (value.key) {
             case "Float": {
                 const num = value.value;
@@ -312,6 +313,24 @@ export class Convertor {
                 return [1, [7, value.value.toString()]]
             }
             case "String": return [1, [10, value.value.toString()]]
+            case "Sound": {
+                const { name } = value;
+                
+                const calculation = ++this.blockCounter;
+
+                blocks.set(calculation.toString(), {
+                    opcode: "sound_sounds_menu",
+                    next: null,
+                    parent: null,
+                    inputs: {},
+                    fields: {
+                        SOUND_MENU: [name, null]
+                    },
+                    shadow: true,
+                    topLevel: false
+                });
+                return [1, calculation.toString()]
+            }
             case "BinaryOperation": {
                 const {oper, left, right} = value;
                 const calculation = ++this.blockCounter;
@@ -471,6 +490,7 @@ export class Convertor {
                         case "XPosition": return "motion_xposition"
                         case "YPosition": return "motion_yposition"
                         case "Direction": return "motion_direction"
+                        case "Volume": return "sound_volume"
                         case "Backdrop": return "looks_backdropnumbername"
                         case "Size": return "looks_size"
                     }
@@ -905,6 +925,101 @@ export class Convertor {
                         topLevel: false
                     });
                 } break;
+
+                // sounds
+                case "PlayUntilDone": {
+                    add({
+                        opcode: "sound_playuntildone",
+                        inputs: {
+                            SOUND_MENU: this.convertValue(blocks, node.sound, spr)
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+                case "Play": {
+                    add({
+                        opcode: "sound_play",
+                        inputs: {
+                            SOUND_MENU: this.convertValue(blocks, node.sound, spr)
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+                case "StopAllSounds": {
+                    add({
+                        opcode: "sound_stopallsounds",
+                        inputs: {},
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+                case "ChangeEffectBy": {
+                    add({
+                        opcode: "sound_changeeffectby",
+                        inputs: {
+                            VALUE: this.convertValue(blocks, node.amount, spr)
+                        },
+                        fields: {
+                            EFFECT: [node.effect, null]
+                        },
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+                case "SetEffectTo": {
+                    add({
+                        opcode: "sound_seteffectto",
+                        inputs: {
+                            VALUE: this.convertValue(blocks, node.amount, spr)
+                        },
+                        fields: {
+                            EFFECT: [node.effect, null]
+                        },
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+
+                case "ClearEffects": {
+                    add({
+                        opcode: "sound_cleareffects",
+                        inputs: {},
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+
+                case "ChangeVolumeBy": {
+                    add({
+                        opcode: "sound_changevolumeby",
+                        inputs: {
+                            VOLUME: this.convertValue(blocks, node.value, spr)
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+
+                case "SetVolumeTo": {
+                    add({
+                        opcode: "sound_setvolumeto",
+                        inputs: {
+                            VOLUME: this.convertValue(blocks, node.value, spr)
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } break;
+
+
 
                 case "Broadcast": 
                 case "BroadcastWait": {
@@ -1368,7 +1483,6 @@ export class Convertor {
             this.logger.error("Cannot convert empty label!");
             Deno.exit(1);
         }
-        console.log(name, heads.get(0))
         this.labelHeads.set(name, heads.get(0)!);
         for (const [i, _] of nodes.entries()) {
             if (heads.has(i+1)) {
@@ -1418,6 +1532,7 @@ export class Convertor {
                             name,
                             rotationStyle: "all around",
                             size: 100,
+                            tempo: 100,
                             sounds: [],
                             textToSpeechLanguage: null,
                             variables: new Map(),
@@ -1434,7 +1549,8 @@ export class Convertor {
                                 name,
                                 func_args: new Map(),
                                 added_builtins: new Map(),
-                                costume_paths: []
+                                costume_paths: [],
+                                sound_paths: []
                             }
                         )
                     } else {
@@ -1442,7 +1558,8 @@ export class Convertor {
                             name,
                             func_args: new Map(),
                             added_builtins: new Map(),
-                            costume_paths: []
+                            costume_paths: [],
+                            sound_paths: []
                         });
                         this.project.targets.push(<Target> {
                             blocks: new Map,
@@ -1487,7 +1604,7 @@ export class Convertor {
                         this.logger.error(`Couldn't find file ${file}`);
                         Deno.exit(1);
                     }
-                    const m = MD5(new TextDecoder().decode(fr));
+                    const m = MD5(Array.from(fr).map(a => String.fromCharCode(a)).join(""));
                     target.costumes.push({
                         name,
                         dataFormat: fmt,
@@ -1496,6 +1613,47 @@ export class Convertor {
                         rotationCenterX: anchorX,
                         rotationCenterY: anchorY,
                         bitmapResolution: format === "PNG" ? 2 : 1
+                    });
+                } break;
+                case "AddSprSound": {
+                    const { id, format, file, name } = node;
+                    const sprite = this.sprites.get(id);
+                    if (sprite === undefined) {
+                        this.logger.error(`No sound with id: ${id}`);
+                        Deno.exit(1);
+                    }
+                    const target = this.project.targets.find(a => a.name === sprite.name)!;
+                    const fmt = format.toLowerCase();
+                    const targetPath = path.join(this.resourceFolder, file);
+                    const fr = Deno.readFileSync(targetPath);
+                    sprite.sound_paths.push([targetPath, format]);
+                    if (fr === undefined) {
+                        this.logger.error(`Couldn't find file ${file}`);
+                        Deno.exit(1);
+                    }
+                    let rate = 0;
+                    let sampleCount = 0;
+
+                    if (format === "WAV") {
+                        const wdata = (<any>WavDecoder.decode).sync(Buffer.from(fr));
+                        rate = wdata.sampleRate;
+                        sampleCount = (<any>wdata).length;
+                    }
+
+                    // if (rate !== 48000) {
+                    //     const ratio = 48000 / rate;
+                    //     rate = 48000;
+                    //     sampleCount *= ratio;
+                    //     sampleCount = Math.floor(sampleCount);
+                    // }
+                    const m = MD5(Array.from(fr).map(a => String.fromCharCode(a)).join(""));
+                    target.sounds.push({
+                        name,
+                        dataFormat: fmt,
+                        assetId: m,
+                        md5ext: `${m}.${fmt}`,
+                        rate,
+                        sampleCount
                     });
                 } break;
                 case "CreateVar": {
@@ -1552,6 +1710,7 @@ export interface Sprite {
      * Key is builtin value, value is key in blocks */
     added_builtins: Map<BuiltinValue, string>,
     costume_paths: Array<[string, FileFormat]>,
+    sound_paths: Array<[string, FileFormat]>
 }
 
 export interface Function {

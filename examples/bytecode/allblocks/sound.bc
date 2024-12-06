@@ -1,0 +1,11 @@
+stat:
+    createspr stage stage "Stage"
+    addcostume stage main svg "background.svg" 240 180 
+    createspr main "Main"
+    addcostume main music svg "pop.svg" 240 180 
+    addsound main bass wav "bass.wav"
+
+    flag main @L1
+L1:
+    playuntildone %bass
+    play %bass

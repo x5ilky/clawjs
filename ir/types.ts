@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any no-empty-interface
-export type FileFormat = "SVG" | "PNG";
+export type FileFormat = "SVG" | "PNG" | "WAV" | "MP3";
 export type StopType = "All" | "ThisScript" | "OtherScripts";
 export type ListOper = 
     | { key: "Push", value: IlValue }
@@ -19,7 +19,8 @@ export type IlValue =
     | { key: "Argument", funcName: string, index: number }
     | { key: "Builtin", value: BuiltinValue }
     | { key: "Costume", isBackdrop: boolean, name: string }
-    | { key: "ListValue", list:  string, value: ListValue };
+    | { key: "Sound", name: string }
+    | { key: "ListValue", list: string, value: ListValue };
 
 export type ListValue =
     | { key: "Index", index: IlValue }
@@ -31,6 +32,7 @@ export type BuiltinValue =
     | { key: "XPosition" }
     | { key: "YPosition" }
     | { key: "Direction" }
+    | { key: "Volume" }
     // true is number, false is name
     | { key: "Costume", numberOrName: boolean }
     | { key: "Backdrop", numberOrName: boolean }
@@ -107,7 +109,7 @@ export interface Target {
   comments: Comments;
   currentCostume: number;
   costumes: Costume[];
-  sounds: unknown[];
+  sounds: Sound[];
   volume: number;
   layerOrder: number;
   tempo?: number;
@@ -122,6 +124,14 @@ export interface Target {
   draggable?: boolean;
   rotationStyle?: string;
 }
+export interface Sound {
+  name: string,
+  assetId: string,
+  dataFormat: string,
+  rate: number,
+  sampleCount: number,
+  md5ext: string,
+}
 export type Variable = [string, number];
 
 export interface Lists {
@@ -134,7 +144,7 @@ export interface Broadcasts {
 export interface Block {
     opcode: string,
     next?: string | null,
-    parent: string | null,
+    parent?: string | null,
     inputs: any,
     fields: any,
     shadow: boolean,
@@ -198,6 +208,7 @@ export type IlNode =
   | { type: "ListOper"; list: string; oper: ListOper }
   | { type: "CreateSpr"; id: string; name: string; isStage: boolean }
   | { type: "AddSprCostume"; id: string; name: string; format: FileFormat; file: string; anchorX: number; anchorY: number }
+  | { type: "AddSprSound"; id: string; name: string; format: FileFormat; file: string; }
   | { type: "Flag"; target: string; label: string }
   | { type: "Forever"; label: string }
   /* Motion */
@@ -226,6 +237,15 @@ export type IlNode =
   | { type: "Hide" }
   | { type: "GotoLayer"; value: boolean }
   | { type: "GoForwardLayers"; value: IlValue }
+  /* Sounds */
+  | { type: "PlayUntilDone"; sound: IlValue }
+  | { type: "Play", sound: IlValue }
+  | { type: "StopAllSounds"}
+  | { type: "ChangeEffectBy", effect: "PAN" | "PITCH", amount: IlValue }
+  | { type: "SetEffectTo", effect: "PAN" | "PITCH", amount: IlValue }
+  | { type: "ClearEffects" }
+  | { type: "ChangeVolumeBy", value: IlValue }
+  | { type: "SetVolumeTo", value: IlValue }
   /* Definitions */
   | { type: "Def"; label: string; id: string; argAmount: number; args: ScratchArgumentType[]; warp: boolean }
   | { type: "InsertDef"; func: string; sprites: string[] }
