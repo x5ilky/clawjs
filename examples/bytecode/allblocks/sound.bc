@@ -4,9 +4,15 @@ stat:
     createspr main "Main"
     addcostume main music svg "pop.svg" 240 180 
     addsound main bass wav "bass.wav"
-    addsound main bass mp3 "osu.mp3"
+    ; addsound main bass mp3 "osu.mp3"
 
     flag main @L1
 L1:
     playuntildone %bass
     play %bass
+    stopallsounds
+    changeeffect pitch 10
+    seteffect pan 0
+    cleareffects
+    changevolume 10
+    setvolume 100
