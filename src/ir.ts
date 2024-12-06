@@ -19,6 +19,9 @@ export async function irBuild(cmd: skap.SkapInfer<typeof shape>) {
     const irParser = new IrParser(input, logger);
     
     const nodes = irParser.parse();
+    if (subc.debugEmitParsedIr !== undefined) {
+        await Deno.writeTextFile(subc.debugEmitParsedIr, JSON.stringify(nodes));
+    }
     logger.info("Converting");
     const convertor = new Convertor(nodes, subc.resourcesFolder ?? "", logger)
     const project = convertor.create();

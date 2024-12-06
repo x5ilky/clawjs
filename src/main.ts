@@ -11,10 +11,11 @@ export const logger = new Logger({
 const irShape = skap.command({
   subc: skap.subcommand({
     build: skap.command({
-      inputFile: skap.string("-i").description("The input file").required(),
-      outputFile: skap.string("-o").default("./output.sb3").description("Name/path of the emitted sb3 file"),
-      resourcesFolder: skap.string("-R").description("Directory where resources are located"),
-      debugEmitProjectJson: skap.string("-Demitprojectjson")
+      inputFile:            skap.string("-i").description("The input file").required(),
+      outputFile:           skap.string("-o").default("./output.sb3").description("Name/path of the emitted sb3 file"),
+      resourcesFolder:      skap.string("-R").description("Directory where resources are located"),
+      debugEmitProjectJson: skap.string("-Demitprojectjson"),
+      debugEmitParsedIr:    skap.string("-Demitparsedir")
     })
   }).required()
 })
