@@ -13,6 +13,7 @@ export type IlValue =
     | { key: "Float", value: number }
     | { key: "String", value: string }
     | { key: "Variable", name: string }
+    | { key: "Color", hex: string }
     | { key: "UnaryOperation", oper: UnaryOperation, value: IlValue }
     | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }
     | { key: "DropOperation", oper: DropOperation, value: IlValue }
@@ -70,6 +71,21 @@ export type BinaryOperation =
     | "LetterOf"
     | "Contains"
     | "Random";
+export type SensingOperation = 
+    | { type: "TouchingObject", target: IlValue }
+    | { type: "TouchingColor", color: IlValue }
+    | { type: "ColorIsTouchingColor", color1: IlValue, color2: IlValue }
+    | { type: "DistanceTo", target: IlValue }
+    | { type: "KeyPressed", key: string }
+    | { type: "MouseDown" }
+    | { type: "MouseX" }
+    | { type: "MouseY" }
+    | { type: "Loudness" }
+    | { type: "Timer" }
+    | { type: "Of", property: string, object: IlValue }
+    | { type: "Current", thing: string }
+    | { type: "DaysSince2000" }
+    | { type: "Username" }
 
 export type ScratchArgumentType = "Any" | "Boolean";
 
