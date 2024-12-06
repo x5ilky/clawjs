@@ -17,6 +17,7 @@ export type IlValue =
     | { key: "UnaryOperation", oper: UnaryOperation, value: IlValue }
     | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }
     | { key: "DropOperation", oper: DropOperation, value: IlValue }
+    | { key: "SensingOperation", oper: SensingOperation }
     | { key: "Argument", funcName: string, index: number }
     | { key: "Builtin", value: BuiltinValue }
     | { key: "Costume", isBackdrop: boolean, name: string }
