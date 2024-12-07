@@ -1240,6 +1240,39 @@ export class Convertor {
                     })
                 } break;
 
+                // sensing
+
+                case "AskAndWait": {
+                    add({
+                        opcode: "sensing_askandwait",
+                        inputs: {
+                            QUESTION: this.convertValue(blocks, node.prompt, spr)
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false
+                    });
+                } break;
+                case "SetDragMode": {
+                    add({
+                        opcode: "sensing_setdragmode",
+                        inputs: {},
+                        fields: {
+                            DRAG_MODE: [node.mode, null]
+                        },
+                        shadow: false,
+                        topLevel: false
+                    });
+                } break;
+                case "ResetTimer": {
+                    add({
+                        opcode: "sensing_resettimer",
+                        inputs: {},
+                        fields: {},
+                        shadow: false,
+                        topLevel: false
+                    });
+                } break;
 
 
                 case "Broadcast": 

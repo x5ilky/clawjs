@@ -68,7 +68,7 @@ export class IrParser {
     private parseLine(str: string): IlNode {
         const chars = str.split("");
         const instr = this.getIdentifier(chars);
-        switch (instr) {
+        switch (instr.toLowerCase()) {
             case "createvar": return {
                 type: "CreateVar",
                 name: this.getIdentifier(chars)
@@ -417,6 +417,27 @@ export class IrParser {
                 value: this.getValue(chars)
             }
 
+            // Sensing
+
+            case "askandwait": return {
+                type: "AskAndWait",
+                prompt: this.getValue(chars)
+            };
+            case "setdragmode": {
+                const type = this.getIdentifier(chars);
+                if (!(type === "draggable" || type === "undraggable")) {
+                    this.logger.error("SetDragMode takes only either `draggable` or `undraggable`");
+                    Deno.exit(1);
+                }
+                return {
+                    type: "SetDragMode",
+                    mode: 
+                        (type === "draggable" ? "draggable" : "not draggable")
+                }
+            }
+            case "resettimer": return {
+                type: "ResetTimer",
+            }
 
             case "def":
             case "warp": {

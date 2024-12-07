@@ -19,4 +19,7 @@ L1:
     say (sensing dayssince2000)
     say (sensing current "YEAR")
     say (sensing loudness)
-    say (sensing of "backdrop number" "Stage")
+    say (sensing of "backdrop #" "_stage_")
+    askandwait "Hello, world!"
+    resettimer
+    setdragmode undraggable

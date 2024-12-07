@@ -312,4 +312,9 @@ export type IlNode =
   | { type: "WhenClone"; target: string; label: string }
   | { type: "DeleteClone" }
   | { type: "CreateInstanceVar"; varName: string; target: string }
-  | { type: "CloneMyself" };
+  | { type: "CloneMyself" }
+  // sensing
+  | { type: "AskAndWait", prompt: IlValue }
+  | { type: "SetDragMode", mode: string }
+  | { type: "ResetTimer" }
+;
