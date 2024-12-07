@@ -8,9 +8,7 @@ import WavDecoder from "npm:wav-decoder";
 
 import { Buffer } from "node:buffer"
 
-import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, IlValueIsLiteral, Lists, Meta, Project, ScratchArgumentType, SensingOperation, Target, UnaryOperation } from "./types.ts";
-import { validateHeaderValue } from "node:http";
-import { opendir } from "node:fs";
+import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, IlValueIsLiteral, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "./types.ts";
 export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
 export class Convertor {
     variable_map: Map<string, string>;
