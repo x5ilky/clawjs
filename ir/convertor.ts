@@ -8,7 +8,9 @@ import WavDecoder from "npm:wav-decoder";
 
 import { Buffer } from "node:buffer"
 
-import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "./types.ts";
+import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, IlValueIsLiteral, Lists, Meta, Project, ScratchArgumentType, SensingOperation, Target, UnaryOperation } from "./types.ts";
+import { validateHeaderValue } from "node:http";
+import { opendir } from "node:fs";
 export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
 export class Convertor {
     variable_map: Map<string, string>;
@@ -603,6 +605,226 @@ export class Convertor {
                 });
                 return [3, id, null];
             }
+
+            case "Color": return [1, [9, value.hex]]
+            case "Target": return [value.value, null]
+            case "SensingOperation": {
+                const calculation = ++this.blockCounter;
+                const a = (
+                    value: IlValue,
+                    opcodeMain: string,
+                    opcodeMenu: string,
+                    key: string
+                ) => {
+                    const calc2 = ++this.blockCounter;
+                    const f = {} as any;
+                    f[key] = ["_mouse_", null]
+                    blocks.set(calc2.toString(), {
+                        opcode: opcodeMenu,
+                        inputs: {},
+                        fields: f,
+                        shadow: true,
+                        topLevel: true
+                    });
+                    if (value.key === "String") {
+                        const f = {} as any;
+                        f[key] = [value.value, null];
+                        blocks.set(calc2.toString(), {
+                            opcode: opcodeMenu,
+                            inputs: {},
+                            fields: f,                            shadow: true,
+                            topLevel: false,
+                            next: null,
+                            parent: calculation.toString()
+                        });
+                        const f2 = {} as any;
+                        f2[key] = [1, calc2.toString(), ];
+                        blocks.set(calculation.toString(), {
+                            opcode: opcodeMain,
+                            fields: {},
+                            inputs: f2,
+                            shadow: false,
+                            topLevel: false
+                        });
+                    } else if (IlValueIsLiteral(value)) {
+                        this.logger.error("Cannot use literal value in this location, please use a join operator");
+                        this.logger.error("Only literal valid in this position is a string literal");
+                    } else {
+                        const f = {} as any;
+                        f[key] = [3, calc2.toString(), this.convertValue(blocks, value, spr)[1]];
+                        blocks.set(calculation.toString(), {
+                            opcode: opcodeMain,
+                            inputs: {},
+                            fields: f,
+                            shadow: false,
+                            topLevel: false
+                        });
+                    }
+
+                };
+                switch (value.oper.type) {
+                    case "TouchingObject": {
+                        a(value.oper.target, "sensing_touchingobject", "sensing_touchingobjectmenu", "TOUCHINGOBJECTMENU");
+                    } break;
+                    case "TouchingColor": {
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_touchingcolor",
+                            inputs: {
+                                COLOR: this.convertValue(blocks, value.oper.color, spr)
+                            },
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                    } break;
+                    case "ColorIsTouchingColor": {
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_coloristouchingcolor",
+                            inputs: {
+                                COLOR: this.convertValue(blocks, value.oper.color1, spr),
+                                COLOR2: this.convertValue(blocks, value.oper.color2, spr)
+                            },
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        })
+                    } break;
+                    case "DistanceTo": {
+                        a(value.oper.target, "sensing_distanceto", "sensing_distancetomenu", "DISTANCETOMENU");
+                    } break;
+                    case "KeyPressed": {
+                        a(value.oper.key, "sensing_keypressed", "sensing_keyoptions", "KEY_OPTION");
+                    } break;
+                    case "MouseDown": {
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_mousedown",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                    } break;
+                    case "MouseX":
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_mousex",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                        break;
+                    case "MouseY":
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_mousey",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                        break
+                    case "Loudness":
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_loudness",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                        break
+                    case "Timer":
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_timer",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                        break
+                    case "Of": {
+                        const calc2 = ++this.blockCounter;
+                        blocks.set(calc2.toString(), {
+                            opcode: "sensing_of_object_menu",
+                            inputs: {},
+                            fields: {
+                                OBJECT: ["_stage_", null]
+                            },
+                            shadow: true,
+                            topLevel: true
+                        });
+                        if (value.oper.object.key === "String") {
+                            blocks.set(calc2.toString(), {
+                                opcode: "sensing_of_object_menu",
+                                inputs: {},
+                                fields: {
+                                    "OBJECT": [value.oper.object.value, null]
+                                },                            shadow: true,
+                                topLevel: false,
+                                next: null,
+                                parent: calculation.toString()
+                            });
+                            blocks.set(calculation.toString(), {
+                                opcode: "sensing_of",
+                                fields: {
+                                    PROPERTY: [value.oper.property, null]
+                                },
+                                inputs: {
+                                    OBJECT: [1, calc2.toString()]
+                                },
+                                shadow: false,
+                                topLevel: false
+                            });
+                        } else if (IlValueIsLiteral(value)) {
+                            this.logger.error("Cannot use literal value in this location, please use a join operator");
+                            this.logger.error("Only literal valid in this position is a string literal");
+                        } else {
+                            blocks.set(calculation.toString(), {
+                                opcode: "sensing_of",
+                                fields: {
+                                    PROPERTY: [value.oper.property, null]
+                                },
+                                inputs: {
+
+                                    OBJECT: [3, calc2.toString(), this.convertValue(blocks, value, spr)[1]]
+                                },
+                                shadow: false,
+                                topLevel: false
+                            });
+                        }
+
+                    } break
+                    case "Current": {
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_current",
+                            inputs: {},
+                            fields: {
+                                CURRENTMENU: [value.oper.thing.toUpperCase(), null]
+                            },
+                            shadow: false,
+                            topLevel: false
+                        });
+                    } break;
+                    case "DaysSince2000":
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_dayssince2000",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                        break
+                    case "Username":
+                        blocks.set(calculation.toString(), {
+                            opcode: "sensing_username",
+                            inputs: {},
+                            fields: {},
+                            shadow: false,
+                            topLevel: false
+                        });
+                        break
+                }
+                return [3, calculation.toString()]
+            }
+                
         }
     }
 

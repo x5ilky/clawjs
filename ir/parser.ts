@@ -1,5 +1,5 @@
 import { Logger } from "../SkOutput.ts";
-import { StopType } from "./types.ts";
+import { SensingOperation, StopType } from "./types.ts";
 import { ScratchArgumentType } from "./types.ts";
 import { FileFormat } from "./types.ts";
 import { BuiltinValue, IlNode, ListValue } from "./types.ts";
@@ -672,6 +672,10 @@ export class IrParser {
                 index: v[1],
             };
         }
+        if (first === "^") {
+            const v = this.getColor(chars);
+            return v
+        }
         if (first === "!") {
             chars.shift();
             const v = this.getIdentifier(chars);
@@ -928,10 +932,84 @@ export class IrParser {
                 }
                 case "return": {
                     const func = this.getIdentifier(chars);
+                    if (chars.shift() !== ")") {
+                        this.logger.error("Expected ending parentheses");
+                        Deno.exit(1);
+                    }
                     return {
                         key: "Variable",
                         name: `${FORBIDDEN_VARIABLE_NAME_PREFIX}${func}`,
                     };
+                }
+                case "sensing": {
+                    const subOper = this.getIdentifier(chars);
+                    const d: IlValue = {
+                        key: "SensingOperation",
+                        oper: ((): SensingOperation => {
+                            switch (subOper) {
+                                case "touchingobject": return {
+                                    type: "TouchingObject",
+                                    target: this.getTarget(chars)
+                                }
+                                case "touchingcolor": return {
+                                    type: "TouchingColor",
+                                    color: this.getValue(chars)
+                                }
+                                case "coloristouchingcolor": return {
+                                    type: "ColorIsTouchingColor",
+                                    color1: this.getValue(chars),
+                                    color2: this.getValue(chars),
+                                }
+                                case "distanceto": return {
+                                    type: "DistanceTo",
+                                    target: this.getTarget(chars)
+                                }
+                                case "keypressed": return {
+                                    type: "KeyPressed",
+                                    key: this.getValue(chars)
+                                }
+                                case "mousedown": return {
+                                    type: "MouseDown"
+                                }
+                                case "mousex": return {
+                                    type: "MouseX"
+                                }
+                                case "mousey": return {
+                                    type: "MouseY"
+                                }
+                                case "loudness": return {
+                                    type: "Loudness"
+                                }
+                                case "timer": return {
+                                    type: "Timer"
+                                }
+                                case "of": return {
+                                    type: "Of",
+                                    property: this.getString(chars),
+                                    object: this.getValue(chars)
+                                }
+                                case "current": return {
+                                    type: "Current",
+                                    thing: this.getString(chars)
+                                }
+                                case "dayssince2000": return {
+                                    type: "DaysSince2000"
+                                }
+                                case "username": return {
+                                    type: "Username"
+                                }
+                                default:
+                                    this.logger.error("unknown sensing instruction");
+                                    Deno.exit(1);
+                            }
+                        })()
+
+                    };
+                    if (chars.shift() !== ")") {
+                        this.logger.error("Expected ending parentheses");
+                        Deno.exit(1);
+                    }
+                    return d;
                 }
                 default:
                     this.error(`Unknown operation: \`${keyword}\``);
@@ -941,6 +1019,19 @@ export class IrParser {
 
         this.error(`Found ${first} when expected value`);
         Deno.exit(1);
+    }
+
+    private getTarget(chars: string[]): IlValue {
+        this.trimStart(chars);
+        const t = this.getIdentifier(structuredClone(chars));
+        if (t === "_mouse_" || t === "_random_") {
+            return {
+                key: "Target",
+                value: this.getIdentifier(chars) as "_mouse_"
+            }
+        }
+
+        return this.getValue(chars);
     }
 
     private getNumber(chars: string[]): number {
@@ -1098,6 +1189,23 @@ export class IrParser {
             }
         }
         return s;
+    }
+
+    private getColor(chars: string[]): IlValue {
+        this.trimStart(chars);
+        if (chars.shift() !== "^") {
+            this.logger.error(`Expected color to start with ^`);
+            Deno.exit(1);
+        }
+        const hex = chars.splice(0, 6);
+        if (hex.length !== 6) {
+            this.logger.error(`Not enough hex digits in color`);
+            Deno.exit(1);
+        }
+        return {
+            key: "Color",
+            hex: "#" + hex.join("")
+        };
     }
 
     private error(message: string) {

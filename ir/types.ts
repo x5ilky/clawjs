@@ -14,6 +14,7 @@ export type IlValue =
     | { key: "String", value: string }
     | { key: "Variable", name: string }
     | { key: "Color", hex: string }
+    | { key: "Target", value: "_mouse_" | "_random_" | "_edge_" }
     | { key: "UnaryOperation", oper: UnaryOperation, value: IlValue }
     | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }
     | { key: "DropOperation", oper: DropOperation, value: IlValue }
@@ -23,6 +24,27 @@ export type IlValue =
     | { key: "Costume", isBackdrop: boolean, name: string }
     | { key: "Sound", name: string }
     | { key: "ListValue", list: string, value: ListValue };
+export function IlValueIsLiteral(v: IlValue): boolean {
+    switch (v.key){
+        case "Integer":
+        case "Float":
+        case "String":
+        case "Variable":
+        case "Sound":
+        case "Color":
+        case "Costume":
+            return true
+        case "Target":
+        case "UnaryOperation":
+        case "BinaryOperation":
+        case "DropOperation":
+        case "SensingOperation":
+        case "Argument":
+        case "Builtin":
+        case "ListValue":
+            return false
+    }
+}
 
 export type ListValue =
     | { key: "Index", index: IlValue }
@@ -77,7 +99,7 @@ export type SensingOperation =
     | { type: "TouchingColor", color: IlValue }
     | { type: "ColorIsTouchingColor", color1: IlValue, color2: IlValue }
     | { type: "DistanceTo", target: IlValue }
-    | { type: "KeyPressed", key: string }
+    | { type: "KeyPressed", key: IlValue }
     | { type: "MouseDown" }
     | { type: "MouseX" }
     | { type: "MouseY" }
