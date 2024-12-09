@@ -41,7 +41,6 @@ async function main() {
   if (cmd.subc.selected === "ir") {
     await ir(cmd)
   }
-
 }
 
 if (import.meta.main) main();

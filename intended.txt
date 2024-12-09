@@ -1,0 +1,43 @@
+gold := var<int>(0)
+
+player := sprite::new("Player")
+c_pop := player:add_costume(cpath!"./pop.svg")
+
+player:forever!{
+    if! gold > 8 {
+        say(gold)
+    }
+}
+player:clicked!{
+    gold += 1
+}
+
+// ----
+
+1 + 20
+
+trait Add<$Right, $Output> {
+    fn add(this: &Self, right: Right): Output;
+}
+impl Add<number, number> for number {
+    fn add(this: &number, right: number): number {
+        return $.add(this, right)
+    }
+}
+struct sprite {
+    name: string
+    costumes: array<costume>
+}
+impl sprite {
+    fn new(name: string) {
+        return sprite::{
+            name: name,
+            costumes: []
+        }
+    }
+
+    fn add_costume(this: &sprite, costume: Costume) -> Costume {
+        this.costumes.push(costume)
+        return costume
+    }
+}
