@@ -119,8 +119,8 @@ export class Convertor {
                 }
                 const label = this.functions.get(func)!.label;
                 for (const sprite of sprites) {
-                    const defId = (++this.blockCounter).toString();
-                    const prototypeId = (++this.blockCounter).toString();
+                    const defId = this.reserveBC();
+                    const prototypeId = this.reserveBC();
                     const def = <Block>{
                         opcode: "procedures_definition",
                         inputs: {
@@ -162,7 +162,7 @@ export class Convertor {
                         const spr = 
                             this.project.targets.find(v => v.name === spr_name.name)!;
                         for (const [i, arg] of fnData.args.entries()) {
-                            const d = (++this.blockCounter).toString();
+                            const d = this.reserveBC();
                             const p = `${func}:${i + 1}`;
                             spr_name.func_args.set(p, d);
                             this.functionArgsMaps.set(p, d);
@@ -237,7 +237,7 @@ export class Convertor {
                 for (const [k, v] of lb) {
                     sprite.blocks.set(k, v);
                 }
-                sprite.blocks.set((++this.blockCounter).toString(), value());
+                sprite.blocks.set(this.reserveBC(), value());
             }
             if (node.type === "Flag" || node.type === "Clicked") {
                 const {label} = node;
@@ -301,7 +301,7 @@ export class Convertor {
     }
 
     private convertValue(
-        blocks: Map<string, Block>,
+        blocks: Blocks,
         value: IlValue,
         spr: string
     ): any {
@@ -317,7 +317,7 @@ export class Convertor {
             case "Sound": {
                 const { name } = value;
                 
-                const calculation = ++this.blockCounter;
+                const calculation = this.reserveBC();
 
                 blocks.set(calculation.toString(), {
                     opcode: "sound_sounds_menu",
@@ -334,7 +334,7 @@ export class Convertor {
             }
             case "BinaryOperation": {
                 const {oper, left, right} = value;
-                const calculation = ++this.blockCounter;
+                const calculation = this.reserveBC();
                 const lft = this.convertValue(blocks, left, spr);
                 const rght = this.convertValue(blocks, right, spr);
                 const inputs = ((oper: BinaryOperation) => {
@@ -403,7 +403,7 @@ export class Convertor {
             }
             case "UnaryOperation": {
                 const { oper, value: v } = value;
-                const calculation = ++this.blockCounter;
+                const calculation = this.reserveBC();
 
                 const val = this.convertValue(blocks, v, spr);
                 const inputs = ((oper: UnaryOperation) => {
@@ -430,7 +430,7 @@ export class Convertor {
             }
             case "DropOperation": {
                 const { oper, value:v } = value;
-                const calculation = (++this.blockCounter);
+                const calculation = (this.reserveBC());
                 const val = this.convertValue(blocks, v, spr);
                 const inputs = {
                     "NUM": val
@@ -500,7 +500,7 @@ export class Convertor {
                 if (sprite?.added_builtins.has(builtinType)) {
                     return [3, sprite.added_builtins.get(builtinType), null];
                 } else {
-                    const id = ++this.blockCounter;
+                    const id = this.reserveBC();
                     blocks.set(
                         id.toString(),
                         <Block> {
@@ -528,7 +528,7 @@ export class Convertor {
             };
             case "Costume": {
                 const {isBackdrop, name} = value;
-                const id = ++this.blockCounter;
+                const id = this.reserveBC();
                 if (isBackdrop) {
                     blocks.set(
                         id.toString(),
@@ -570,7 +570,7 @@ export class Convertor {
                 if (listMap === undefined) {
                     this.logger.error(`No list called: ${list}`);
                 }
-                const id = ++this.blockCounter;
+                const id = this.reserveBC();
                 blocks.set(id.toString(), <Block> {
                     opcode: (() => {
                         switch (v.key) {
@@ -607,14 +607,14 @@ export class Convertor {
             case "Color": return [1, [9, value.hex]]
             case "Target": return [value.value, null]
             case "SensingOperation": {
-                const calculation = ++this.blockCounter;
+                const calculation = this.reserveBC();
                 const a = (
                     value: IlValue,
                     opcodeMain: string,
                     opcodeMenu: string,
                     key: string
                 ) => {
-                    const calc2 = ++this.blockCounter;
+                    const calc2 = this.reserveBC();
                     const f = {} as any;
                     f[key] = ["_mouse_", null]
                     blocks.set(calc2.toString(), {
@@ -739,7 +739,7 @@ export class Convertor {
                         });
                         break
                     case "Of": {
-                        const calc2 = ++this.blockCounter;
+                        const calc2 = this.reserveBC();
                         blocks.set(calc2.toString(), {
                             opcode: "sensing_of_object_menu",
                             inputs: {},
@@ -831,894 +831,11 @@ export class Convertor {
         name: string,
         spr: string,
     ): [Map<string, Block>, Map<number, string>] {
-        const blocks = new Map<string, Block>();
+        const blocks = new Blocks();
         const heads = new Map<number, string>();
 
-        const add = (value: Block) => {
-            blocks.set((++this.blockCounter).toString(), value);
-        }
         for (const [i, node] of nodes.entries()) {
-            switch (node.type) {
-                case "Move": {
-                    add({
-                        opcode: "motion_movesteps",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            STEPS: this.convertValue(blocks, node.steps, spr)
-                        },
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-                case "TurnLeft":
-                case "TurnRight": {
-                    const { degrees } = node;
-                    const value = this.convertValue(blocks, degrees, spr);
-                    add(<Block> {
-                        opcode: node.type === "TurnLeft" ? "motion_turnleft" : "motion_turnright",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            DEGREES: value
-                        },
-                        shadow: false,
-                        topLevel: false,
-                    });
-                } break;
-                case "PointDirection": {
-                    add({
-                        opcode: "motion_pointindirection",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            DIRECTION: this.convertValue(blocks, node.value, spr)
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "GotoXY": {
-                    add({
-                        opcode: "motion_gotoxy",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            X: this.convertValue(blocks, node.x, spr),
-                            Y: this.convertValue(blocks, node.y, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "GlideToXY": {
-                    add({
-                        opcode: "motion_glidesecstoxy",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            X: this.convertValue(blocks, node.x, spr),
-                            Y: this.convertValue(blocks, node.y, spr),
-                            SECS: this.convertValue(blocks, node.secs, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "SetX": {
-                    add({
-                        opcode: "motion_setx",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            X: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "SetY": {
-                    add({
-                        opcode: "motion_sety",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            Y: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "ChangeX": {
-                    add({
-                        opcode: "motion_changexby",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            DX: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "ChangeY": {
-                    add({
-                        opcode: "motion_changeyby",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            DY: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                
-                case "Say": {
-                    add({
-                        opcode: "looks_say",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            MESSAGE: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "SayFor": {
-                    add({
-                        opcode: "looks_sayforsecs",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            MESSAGE: this.convertValue(blocks, node.value, spr),
-                            SECS: this.convertValue(blocks, node.secs, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "Think": {
-                    add({
-                        opcode: "looks_think",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            MESSAGE: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "ThinkFor": {
-                    add({
-                        opcode: "looks_thinkforsecs",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            MESSAGE: this.convertValue(blocks, node.value, spr),
-                            SECS: this.convertValue(blocks, node.secs, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "SwitchCostume": {
-                    add({
-                        opcode: "looks_switchcostumeto",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            COSTUME: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "NextCostume": {
-                    add({
-                        opcode: "looks_nextcostume",
-                        parent: null,
-                        fields: {},
-                        inputs: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "SwitchBackdrop": {
-                    add({
-                        opcode: "looks_switchbackdropto",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            BACKDROP: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "NextBackdrop": {
-                    add({
-                        opcode: "looks_nextbackdrop",
-                        parent: null,
-                        fields: {},
-                        inputs: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "ChangeSize": {
-                    add({
-                        opcode: "looks_changesizeby",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            CHANGE: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "SetSize": {
-                    add({
-                        opcode: "looks_setsizeto",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            SIZE: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "Show": {
-                    add({
-                        opcode: "looks_show",
-                        parent: null,
-                        fields: {},
-                        inputs: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "Hide": {
-                    add({
-                        opcode: "looks_hide",
-                        parent: null,
-                        fields: {},
-                        inputs: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "GotoLayer": {
-                    add({
-                        opcode: "looks_gotofrontback",
-                        parent: null,
-                        inputs: {},
-                        fields: {
-                            FRONT_BACK: [node.value ? "front" : "back", null],
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "GoForwardLayers": {
-                    add({
-                        opcode: "looks_goforwardbackwardlayers",
-                        parent: null,
-                        fields: {
-                            "FORWARD_BACKWARD": [
-                                "forward",
-                                null
-                            ]
-                        },
-                        inputs: {
-                            NUM: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                // sounds
-                case "PlayUntilDone": {
-                    add({
-                        opcode: "sound_playuntildone",
-                        inputs: {
-                            SOUND_MENU: this.convertValue(blocks, node.sound, spr)
-                        },
-                        fields: {},
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-                case "Play": {
-                    add({
-                        opcode: "sound_play",
-                        inputs: {
-                            SOUND_MENU: this.convertValue(blocks, node.sound, spr)
-                        },
-                        fields: {},
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-                case "StopAllSounds": {
-                    add({
-                        opcode: "sound_stopallsounds",
-                        inputs: {},
-                        fields: {},
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-                case "ChangeEffectBy": {
-                    add({
-                        opcode: "sound_changeeffectby",
-                        inputs: {
-                            VALUE: this.convertValue(blocks, node.amount, spr)
-                        },
-                        fields: {
-                            EFFECT: [node.effect, null]
-                        },
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-                case "SetEffectTo": {
-                    add({
-                        opcode: "sound_seteffectto",
-                        inputs: {
-                            VALUE: this.convertValue(blocks, node.amount, spr)
-                        },
-                        fields: {
-                            EFFECT: [node.effect, null]
-                        },
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-
-                case "ClearEffects": {
-                    add({
-                        opcode: "sound_cleareffects",
-                        inputs: {},
-                        fields: {},
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-
-                case "ChangeVolumeBy": {
-                    add({
-                        opcode: "sound_changevolumeby",
-                        inputs: {
-                            VOLUME: this.convertValue(blocks, node.value, spr)
-                        },
-                        fields: {},
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-
-                case "SetVolumeTo": {
-                    add({
-                        opcode: "sound_setvolumeto",
-                        inputs: {
-                            VOLUME: this.convertValue(blocks, node.value, spr)
-                        },
-                        fields: {},
-                        shadow: false,
-                        topLevel: false,
-                    })
-                } break;
-
-                // sensing
-
-                case "AskAndWait": {
-                    add({
-                        opcode: "sensing_askandwait",
-                        inputs: {
-                            QUESTION: this.convertValue(blocks, node.prompt, spr)
-                        },
-                        fields: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "SetDragMode": {
-                    add({
-                        opcode: "sensing_setdragmode",
-                        inputs: {},
-                        fields: {
-                            DRAG_MODE: [node.mode, null]
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "ResetTimer": {
-                    add({
-                        opcode: "sensing_resettimer",
-                        inputs: {},
-                        fields: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "Broadcast": 
-                case "BroadcastWait": {
-                    let jsonValue = this.convertValue(blocks, node.value, spr);
-                    if (node.value.key === "String") {
-                        jsonValue = [
-                            1,
-                            [
-                                11,
-                                node.value.value,
-                                MD5(node.value.value)
-                            ]
-                        ]
-                    }
-                    add({
-                        opcode: node.type === "Broadcast" ? "event_broadcast" : "event_broadcastandwait",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            BROADCAST_INPUT: jsonValue
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                
-                case "Wait": {
-                    add({
-                        opcode: "control_wait",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            DURATION: this.convertValue(blocks, node.time, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "WaitUntil": {
-                    add({
-                        opcode: "control_wait_until",
-                        parent: null,
-                        fields: {},
-                        inputs: {
-                            CONDITION: this.convertValue(blocks, node.predicate, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-
-                case "If": {
-                    const v = this.convertValue(blocks, node.predicate, spr);
-                    const loc = (++this.blockCounter).toString();
-                    heads.set(i, loc);
-                    const labelNode = this.labels.find(
-                        v => v.type === "Label" && v.value[0] === node.label
-                    );
-                    const hds = (() => {
-                        if (labelNode?.type !== "Label") throw "unreachable";
-                        const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
-                        for (const [k, node] of nodes) {
-                            blocks.set(k, node);
-                        }
-                        return heads;
-                    })();
-
-                    blocks.set(loc, <Block> {
-                        opcode: "control_if",
-                        fields: {},
-                        inputs: {
-                            CONDITION: v,
-                            SUBSTACK: [2, hds.get(0)!]
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "IfElse": {
-                    const v = this.convertValue(blocks, node.predicate, spr);
-                    const loc = (++this.blockCounter).toString();
-                    heads.set(i, loc);
-                    const labelNode = this.labels.find(
-                        v => v.type === "Label" && v.value[0] === node.label
-                    );
-                    const hds = (() => {
-                        if (labelNode?.type !== "Label") throw "unreachable";
-                        const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
-                        for (const [k, node] of nodes) {
-                            blocks.set(k, node);
-                        }
-                        return heads;
-                    })();
-                    const labelNode2 = this.labels.find(
-                        v => v.type === "Label" && v.value[0] === node.label2
-                    );
-                    const hds2 = (() => {
-                        if (labelNode2?.type !== "Label") throw "unreachable";
-                        const [nodes, heads] = this.convertLabel(labelNode2.value[1], labelNode2.value[0], spr);
-                        for (const [k, node] of nodes) {
-                            blocks.set(k, node);
-                        }
-                        return heads;
-                    })();
-
-                    blocks.set(loc, <Block> {
-                        opcode: "control_if_else",
-                        fields: {},
-                        inputs: {
-                            CONDITION: v,
-                            SUBSTACK: [2, hds.get(0)!],
-                            SUBSTACK2: [2, hds2.get(0)!]
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "Repeat": {
-                    const v = this.convertValue(blocks, node.amount, spr);
-                    const loc = (++this.blockCounter).toString();
-                    heads.set(i, loc);
-                    const labelNode = this.labels.find(
-                        v => v.type === "Label" && v.value[0] === node.label
-                    );
-                    const hds = (() => {
-                        if (labelNode?.type !== "Label") throw "unreachable";
-                        const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
-                        for (const [k, node] of nodes) {
-                            blocks.set(k, node);
-                        }
-                        return heads;
-                    })();
-
-                    blocks.set(loc, <Block> {
-                        opcode: "control_repeat",
-                        fields: {},
-                        inputs: {
-                            TIMES: v,
-                            SUBSTACK: [2, hds.get(0)!]
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "RepeatUntil": {
-                    const v = this.convertValue(blocks, node.predicate, spr);
-                    const loc = (++this.blockCounter).toString();
-                    heads.set(i, loc);
-                    const labelNode = this.labels.find(
-                        v => v.type === "Label" && v.value[0] === node.label
-                    );
-                    const hds = (() => {
-                        if (labelNode?.type !== "Label") throw "unreachable";
-                        const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
-                        for (const [k, node] of nodes) {
-                            blocks.set(k, node);
-                        }
-                        return heads;
-                    })();
-
-                    blocks.set(loc, <Block> {
-                        opcode: "control_repeat_until",
-                        fields: {},
-                        inputs: {
-                            CONDITION: v,
-                            SUBSTACK: [2, hds.get(0)!]
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "Forever": {
-                    const loc = (++this.blockCounter).toString();
-                    heads.set(i, loc);
-                    const labelNode = this.labels.find(
-                        v => v.type === "Label" && v.value[0] === node.label
-                    );
-                    const hds = (() => {
-                        if (labelNode?.type !== "Label") throw "unreachable";
-                        const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
-                        for (const [k, node] of nodes) {
-                            blocks.set(k, node);
-                        }
-                        return heads;
-                    })();
-                    const head = hds.get(0)!.toString();
-
-                    blocks.set(loc, <Block> {
-                        opcode: "control_forever",
-                        fields: {},
-                        inputs: {
-                            SUBSTACK: [2, head]
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                    blocks.get(head)!.parent = loc;
-                } break;
-
-
-                case "Stop": {
-                    add({
-                        opcode: "control_stop",
-                        parent: null,
-                        fields: {
-                            STOP_OPTION: [
-                                (() => {
-                                    switch(node.stopType) {
-                                        case "All": return "all";
-                                        case "ThisScript": return "this script"
-                                        case "OtherScripts": return "other scripts in sprite";
-                                    }
-                                })(),
-                                null
-                            ]
-                        },
-                        inputs: {},
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "Clone": {
-                    const { target } = node;
-                    if (!this.sprites.has(target)) {
-                        this.logger.error("no sprite called " + target);
-                        Deno.exit(1);
-                    }
-                    const id = (++this.blockCounter).toString();
-                    const menu = (++this.blockCounter).toString();
-                    blocks.set(menu, {
-                        opcode: "control_create_clone_of_menu",
-                        inputs: {},
-                        fields: {
-                            CLONE_OPTION: [
-                                this.sprites.get(target)!.name,
-                                null
-                            ]
-                        },
-                        topLevel: false,
-                        shadow: false,
-                        parent: null
-                    });
-                    blocks.set(
-                        id,
-                        {
-                            opcode: "control_create_clone_of",
-                            inputs: {
-                                CLONE_OPTION: [
-                                    1,
-                                    menu,
-                                ],
-                            },
-                            fields: {},
-                            shadow: false,
-                            topLevel: false,
-                            parent: null
-                        }
-                    );
-                    heads.set(i, id);
-                } break;
-                case "CloneMyself": {
-                    const id = (++this.blockCounter).toString();
-                    const menu = (++this.blockCounter).toString();
-                    blocks.set(menu, {
-                        opcode: "control_create_clone_of_menu",
-                        inputs: {},
-                        fields: {
-                            CLONE_OPTION: [
-                                "_myself_",
-                                null
-                            ]
-                        },
-                        topLevel: false,
-                        shadow: false,
-                        parent: null
-                    });
-                    blocks.set(
-                        id,
-                        {
-                            opcode: "control_create_clone_of",
-                            inputs: {
-                                CLONE_OPTION: [
-                                    1,
-                                    menu,
-                                ],
-                            },
-                            fields: {},
-                            shadow: false,
-                            topLevel: false,
-                            parent: null
-                        }
-                    );
-                    heads.set(i, id);
-                } break;
-
-                case "ListOper": {
-                    const { list, oper } = node;
-                    const listMap = this.list_map.get(list);
-                    if (listMap === undefined) {
-                        this.logger.error(`List ${list} doesn't exist!`);
-                        Deno.exit(1);
-                    };
-                    add({
-                        opcode: (() => {
-                            switch (oper.key) {
-                                case "Push": return "data_addtolist";
-                                case "RemoveIndex": return "data_deleteoflist"
-                                case "Insert": return "data_insertatlist"
-                                case "Clear": return "data_deletealloflist"
-                                case "Replace": return "data_replaceitemoflist"
-                            }
-                        })(),
-                        parent: null,
-                        fields: {
-                            LIST: [
-                                list,
-                                listMap
-                            ]
-                        },
-                        inputs: (() => {
-                            switch (oper.key) {
-                                case "Push": return {
-                                    ITEM: this.convertValue(blocks, oper.value, spr)
-                                }
-                                case "RemoveIndex": return {
-                                    INDEX: this.convertValue(blocks, oper.index, spr)
-                                }
-                                case "Insert": return {
-                                    ITEM: this.convertValue(blocks, oper.value, spr),
-                                    INDEX: this.convertValue(blocks, oper.index, spr)
-                                }
-                                case "Clear": return {}
-                                case "Replace": return {
-                                    ITEM: this.convertValue(blocks, oper.value, spr),
-                                    INDEX: this.convertValue(blocks, oper.index, spr)
-                                }
-                            }
-                        })(),
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "Set": {
-                    const {target, value: v } = node;
-                    add({
-                        opcode: "data_setvariableto",
-                        parent: null,
-                        fields: {
-                            VARIABLE: [
-                                target,
-                                this.variable_map.get(target)!
-                            ]
-                        },
-                        inputs: {
-                            VALUE: this.convertValue(blocks, v, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-
-                case "Change": {
-                    add({
-                        opcode: "data_changevariableby",
-                        parent: null,
-                        fields: {
-                            VARIABLE: [
-                                node.target,
-                                this.variable_map.get(node.target)!
-                            ]
-                        },
-                        inputs: {
-                            VALUE: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-                } break;
-                case "Return": {
-                    add({
-                        opcode: "data_setvariableto",
-                        parent: null,
-                        fields: {
-                            VARIABLE: [
-                                `${FORBIDDEN_VARIABLE_NAME_PREFIX}${node.func}`,
-                                `${FORBIDDEN_VARIABLE_NAME_PREFIX}${node.func}`
-                            ]
-                        },
-                        inputs: {
-                            VALUE: this.convertValue(blocks, node.value, spr),
-                        },
-                        shadow: false,
-                        topLevel: false
-                    });
-
-                } break;
-                case "Run": {
-                    const { id, argAmount, args } = node;
-                    const func = this.functions.get(id);
-                    if (func === undefined) {
-                        this.logger.error(`No function named: ${id}`);
-                        Deno.exit(1);
-                    }
-                    if (func.args.length !== argAmount) {
-                        this.logger.error("Mismatching argument count");
-                        this.logger.error(`Expected ${argAmount} arguments, got ${func.args.length}`);
-                        Deno.exit(1);
-                    }
-                    const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i+1}`)).toArray());
-                    const inputs = new Map();
-                    let proccode = id;
-                    for (const [i, arg] of args.entries()) {
-                        if (func.args[i] === "Any") {
-                            proccode += " %s"
-                        } else proccode += " %b";
-                        inputs.set(
-                            MD5(`${id}:${i + 1}`),
-                            this.convertValue(blocks, arg, spr)
-                        );
-                    }
-                    blocks.set(
-                        (++this.blockCounter).toString(),
-                        {
-                            opcode: "procedures_call",
-                            inputs,
-                            fields: {},
-                            shadow: false,
-                            topLevel: false,
-                            mutation: {
-                                tagName: "mutation",
-                                children: [],
-                                proccode,
-                                argumentids: argumentIds,
-                                warp: func.warp
-                            },
-                            parent: null
-                        }
-                    )
-                }
-            }
+            this.convertInstruction(blocks, heads, i, node, spr);
             if (
                 node.type === "If" ||
                 node.type === "IfElse" ||
@@ -1748,9 +865,900 @@ export class Convertor {
         };
 
         this.labelConversions.set(
-            name, blocks
+            name, blocks.extract()
         )
-        return [blocks, heads];
+        return [blocks.extract(), heads];
+    }
+
+    private reserveBC(): string {
+        return (++this.blockCounter).toString();
+    }
+
+    private convertInstruction(blocks: Blocks, heads: Map<number, string>, i: number, node: IlNode, spr: string) {
+        const add = (value: Block) => {
+            blocks.set(this.reserveBC(), value);
+        }
+        switch (node.type) {
+            case "Move": {
+                add({
+                    opcode: "motion_movesteps",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        STEPS: this.convertValue(blocks, node.steps, spr)
+                    },
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "TurnLeft":
+            case "TurnRight": {
+                const { degrees } = node;
+                const value = this.convertValue(blocks, degrees, spr);
+                add(<Block> {
+                    opcode: node.type === "TurnLeft" ? "motion_turnleft" : "motion_turnright",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        DEGREES: value
+                    },
+                    shadow: false,
+                    topLevel: false,
+                });
+            } break;
+            case "PointDirection": {
+                add({
+                    opcode: "motion_pointindirection",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        DIRECTION: this.convertValue(blocks, node.value, spr)
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "GotoXY": {
+                add({
+                    opcode: "motion_gotoxy",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        X: this.convertValue(blocks, node.x, spr),
+                        Y: this.convertValue(blocks, node.y, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "GlideToXY": {
+                add({
+                    opcode: "motion_glidesecstoxy",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        X: this.convertValue(blocks, node.x, spr),
+                        Y: this.convertValue(blocks, node.y, spr),
+                        SECS: this.convertValue(blocks, node.secs, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "SetX": {
+                add({
+                    opcode: "motion_setx",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        X: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "SetY": {
+                add({
+                    opcode: "motion_sety",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        Y: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "ChangeX": {
+                add({
+                    opcode: "motion_changexby",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        DX: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "ChangeY": {
+                add({
+                    opcode: "motion_changeyby",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        DY: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            
+            case "Say": {
+                add({
+                    opcode: "looks_say",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        MESSAGE: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "SayFor": {
+                add({
+                    opcode: "looks_sayforsecs",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        MESSAGE: this.convertValue(blocks, node.value, spr),
+                        SECS: this.convertValue(blocks, node.secs, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "Think": {
+                add({
+                    opcode: "looks_think",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        MESSAGE: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "ThinkFor": {
+                add({
+                    opcode: "looks_thinkforsecs",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        MESSAGE: this.convertValue(blocks, node.value, spr),
+                        SECS: this.convertValue(blocks, node.secs, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "SwitchCostume": {
+                add({
+                    opcode: "looks_switchcostumeto",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        COSTUME: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "NextCostume": {
+                add({
+                    opcode: "looks_nextcostume",
+                    parent: null,
+                    fields: {},
+                    inputs: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "SwitchBackdrop": {
+                add({
+                    opcode: "looks_switchbackdropto",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        BACKDROP: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "NextBackdrop": {
+                add({
+                    opcode: "looks_nextbackdrop",
+                    parent: null,
+                    fields: {},
+                    inputs: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "ChangeSize": {
+                add({
+                    opcode: "looks_changesizeby",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        CHANGE: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "SetSize": {
+                add({
+                    opcode: "looks_setsizeto",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        SIZE: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "Show": {
+                add({
+                    opcode: "looks_show",
+                    parent: null,
+                    fields: {},
+                    inputs: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "Hide": {
+                add({
+                    opcode: "looks_hide",
+                    parent: null,
+                    fields: {},
+                    inputs: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "GotoLayer": {
+                add({
+                    opcode: "looks_gotofrontback",
+                    parent: null,
+                    inputs: {},
+                    fields: {
+                        FRONT_BACK: [node.value ? "front" : "back", null],
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "GoForwardLayers": {
+                add({
+                    opcode: "looks_goforwardbackwardlayers",
+                    parent: null,
+                    fields: {
+                        "FORWARD_BACKWARD": [
+                            "forward",
+                            null
+                        ]
+                    },
+                    inputs: {
+                        NUM: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            // sounds
+            case "PlayUntilDone": {
+                add({
+                    opcode: "sound_playuntildone",
+                    inputs: {
+                        SOUND_MENU: this.convertValue(blocks, node.sound, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "Play": {
+                add({
+                    opcode: "sound_play",
+                    inputs: {
+                        SOUND_MENU: this.convertValue(blocks, node.sound, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "StopAllSounds": {
+                add({
+                    opcode: "sound_stopallsounds",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "ChangeEffectBy": {
+                add({
+                    opcode: "sound_changeeffectby",
+                    inputs: {
+                        VALUE: this.convertValue(blocks, node.amount, spr)
+                    },
+                    fields: {
+                        EFFECT: [node.effect, null]
+                    },
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "SetEffectTo": {
+                add({
+                    opcode: "sound_seteffectto",
+                    inputs: {
+                        VALUE: this.convertValue(blocks, node.amount, spr)
+                    },
+                    fields: {
+                        EFFECT: [node.effect, null]
+                    },
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+
+            case "ClearEffects": {
+                add({
+                    opcode: "sound_cleareffects",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+
+            case "ChangeVolumeBy": {
+                add({
+                    opcode: "sound_changevolumeby",
+                    inputs: {
+                        VOLUME: this.convertValue(blocks, node.value, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+
+            case "SetVolumeTo": {
+                add({
+                    opcode: "sound_setvolumeto",
+                    inputs: {
+                        VOLUME: this.convertValue(blocks, node.value, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+
+            // sensing
+
+            case "AskAndWait": {
+                add({
+                    opcode: "sensing_askandwait",
+                    inputs: {
+                        QUESTION: this.convertValue(blocks, node.prompt, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "SetDragMode": {
+                add({
+                    opcode: "sensing_setdragmode",
+                    inputs: {},
+                    fields: {
+                        DRAG_MODE: [node.mode, null]
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "ResetTimer": {
+                add({
+                    opcode: "sensing_resettimer",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "Broadcast": 
+            case "BroadcastWait": {
+                let jsonValue = this.convertValue(blocks, node.value, spr);
+                if (node.value.key === "String") {
+                    jsonValue = [
+                        1,
+                        [
+                            11,
+                            node.value.value,
+                            MD5(node.value.value)
+                        ]
+                    ]
+                }
+                add({
+                    opcode: node.type === "Broadcast" ? "event_broadcast" : "event_broadcastandwait",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        BROADCAST_INPUT: jsonValue
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            
+            case "Wait": {
+                add({
+                    opcode: "control_wait",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        DURATION: this.convertValue(blocks, node.time, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "WaitUntil": {
+                add({
+                    opcode: "control_wait_until",
+                    parent: null,
+                    fields: {},
+                    inputs: {
+                        CONDITION: this.convertValue(blocks, node.predicate, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+
+            case "If": {
+                const v = this.convertValue(blocks, node.predicate, spr);
+                const loc = this.reserveBC();
+                heads.set(i, loc);
+                const labelNode = this.labels.find(
+                    v => v.type === "Label" && v.value[0] === node.label
+                );
+                const hds = (() => {
+                    if (labelNode?.type !== "Label") throw "unreachable";
+                    const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
+                    for (const [k, node] of nodes) {
+                        blocks.set(k, node);
+                    }
+                    return heads;
+                })();
+
+                blocks.set(loc, <Block> {
+                    opcode: "control_if",
+                    fields: {},
+                    inputs: {
+                        CONDITION: v,
+                        SUBSTACK: [2, hds.get(0)!]
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "IfElse": {
+                const v = this.convertValue(blocks, node.predicate, spr);
+                const loc = this.reserveBC();
+                heads.set(i, loc);
+                const labelNode = this.labels.find(
+                    v => v.type === "Label" && v.value[0] === node.label
+                );
+                const hds = (() => {
+                    if (labelNode?.type !== "Label") throw "unreachable";
+                    const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
+                    for (const [k, node] of nodes) {
+                        blocks.set(k, node);
+                    }
+                    return heads;
+                })();
+                const labelNode2 = this.labels.find(
+                    v => v.type === "Label" && v.value[0] === node.label2
+                );
+                const hds2 = (() => {
+                    if (labelNode2?.type !== "Label") throw "unreachable";
+                    const [nodes, heads] = this.convertLabel(labelNode2.value[1], labelNode2.value[0], spr);
+                    for (const [k, node] of nodes) {
+                        blocks.set(k, node);
+                    }
+                    return heads;
+                })();
+
+                blocks.set(loc, <Block> {
+                    opcode: "control_if_else",
+                    fields: {},
+                    inputs: {
+                        CONDITION: v,
+                        SUBSTACK: [2, hds.get(0)!],
+                        SUBSTACK2: [2, hds2.get(0)!]
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "Repeat": {
+                const v = this.convertValue(blocks, node.amount, spr);
+                const loc = this.reserveBC();
+                heads.set(i, loc);
+                const labelNode = this.labels.find(
+                    v => v.type === "Label" && v.value[0] === node.label
+                );
+                const hds = (() => {
+                    if (labelNode?.type !== "Label") throw "unreachable";
+                    const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
+                    for (const [k, node] of nodes) {
+                        blocks.set(k, node);
+                    }
+                    return heads;
+                })();
+
+                blocks.set(loc, <Block> {
+                    opcode: "control_repeat",
+                    fields: {},
+                    inputs: {
+                        TIMES: v,
+                        SUBSTACK: [2, hds.get(0)!]
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "RepeatUntil": {
+                const v = this.convertValue(blocks, node.predicate, spr);
+                const loc = this.reserveBC();
+                heads.set(i, loc);
+                const labelNode = this.labels.find(
+                    v => v.type === "Label" && v.value[0] === node.label
+                );
+                const hds = (() => {
+                    if (labelNode?.type !== "Label") throw "unreachable";
+                    const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
+                    for (const [k, node] of nodes) {
+                        blocks.set(k, node);
+                    }
+                    return heads;
+                })();
+
+                blocks.set(loc, <Block> {
+                    opcode: "control_repeat_until",
+                    fields: {},
+                    inputs: {
+                        CONDITION: v,
+                        SUBSTACK: [2, hds.get(0)!]
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "Forever": {
+                const loc = this.reserveBC();
+                heads.set(i, loc);
+                const labelNode = this.labels.find(
+                    v => v.type === "Label" && v.value[0] === node.label
+                );
+                const hds = (() => {
+                    if (labelNode?.type !== "Label") throw "unreachable";
+                    const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
+                    for (const [k, node] of nodes) {
+                        blocks.set(k, node);
+                    }
+                    return heads;
+                })();
+                const head = hds.get(0)!.toString();
+
+                blocks.set(loc, <Block> {
+                    opcode: "control_forever",
+                    fields: {},
+                    inputs: {
+                        SUBSTACK: [2, head]
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+                blocks.get(head)!.parent = loc;
+            } break;
+
+
+            case "Stop": {
+                add({
+                    opcode: "control_stop",
+                    parent: null,
+                    fields: {
+                        STOP_OPTION: [
+                            (() => {
+                                switch(node.stopType) {
+                                    case "All": return "all";
+                                    case "ThisScript": return "this script"
+                                    case "OtherScripts": return "other scripts in sprite";
+                                }
+                            })(),
+                            null
+                        ]
+                    },
+                    inputs: {},
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "Clone": {
+                const { target } = node;
+                if (!this.sprites.has(target)) {
+                    this.logger.error("no sprite called " + target);
+                    Deno.exit(1);
+                }
+                const id = this.reserveBC();
+                const menu = this.reserveBC();
+                blocks.set(menu, {
+                    opcode: "control_create_clone_of_menu",
+                    inputs: {},
+                    fields: {
+                        CLONE_OPTION: [
+                            this.sprites.get(target)!.name,
+                            null
+                        ]
+                    },
+                    topLevel: false,
+                    shadow: false,
+                    parent: null
+                });
+                blocks.set(
+                    id,
+                    {
+                        opcode: "control_create_clone_of",
+                        inputs: {
+                            CLONE_OPTION: [
+                                1,
+                                menu,
+                            ],
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                        parent: null
+                    }
+                );
+                heads.set(i, id);
+            } break;
+            case "CloneMyself": {
+                const id = this.reserveBC();
+                const menu = this.reserveBC();
+                blocks.set(menu, {
+                    opcode: "control_create_clone_of_menu",
+                    inputs: {},
+                    fields: {
+                        CLONE_OPTION: [
+                            "_myself_",
+                            null
+                        ]
+                    },
+                    topLevel: false,
+                    shadow: false,
+                    parent: null
+                });
+                blocks.set(
+                    id,
+                    {
+                        opcode: "control_create_clone_of",
+                        inputs: {
+                            CLONE_OPTION: [
+                                1,
+                                menu,
+                            ],
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                        parent: null
+                    }
+                );
+                heads.set(i, id);
+            } break;
+
+            case "ListOper": {
+                const { list, oper } = node;
+                const listMap = this.list_map.get(list);
+                if (listMap === undefined) {
+                    this.logger.error(`List ${list} doesn't exist!`);
+                    Deno.exit(1);
+                };
+                add({
+                    opcode: (() => {
+                        switch (oper.key) {
+                            case "Push": return "data_addtolist";
+                            case "RemoveIndex": return "data_deleteoflist"
+                            case "Insert": return "data_insertatlist"
+                            case "Clear": return "data_deletealloflist"
+                            case "Replace": return "data_replaceitemoflist"
+                        }
+                    })(),
+                    parent: null,
+                    fields: {
+                        LIST: [
+                            list,
+                            listMap
+                        ]
+                    },
+                    inputs: (() => {
+                        switch (oper.key) {
+                            case "Push": return {
+                                ITEM: this.convertValue(blocks, oper.value, spr)
+                            }
+                            case "RemoveIndex": return {
+                                INDEX: this.convertValue(blocks, oper.index, spr)
+                            }
+                            case "Insert": return {
+                                ITEM: this.convertValue(blocks, oper.value, spr),
+                                INDEX: this.convertValue(blocks, oper.index, spr)
+                            }
+                            case "Clear": return {}
+                            case "Replace": return {
+                                ITEM: this.convertValue(blocks, oper.value, spr),
+                                INDEX: this.convertValue(blocks, oper.index, spr)
+                            }
+                        }
+                    })(),
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "Set": {
+                const {target, value: v } = node;
+                add({
+                    opcode: "data_setvariableto",
+                    parent: null,
+                    fields: {
+                        VARIABLE: [
+                            target,
+                            this.variable_map.get(target)!
+                        ]
+                    },
+                    inputs: {
+                        VALUE: this.convertValue(blocks, v, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+
+            case "Change": {
+                add({
+                    opcode: "data_changevariableby",
+                    parent: null,
+                    fields: {
+                        VARIABLE: [
+                            node.target,
+                            this.variable_map.get(node.target)!
+                        ]
+                    },
+                    inputs: {
+                        VALUE: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+            } break;
+            case "Return": {
+                add({
+                    opcode: "data_setvariableto",
+                    parent: null,
+                    fields: {
+                        VARIABLE: [
+                            `${FORBIDDEN_VARIABLE_NAME_PREFIX}${node.func}`,
+                            `${FORBIDDEN_VARIABLE_NAME_PREFIX}${node.func}`
+                        ]
+                    },
+                    inputs: {
+                        VALUE: this.convertValue(blocks, node.value, spr),
+                    },
+                    shadow: false,
+                    topLevel: false
+                });
+
+            } break;
+            case "Run": {
+                const { id, argAmount, args } = node;
+                const func = this.functions.get(id);
+                if (func === undefined) {
+                    this.logger.error(`No function named: ${id}`);
+                    Deno.exit(1);
+                }
+                if (func.args.length !== argAmount) {
+                    this.logger.error("Mismatching argument count");
+                    this.logger.error(`Expected ${argAmount} arguments, got ${func.args.length}`);
+                    Deno.exit(1);
+                }
+                const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i+1}`)).toArray());
+                const inputs = new Map();
+                let proccode = id;
+                for (const [i, arg] of args.entries()) {
+                    if (func.args[i] === "Any") {
+                        proccode += " %s"
+                    } else proccode += " %b";
+                    inputs.set(
+                        MD5(`${id}:${i + 1}`),
+                        this.convertValue(blocks, arg, spr)
+                    );
+                }
+                blocks.set(
+                    this.reserveBC(),
+                    {
+                        opcode: "procedures_call",
+                        inputs,
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                        mutation: {
+                            tagName: "mutation",
+                            children: [],
+                            proccode,
+                            argumentids: argumentIds,
+                            warp: func.warp
+                        },
+                        parent: null
+                    }
+                )
+            }
+        }
     }
 
     private generateVariableHashes() {
@@ -1954,6 +1962,26 @@ export class Convertor {
                 }
             }
         }
+    }
+}
+
+export class Blocks {
+    private inner: Map<string, Block>
+    constructor() {
+        this.inner = new Map()
+    }
+
+    has(key: string): boolean {
+        return this.inner.has(key)
+    }
+    get(key: string) {
+        return this.inner.get(key)
+    }
+    set(key: string, block: Block) {
+        this.inner.set(key, block);
+    }
+    extract(): Map<string, Block> {
+        return this.inner;
     }
 }
 

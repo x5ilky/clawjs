@@ -19,7 +19,7 @@ L1:
 L2:
     set #x (sub (mul #i 40) 100)
     set #y 400
-    set #velo_x 0
+    set #velo_x 1
     set #velo_y 0
     clonemyself
     change #i 1
