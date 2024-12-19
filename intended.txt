@@ -1,6 +1,6 @@
 gold := var<int>(0)
 
-player := sprite::new("Player")
+player := sprite.new("Player")
 c_pop := player:add_costume(cpath!"./pop.svg")
 
 player:forever!{
@@ -28,6 +28,12 @@ struct sprite {
     name: string
     costumes: array<costume>
 }
+
+data vec2 {
+    x: var<int>
+    y: var<int>
+}
+
 impl sprite {
     fn new(name: string) {
         return sprite::{

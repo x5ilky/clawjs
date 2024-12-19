@@ -1,3 +1,6 @@
+import { Lexer } from "../claw/lexer.ts";
+import { Parser } from "../claw/parser.ts";
+import { SourceMap } from "../claw/sourcemap.ts";
 import { Logger, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 
@@ -18,10 +21,20 @@ const irShape = skap.command({
       debugEmitParsedIr:    skap.string("-Demitparsedir")
     })
   }).required()
-})
+}).description("commands related to the intermediate representation");
 export const shape = skap.command({
   subc: skap.subcommand({
-    ir: irShape
+    ir: irShape,
+    lex: skap.command({
+      inputFile:     skap.string("-i").required().description("The source file"),
+      debugDumpFile: skap.string("-Ddumpfile").description("Whether or not to dump the file, if so, what path"),
+      format:        skap.boolean("-F")
+    }).description("lex an input file"),
+    parse: skap.command({
+      inputFile:     skap.string("-i").required().description("The source file"),
+      debugDumpFile: skap.string("-Ddumpfile").description("Whether or not to dump the file, if so, what path"),
+      format:        skap.boolean("-F")
+    }).description("parse an input file into ast")
   }).required()
 })
 
@@ -40,6 +53,32 @@ async function main() {
   });
   if (cmd.subc.selected === "ir") {
     await ir(cmd)
+  } else if (cmd.subc.selected === "lex") {
+    const { inputFile, debugDumpFile, format } = cmd.subc.commands.lex!;
+    const smap = new SourceMap();
+    smap.set(inputFile, await Deno.readTextFile(inputFile));
+    const lexer = new Lexer(inputFile, smap);
+    const tokens = lexer.lex();
+    const out = format ? JSON.stringify(tokens, null, 4) : JSON.stringify(tokens);
+    if (debugDumpFile === undefined) {
+      console.log(out);
+    } else {
+      await Deno.writeTextFile(debugDumpFile, out);
+    }
+  } else if (cmd.subc.selected === "parse") {
+    const { inputFile, debugDumpFile, format } = cmd.subc.commands.parse!;
+    const smap = new SourceMap();
+    smap.set(inputFile, await Deno.readTextFile(inputFile));
+    const lexer = new Lexer(inputFile, smap);
+    const tokens = lexer.lex();
+    const parser = new Parser(tokens, smap);
+    const parsed = parser.parse();
+    if (parsed instanceof Error) {
+      logger.error(parsed);
+    }
+    const out = format ? JSON.stringify(parsed, null, 4) : JSON.stringify(parsed)
+    if (debugDumpFile) await Deno.writeTextFile(debugDumpFile, out);
+    else console.log(out);
   }
 }
 
