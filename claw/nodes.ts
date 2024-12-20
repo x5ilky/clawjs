@@ -5,10 +5,18 @@ export type BaseNode =
   | StringNode
   | VariableNode
   | ChildOfNode
+  | MethodOfNode
   | CallNode
+  | QuickCallNode
   | AssignmentNode
   | DeclarationNode
-
+  | IfNode
+  | IfElseNode
+  | WhileNode
+  | ForNode
+  | UnaryOperation
+  | BinaryOperation
+  | Grouping
   | TypeNode
 ;
 export enum NodeKind {
@@ -29,6 +37,7 @@ export enum NodeKind {
 
     UnaryOperation,
     BinaryOperation,
+    Grouping,
 
     TypeNode
 }
@@ -124,13 +133,19 @@ export enum BinaryOperationType {
     BitwiseAnd,
     And,
     Or,
-    Modulo
+    Modulo,
+    Equal,
+    NotEqual
 }
 export type BinaryOperation = {
     readonly type: NodeKind.BinaryOperation
     readonly oper: BinaryOperationType,
     readonly left: Node,
     readonly right: Node
+}
+export type Grouping = {
+    readonly type: NodeKind.Grouping,
+    readonly value: Node
 }
 
 // Type Node

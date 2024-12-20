@@ -1,7 +1,7 @@
 /**
  * SkSFL amalgamate file
  * GitHub: https://github.com/x5ilky/SkSFL
- * Created: 21:12:26 GMT+0800 (中国标准时间)
+ * Created: 23:25:30 GMT+0800 (中国标准时间)
  * Modules: SkLp, SkAp, SkLg, SkAn
  * 
  * Created without care by x5ilky
@@ -72,6 +72,9 @@ export class EZP<TokenType, NodeType> {
     consume(): TokenType {
         return this.tokens.shift()!;
     }
+    peek(): TokenType {
+        return this.tokens[0];
+    }
     expect<O extends TokenType>(pred: (token: TokenType) => boolean): O {
         if (this.tokens.length === 0) throw new Error("Not enough elements");
         let t;
@@ -100,6 +103,7 @@ export class EZP<TokenType, NodeType> {
             const ezp = new EZP<TokenType, O>(this.tokens);
             const value = rule.scanner(ezp) as O;
             this.output.push(value);
+            this.tokens = ezp.tokens;
             return value;
         } catch {
             this.tokens = prevTokens;
