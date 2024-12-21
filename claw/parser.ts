@@ -1,7 +1,7 @@
 import { LogLevel } from "../SkOutput.ts";
 import { EZP } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
-import { ClawToken, ClawTokenType } from "./lexer.ts"
+import { ClawToken, ClawTokenType, Loc } from "./lexer.ts"
 import { BinaryOperationType, UnaryOperation } from "./nodes.ts";
 import { UnaryOperationType } from "./nodes.ts";
 import { BaseNode, Node, NodeKind, Nodify, TypeNode } from "./nodes.ts";
@@ -23,7 +23,7 @@ export class Parser {
         const sh = new SourceHelper(sourcemap.get(tokens?.[0]?.fp) ?? "");
         this.ezp = new EZP<ClawToken, Node>(tokens, (tok) => {
             const [row, col] = sh.getColRow(tok.start);
-            return [tok.fp, row + 1, col];
+            return [tok.fp, row + 1, col + 1];
         });
         const typeRule = this.ezp.instantiateRule<ClawToken, Nodify<TypeNode>>("type", (ezp) => {
             let ref = false;
@@ -93,7 +93,74 @@ export class Parser {
                 })
                 return ezp.giveLastThatWorks(groupingRule, variableRule, numberRule, stringRule)
             });
-            const unaryOperatorRule = ezp.instantiateRule("unary operation", (ezp): Nodify<UnaryOperation> => {
+            const precedence2 = ezp.instantiateRule("call or member access", ezp => {
+                let lhs = ezp.expectRule(literalRule);
+                const operatorNext = () => {
+                    const p = ezp.peek();
+                    if (p === undefined) return false;
+                    if (p.type === "Symbol" && (p.value === "<" || p.value === "(" || p.value === ".")) return true;
+                    return false;
+                };
+                const parseFunctionArguments = (leftLoc: Loc, typeArgs: Nodify<TypeNode>[] | null) => {
+                    // function call
+                    const args: Node[] = [];
+                    let end: Loc = leftLoc;
+                    while (true) {
+                        if (ezp.peekAnd(t => t.type === "Symbol" && t.value === ")")) {
+                            end = ezp.consume();
+                            break;
+                        }
+                        
+                        args.push(ezp.expectRule(valueRule));
+                        if (ezp.peekAnd(t => t.type === "Symbol" && t.value === ")")) {
+                            end = ezp.consume();
+                            break;
+                        }
+                        else if (ezp.peekAnd(t => t.type === "Symbol" && t.value === ",")) {
+                            end = ezp.consume();
+                            continue;
+                        }
+                        throw new Error("Expected comma or parentheses");
+                    }
+                    lhs = cn(lhs, end, {
+                        type: NodeKind.CallNode,
+                        typeArguments: typeArgs,
+                        callee: lhs,
+                        arguments: args
+                    });
+                }
+                while (operatorNext()) {
+                    const p = ezp.consume();
+                    if (p.type === "Symbol" && p.value === "(") {
+                        parseFunctionArguments(p, null);
+                        continue;
+                    } else if (p.type === "Symbol" && p.value === "<") {
+                        // function call
+                        const typeArgs: Nodify<TypeNode>[] = [];
+                        let end: Loc = p;
+                        while (true) {
+                            if (ezp.peekAnd(t => t.type === "Symbol" && t.value === ">")) {
+                                end = ezp.consume();
+                                break;
+                            }
+                            typeArgs.push(ezp.expectRule(typeRule));
+                            if (ezp.peekAnd(t => t.type === "Symbol" && t.value === ">")) {
+                                end = ezp.consume();
+                                break;
+                            }
+                            else if (ezp.peekAnd(t => t.type === "Symbol" && t.value === ",")) {
+                                end = ezp.consume();
+                                continue;
+                            }
+                            throw new Error("Expected comma or right angle bracket");
+                        }
+                        parseFunctionArguments(end, typeArgs);
+                        continue;
+                    }
+                }
+                return lhs;
+            })
+            const unaryOperatorRule = ezp.instantiateRule("unary operation", (ezp): Node => {
                 const peek = ezp.peek();
                 if (peek.type === 'Symbol') {
                     if (["!", "~", "-"].includes(peek.value)) {
@@ -113,7 +180,7 @@ export class Parser {
                         });
                     }
                 }
-                return ezp.expectRule(literalRule);
+                return ezp.expectRule(precedence2);
             })
             const binaryOperatorRule = ezp.instantiateRule("binary operation", ezp => {
                 const BINARY_OPERATOR_TO_PRECEDENCE = {
@@ -186,7 +253,7 @@ export class Parser {
                     */
                 return parseExpression(ezp.expectRule(unaryOperatorRule), 0);
             });
-            return ezp.giveLastThatWorks(binaryOperatorRule, unaryOperatorRule, literalRule);
+            return ezp.giveLastThatWorks(binaryOperatorRule, unaryOperatorRule, precedence2, literalRule);
         })
         this.ezp.addRule("statement", ezp => {
             if (ezp.doesNext(token => token.type === "Identifier")) {

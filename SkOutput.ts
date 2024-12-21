@@ -1,7 +1,7 @@
 /**
  * SkSFL amalgamate file
  * GitHub: https://github.com/x5ilky/SkSFL
- * Created: 11:25:19 GMT+0800 (中国标准时间)
+ * Created: 00:02:17 GMT+0800 (中国标准时间)
  * Modules: SkLp, SkAp, SkLg, SkAn
  * 
  * Created without care by x5ilky
@@ -80,17 +80,20 @@ export class EZP<TokenType, NodeType> {
     peek(): TokenType {
         return this.tokens[0];
     }
+    peekAnd(test: (t: TokenType) => boolean) {
+        return this.peek() !== undefined && test(this.peek());
+    }
     expect<O extends TokenType>(pred: (token: TokenType) => boolean): O {
         if (this.tokens.length === 0) throw new Error("Not enough elements");
         let t;
         if (!pred(t = this.tokens.shift()!)) throw new Error("mismatch")
         return t as O;
     }
-    expectRule<O extends NodeType>(rule: TargetRule<TokenType, NodeType>): O {
+    expectRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O {
         const prevTokens = structuredClone(this.tokens);
         const prevNodes = structuredClone(this.output);
         try {
-            const ezp = new EZP<TokenType, NodeType>(this.tokens, this.getLoc);
+            const ezp = new EZP<TokenType, O>(this.tokens, this.getLoc);
             const value = rule.scanner(ezp) as O;
             this.output.push(value);
             this.tokens = ezp.tokens;

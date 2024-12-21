@@ -1,4 +1,4 @@
-gold := var<int>(0)
+gold := int!.new(0)
 
 player := sprite.new("Player")
 c_pop := player:add_costume(cpath!"./pop.svg")
@@ -17,10 +17,10 @@ player:clicked!{
 1 + 20
 
 trait Add<$Right, $Output> {
-    fn add(this: &Self, right: Right): Output;
+    fn add(this: &Self, right: Right) Output;
 }
 impl Add<number, number> for number {
-    fn add(this: &number, right: number): number {
+    fn add(this: &number, right: number) number {
         return $.add(this, right)
     }
 }
@@ -30,19 +30,19 @@ struct sprite {
 }
 
 data vec2 {
-    x: var<int>
-    y: var<int>
+    x: int!
+    y: int!
 }
 
 impl sprite {
-    fn new(name: string) {
+    fn new(name: string) sprite {
         return sprite::{
             name: name,
             costumes: []
         }
     }
 
-    fn add_costume(this: &sprite, costume: Costume) -> Costume {
+    fn add_costume(this: &sprite, costume: Costume) Costume {
         this.costumes.push(costume)
         return costume
     }

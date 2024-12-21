@@ -2,26 +2,41 @@ import { logger } from "../src/main.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 
+export type Loc = 
+    & {
+        start: number;
+        end: number;
+        fp: string;
+    };
 export type ClawTokenBase =
     | { type: "StringLiteral"; value: string }
     | { type: "NumericLiteral"; value: number }
     | { type: "Identifier"; name: string }
+    | { 
+        type: "Keyword"; 
+        value: 
+        | "if"
+        | "else"
+        | "while"
+        | "for"
+        | "if!"
+        | "else!"
+        | "while!"
+        | "for!"
+        | "fn"
+        | "struct"
+        | "data"
+        | "trait"
+        | "impl"
+    }
     | { type: "Quick"; name: string }
     | { type: "Symbol"; value: TSymbol }
     | { type: "Modifier"; value: string };
 export type ClawTokenType<name extends ClawTokenBase["type"]> = Extract<ClawTokenBase, { type: name }>
-    & {
-        start: number;
-        end: number;
-        fp: string;
-    };
+    & Loc;
 export type ClawToken =
     & ClawTokenBase
-    & {
-        start: number;
-        end: number;
-        fp: string;
-    };
+    & Loc
 
 const S = <const>[ "+", "-", "*", "/", "%", "!", "~", "^", "|", "&", "||", "&&", "+=", "-=", "*=", "/=", "%=", "!=", "~=", "^=", "|=", "&=", "||=", "&&=", ">", "<", ">=", "<=", "==", "!=", "=", ":", ",", "(", ")", "[", "]", "{", "}", ".", ";" ];
 const SYMBOLS = <readonly string[]> S
@@ -76,16 +91,12 @@ export class Lexer {
                 }
                 if (this.peek() === "!") {
                     buf += this.eat();
-                    this.pushToken({
-                        type: "Identifier",
-                        name: buf
-                    });
-                } else {
-                    this.pushToken({
-                        type: "Identifier",
-                        name: buf
-                    });
                 };
+                
+                this.pushToken({
+                    type: "Identifier",
+                    name: buf
+                });
             } else {
                 logger.error(`Unexpected char: ${JSON.stringify(initial)}`);
                 Deno.exit(1)
@@ -257,7 +268,7 @@ export class Lexer {
     }
 
     eat(): string | undefined {
-        this.start++;
+        this.end++;
         return this.chars.shift();
     }
 

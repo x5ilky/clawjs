@@ -1,5 +1,7 @@
+import { Loc } from "./lexer.ts";
+
 export type Node = Nodify<BaseNode>;
-export type Nodify<T> = T & {start: number, end: number, fp: string};
+export type Nodify<T> = T & Loc;
 export type BaseNode = 
   | NumberNode
   | StringNode
@@ -7,7 +9,6 @@ export type BaseNode =
   | ChildOfNode
   | MethodOfNode
   | CallNode
-  | QuickCallNode
   | AssignmentNode
   | DeclarationNode
   | IfNode
@@ -26,7 +27,6 @@ export enum NodeKind {
     ChildOfNode,
     MethodOfNode,
     CallNode,
-    QuickCallNode,
     AssignmentNode,
     DeclarationNode,
     
@@ -66,13 +66,7 @@ export type MethodOfNode = {
 export type CallNode = {
     readonly type: NodeKind.CallNode,
     readonly callee: Node,
-    readonly typeArguments: TypeNode[],
-    readonly arguments: Node[]
-}
-export type QuickCallNode = {
-    readonly type: NodeKind.QuickCallNode,
-    readonly callee: Node,
-    readonly typeArguments: TypeNode[],
+    readonly typeArguments: Nodify<TypeNode>[] | null,
     readonly arguments: Node[]
 }
 export type AssignmentNode = {
