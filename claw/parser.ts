@@ -2,7 +2,8 @@ import { LogLevel } from "../SkOutput.ts";
 import { EZP } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ClawToken, ClawTokenType } from "./lexer.ts"
-import { BinaryOperationType } from "./nodes.ts";
+import { BinaryOperationType, UnaryOperation } from "./nodes.ts";
+import { UnaryOperationType } from "./nodes.ts";
 import { BaseNode, Node, NodeKind, Nodify, TypeNode } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -19,7 +20,11 @@ function cn<T extends BaseNode>(start: {start: number, end: number, fp: string},
 export class Parser {
     ezp: EZP<ClawToken, Node>
     constructor(tokens: ClawToken[], private sourcemap: SourceMap) {
-        this.ezp = new EZP<ClawToken, Node>(tokens);
+        const sh = new SourceHelper(sourcemap.get(tokens?.[0]?.fp) ?? "");
+        this.ezp = new EZP<ClawToken, Node>(tokens, (tok) => {
+            const [row, col] = sh.getColRow(tok.start);
+            return [tok.fp, row + 1, col];
+        });
         const typeRule = this.ezp.instantiateRule<ClawToken, Nodify<TypeNode>>("type", (ezp) => {
             let ref = false;
             if (ezp.doesNext(token => token.type === "Symbol" && token.value === "&")) {
@@ -88,7 +93,29 @@ export class Parser {
                 })
                 return ezp.giveLastThatWorks(groupingRule, variableRule, numberRule, stringRule)
             });
-            const operatorRule = ezp.instantiateRule("<value> <operator> <value>", ezp => {
+            const unaryOperatorRule = ezp.instantiateRule("unary operation", (ezp): Nodify<UnaryOperation> => {
+                const peek = ezp.peek();
+                if (peek.type === 'Symbol') {
+                    if (["!", "~", "-"].includes(peek.value)) {
+                        const opToken = ezp.consume() as ClawTokenType<"Symbol">;
+                        const rhs = ezp.expectRule(unaryOperatorRule);
+                        return cn(opToken, rhs, {
+                            type: NodeKind.UnaryOperation,
+                            value: rhs,
+                            oper: (() => {
+                                switch(opToken.value) {
+                                    case "!": return UnaryOperationType.Not;
+                                    case "~": return UnaryOperationType.BitwiseNot;
+                                    case "-": return UnaryOperationType.Negate;
+                                    default: throw "unreachable";
+                                }
+                            })()
+                        });
+                    }
+                }
+                return ezp.expectRule(literalRule);
+            })
+            const binaryOperatorRule = ezp.instantiateRule("binary operation", ezp => {
                 const BINARY_OPERATOR_TO_PRECEDENCE = {
                     "||": [BinaryOperationType.Or, 1],
                     "&&": [BinaryOperationType.And, 2],
@@ -107,33 +134,34 @@ export class Parser {
                     "/": [BinaryOperationType.Divide, 9],
                     "%": [BinaryOperationType.Modulo, 9],
                 }
+                type BKey = keyof typeof BINARY_OPERATOR_TO_PRECEDENCE;
                 const parseExpression = function(lhs: Node, minPrecedence: number) {
                     let lookahead = ezp.peek();
                     while (
                         lookahead !== undefined
                      && lookahead.type === "Symbol" 
                      && lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE
-                     && BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as keyof typeof BINARY_OPERATOR_TO_PRECEDENCE][1] >= minPrecedence
+                     && BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >= minPrecedence
                     ) {
                         const op = ezp.consume() as ClawTokenType<"Symbol">;
-                        const opPrec = BINARY_OPERATOR_TO_PRECEDENCE[op.value as keyof typeof BINARY_OPERATOR_TO_PRECEDENCE][1];
-                        let rhs = ezp.expectRule(literalRule);
+                        const opPrec = BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][1];
+                        let rhs = ezp.expectRule(unaryOperatorRule);
                         lookahead = ezp.peek();
                         while (
                             lookahead !== undefined
                          && lookahead.type === "Symbol"
                          && lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE
                          && (
-                            BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as keyof typeof BINARY_OPERATOR_TO_PRECEDENCE][1] > opPrec
+                            BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] > opPrec
                          )
                         ) {
-                            rhs = parseExpression(rhs, opPrec + +(BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as keyof typeof BINARY_OPERATOR_TO_PRECEDENCE][1] > opPrec))
+                            rhs = parseExpression(rhs, opPrec + +(BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] > opPrec))
                             lookahead = ezp.peek();
                             if (lookahead === undefined) break;
                         }
                         lhs = cn(lhs, rhs, {
                             type: NodeKind.BinaryOperation,
-                            oper: BINARY_OPERATOR_TO_PRECEDENCE[op.value as keyof typeof BINARY_OPERATOR_TO_PRECEDENCE][0],
+                            oper: BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][0],
                             left: lhs,
                             right: rhs
                         })
@@ -156,9 +184,9 @@ export class Parser {
                         lhs := the result of applying op with operands lhs and rhs
                     return lhs
                     */
-                return parseExpression(ezp.expectRule(literalRule), 0);
+                return parseExpression(ezp.expectRule(unaryOperatorRule), 0);
             });
-            return ezp.giveLastThatWorks(operatorRule, literalRule);
+            return ezp.giveLastThatWorks(binaryOperatorRule, unaryOperatorRule, literalRule);
         })
         this.ezp.addRule("statement", ezp => {
             if (ezp.doesNext(token => token.type === "Identifier")) {

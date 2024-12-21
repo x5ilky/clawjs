@@ -1,7 +1,7 @@
 /**
  * SkSFL amalgamate file
  * GitHub: https://github.com/x5ilky/SkSFL
- * Created: 23:25:30 GMT+0800 (中国标准时间)
+ * Created: 11:25:19 GMT+0800 (中国标准时间)
  * Modules: SkLp, SkAp, SkLg, SkAn
  * 
  * Created without care by x5ilky
@@ -18,7 +18,7 @@ export class EZP<TokenType, NodeType> {
     output: NodeType[];
     targetRules: TargetRule<TokenType, NodeType>[]
     
-    constructor(tokens: TokenType[]) {
+    constructor(tokens: TokenType[], private getLoc?: (token: TokenType) => [string, number, number]) {
         this.tokens = tokens;
         this.output = [];
         this.targetRules = [];
@@ -42,11 +42,13 @@ export class EZP<TokenType, NodeType> {
     
     parse() {
         while (this.tokens.length) {
-            if (!this.parseOnce()) {
+            const err = this.parseOnce();
+            if (err !== true) {
                 let message = `Failed to parse, expected:\n`;
                 for (const r of this.targetRules) {
                     message += `  ${r.target}\n`;
                 }
+                message += err.map(a => a.message + "\n").join("");
                 message += `But instead got ${JSON.stringify(this.tokens[0])}`;
                 return new Error(message);
             }
@@ -54,15 +56,18 @@ export class EZP<TokenType, NodeType> {
         return this.output;
     }
     parseOnce() {
+        // deno-lint-ignore no-explicit-any
+        const errors: any[] = [];
         for (const r of this.targetRules) {
             try {
                 this.expectRule(r);
                 return true;
-            } catch {
+            } catch (e) {
                 // pass
+                errors.push(e)
             }
         }
-        return false
+        return errors
     }
     /**
      * Eats the first token
@@ -85,22 +90,27 @@ export class EZP<TokenType, NodeType> {
         const prevTokens = structuredClone(this.tokens);
         const prevNodes = structuredClone(this.output);
         try {
-            const ezp = new EZP<TokenType, NodeType>(this.tokens);
+            const ezp = new EZP<TokenType, NodeType>(this.tokens, this.getLoc);
             const value = rule.scanner(ezp) as O;
             this.output.push(value);
             this.tokens = ezp.tokens;
             return value;
-        } catch (e) {
+        } catch (e: any) {
             this.tokens = prevTokens;
             this.output = prevNodes;
-            throw e;
+            let errMsg = `Expected rule ${rule.target}:\n${e.message}`;
+            if (this.getLoc !== undefined) {
+                const [fp, ln, col] = this.getLoc(this.tokens[0]);
+                errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
+            }
+            throw new Error(errMsg);
         }
     }
     tryRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O | null {
         const prevTokens = structuredClone(this.tokens);
         const prevNodes = structuredClone(this.output);
         try {
-            const ezp = new EZP<TokenType, O>(this.tokens);
+            const ezp = new EZP<TokenType, O>(this.tokens, this.getLoc);
             const value = rule.scanner(ezp) as O;
             this.output.push(value);
             this.tokens = ezp.tokens;

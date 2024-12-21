@@ -1,4 +1,5 @@
 import { Lexer } from "../claw/lexer.ts";
+import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
 import { SourceMap } from "../claw/sourcemap.ts";
 import { Logger, skap } from "../SkOutput.ts";
@@ -76,7 +77,13 @@ async function main() {
     if (parsed instanceof Error) {
       logger.error(parsed);
     }
-    const out = format ? JSON.stringify(parsed, null, 4) : JSON.stringify(parsed)
+    const replacer = function(this: any, key: string, value: any) {
+      if (key === "type") {
+        return NodeKind[value.toString()]
+      }
+      return value
+    }
+    const out = format ? JSON.stringify(parsed, replacer, 4) : JSON.stringify(parsed, replacer)
     if (debugDumpFile) await Deno.writeTextFile(debugDumpFile, out);
     else console.log(out);
   }

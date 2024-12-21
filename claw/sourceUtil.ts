@@ -14,20 +14,37 @@ export class SourceHelper {
                 out.push([ch, i] as [string, number]);
                 i++;
             }
-            i++; 
             this.indexedLines.push([out, i]);
+            i++; 
         }
     }
 
     getLines(start: number, end: number): string[] {
-        let i = 0;
         const out = [];
         for (const [ln, idx] of this.indexedLines) {
-            i += idx;
             if (idx > start && idx <= end) {
                 out.push(ln.map(a => a[0]).join(""))
             }
         }
         return out;
+    }
+    getLine(start: number): string {
+        for (const [ln, idx] of this.indexedLines) {
+            if (idx > start) {
+                return ln.map(a => a[0]).join("");
+            }
+        }
+        return this.indexedLines[this.indexedLines.length-1][0].map(a => a[0]).join("")
+    }
+    getColRow(position: number): [number, number] {
+        let row = 0;
+        let col = 0;
+        for (row = 0; row < this.indexedLines.length; row++) {
+            const r = this.indexedLines[row][0]
+            for (col = 0; col < r.length; col++) {
+                if (r[col][1] >= position) return [row, col];
+            }
+        }
+        return [row, col];
     }
 }
