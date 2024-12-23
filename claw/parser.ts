@@ -38,6 +38,7 @@ export class Parser {
       "type",
       (ezp) => {
         let ref = false;
+        const bounds: string[] = [];
         if (
           ezp.doesNext((token) =>
             token.type === "Symbol" && token.value === "&"
@@ -49,6 +50,7 @@ export class Parser {
         const name = ezp.expect((token) =>
           token.type === "Identifier"
         ) as ClawTokenType<"Identifier">;
+        let end: Loc = name;
         const generics: Nodify<TypeNode>[] = [];
         if (
           ezp.doesNext((token) =>
@@ -63,13 +65,8 @@ export class Parser {
                 token.type === "Symbol" && token.value === ">"
               )
             ) {
-              const _end_right = ezp.consume();
-              return cn(name, _end_right, {
-                type: NodeKind.TypeNode,
-                name: name.name,
-                ref,
-                typeArguments: generics,
-              });
+              end = ezp.consume();
+              break;
             }
             const type = ezp.expectRule(typeRule);
             generics.push(type as Nodify<TypeNode>);
@@ -77,17 +74,26 @@ export class Parser {
               ezp.doesNext((token) =>
                 token.type === "Symbol" && token.value === ">"
               )
-            ) continue;
+            ) {
+              end = ezp.consume();
+              break;
+            }
             ezp.expect((token) =>
               token.type === "Symbol" && token.value === ","
             );
           }
+        }
+        while (ezp.peekAnd(token => token.type === "Symbol" && token.value === "+")) {
+            ezp.consume();
+            const boundName = ezp.expectOrTerm("Expected type bound name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
+            bounds.push(boundName.name);
         }
         return cn(name, name, {
           type: NodeKind.TypeNode,
           name: name.name,
           ref,
           typeArguments: generics,
+          bounds
         });
       },
     );
@@ -477,19 +483,15 @@ export class Parser {
         const tok = ezp.expect((token) =>
           token.type === "Keyword" && token.value === "for"
         );
-        console.log("for");
         const initial = ezp.expectRuleOrTerm(
           "Expected statement for for loop",
           statementRule,
         );
-        console.log("initial", initial);
         ezp.expect(a => a.type === "Symbol" && a.value === ";");
-        console.log("...prediacte", ezp.tokens)
         const predicate = ezp.expectRuleOrTerm(
           "Expected predicate for for loop",
           valueRule,
         );
-        console.log("predicate", predicate);
         ezp.expect(a => a.type === "Symbol" && a.value === ";");
         const post = ezp.expectRuleOrTerm(
           "Expected post statement for for loop",
@@ -630,6 +632,41 @@ export class Parser {
       console.log(v);
       return v;
     });
+    const functionRule = this.ezp.instantiateRule("function definition", ezp => {
+        const fnKeyword = ezp.expect(token => token.type === "Keyword" && token.value === "fn");
+        const name = ezp.expectOrTerm("Expected function name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
+        // parse arguments
+        const _start = ezp.expectOrTerm("Expected starting parenthese", token => token.type === "Symbol" && token.value === "(");
+        let end: Loc = _start;
+
+        const args: [string, Nodify<TypeNode>][] = [];
+        while (true) {
+            if (ezp.doesNext(token => token.type === "Symbol" && token.value === ")")) {
+                end = ezp.consume();
+                break;
+            }
+            const name = ezp.expectOrTerm("Expected function argument", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
+            const _colon = ezp.expectOrTerm("Expected colon as argument seperator", token => token.type === "Symbol" && token.value === ":") as ClawTokenType<"Symbol">;
+            const type = ezp.expectRuleOrTerm("Expected type", typeRule);
+            args.push([name.name, type] as const)
+            if (ezp.doesNext(token => token.type === "Symbol" && token.value === ",")) {
+                end = ezp.consume();
+                continue;
+            } else if (ezp.doesNext(token => token.type === "Symbol" && token.value === ")")) {
+                end = ezp.consume();
+                break;
+            } else {
+                throw new Error("Expected ending parenthese");
+            }
+        }
+        const block = ezp.expectRuleOrTerm("Expected function body", statementRule);
+        return cn(fnKeyword, end, {
+            type: NodeKind.FunctionDefinitionNode,
+            name: name.name,
+            args: args,
+            nodes: block
+        })
+    })
     const statementRule = this.ezp.addRule("statement", (ezp) => {
       const declRule = ezp.instantiateRule("declaration", (ezp) => {
         const name = ezp.expect((token) =>
@@ -726,6 +763,7 @@ export class Parser {
 
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        functionRule,
         controlFlowRule,
         declRule,
         assignOpRule,

@@ -82,7 +82,7 @@ const KEYWORD = [
   "data",
   "interface",
   "impl",
-];
+] as const;
 const SYMBOLS = <readonly string[]> S;
 type TSymbol = typeof S[number];
 const SYMBOL_INITIALS = SYMBOLS.map((a) => a[0]);
@@ -140,7 +140,7 @@ export class Lexer {
         if (KEYWORD.includes(buf as (typeof KEYWORD)[number])) {
           this.pushToken({
             type: "Keyword",
-            value: buf,
+            value: buf as (typeof KEYWORD)[number],
           });
         } else {this.pushToken({
             type: "Identifier",
