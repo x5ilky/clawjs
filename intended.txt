@@ -3,20 +3,20 @@ gold := int!.new(0)
 player := sprite.new("Player")
 c_pop := player:add_costume(cpath!"./pop.svg")
 
-player:forever!{
+player:forever(!{
     if! gold > 8 {
         say(gold)
     }
-}
-player:clicked!{
+})
+player:clicked(!{
     gold += 1
-}
+})
 
 // ----
 
 1 + 20
 
-trait Add<$Right, $Output> {
+interface Add<Right, Output> {
     fn add(this: &Self, right: Right) Output;
 }
 impl Add<number, number> for number {

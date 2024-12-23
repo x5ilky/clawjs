@@ -1,7 +1,7 @@
 /**
  * SkSFL amalgamate file
  * GitHub: https://github.com/x5ilky/SkSFL
- * Created: 00:02:17 GMT+0800 (中国标准时间)
+ * Created: 15:41:45 GMT+0800 (中国标准时间)
  * Modules: SkLp, SkAp, SkLg, SkAn
  * 
  * Created without care by x5ilky
@@ -12,11 +12,16 @@ type TargetRule<TokenType, NodeType> = {
   target: string;
   scanner: EZPScanner<TokenType, NodeType>;
 };
-
+export class EZPError extends Error {
+    constructor(message: string, options?: ErrorOptions) {
+        super(message, options);
+    }
+}
 export class EZP<TokenType, NodeType> {
     tokens: TokenType[];
     output: NodeType[];
-    targetRules: TargetRule<TokenType, NodeType>[]
+    targetRules: TargetRule<TokenType, NodeType>[];
+
     
     constructor(tokens: TokenType[], private getLoc?: (token: TokenType) => [string, number, number]) {
         this.tokens = tokens;
@@ -84,9 +89,15 @@ export class EZP<TokenType, NodeType> {
         return this.peek() !== undefined && test(this.peek());
     }
     expect<O extends TokenType>(pred: (token: TokenType) => boolean): O {
-        if (this.tokens.length === 0) throw new Error("Not enough elements");
+        if (this.tokens.length === 0) throw new EZPError("Not enough elements");
         let t;
-        if (!pred(t = this.tokens.shift()!)) throw new Error("mismatch")
+        if (!pred(t = this.tokens.shift()!)) throw new EZPError("mismatch")
+        return t as O;
+    }
+    expectOrTerm<O extends TokenType>(error: string, pred: (token: TokenType) => boolean): O {
+        if (this.tokens.length === 0) throw new Error(error);
+        let t;
+        if (!pred(t = this.tokens.shift()!)) throw new Error(error);
         return t as O;
     }
     expectRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O {
@@ -98,17 +109,61 @@ export class EZP<TokenType, NodeType> {
             this.output.push(value);
             this.tokens = ezp.tokens;
             return value;
-        } catch (e: any) {
-            this.tokens = prevTokens;
-            this.output = prevNodes;
-            let errMsg = `Expected rule ${rule.target}:\n${e.message}`;
-            if (this.getLoc !== undefined) {
+        } catch (e) {
+            if (e instanceof EZPError) {
+                this.tokens = prevTokens;
+                this.output = prevNodes;
+                let errMsg = `Expected rule ${rule.target}:\n${e.message}`;
+                if (this.getLoc !== undefined) {
+                    const [fp, ln, col] = this.getLoc(this.tokens[0]);
+                    errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
+                }
+                throw new EZPError(errMsg);
+            } 
+            throw e;
+        }
+    }
+    expectRuleOrTerm<O extends NodeType>(error: string, rule: TargetRule<TokenType, O>): O {
+        try {
+            const ezp = new EZP<TokenType, O>(this.tokens, this.getLoc);
+            const value = rule.scanner(ezp) as O;
+            this.output.push(value);
+            this.tokens = ezp.tokens;
+            return value;
+        } catch (e) {
+            let errMsg = error;
+            if (this.getLoc !== undefined && this.tokens.length) {
                 const [fp, ln, col] = this.getLoc(this.tokens[0]);
                 errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
             }
-            throw new Error(errMsg);
+            throw new Error(errMsg + "\n" + (e as Error)?.message);
         }
     }
+    getFirstThatWorks<O extends NodeType>(...rules: TargetRule<TokenType, O>[]): O {
+        for (const r of rules) {
+            try {
+                const v = this.expectRule(r) as O;
+                return v;
+            } catch {
+                // nothing
+            }
+        }
+        throw new EZPError("None worked")
+    }
+    getFirstThatWorksOrTerm<O extends NodeType>(error: string, ...rules: TargetRule<TokenType, O>[]): O {
+        const errors = [];
+        for (const r of rules) {
+            try {
+                const v = this.expectRule(r) as O;
+                return v;
+            } catch (e) {
+                // nothing
+                errors.push(e)
+            }
+        }
+        throw new Error(error + errors)
+    }
+
     tryRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O | null {
         const prevTokens = structuredClone(this.tokens);
         const prevNodes = structuredClone(this.output);
@@ -123,20 +178,6 @@ export class EZP<TokenType, NodeType> {
             this.output = prevNodes;
             return null;
         }
-    }
-    giveLastThatWorks<O extends NodeType>(...rules: TargetRule<TokenType, NodeType>[]): O {
-        let works: O | undefined = undefined;
-        for (const r of rules) {
-            try {
-                const v = this.expectRule(r) as O;
-                works = v;
-            } catch {
-                // nothing
-            }
-        }
-        if (works === undefined)
-            throw new Error(`no branches matched: ${rules.map(a => a.target).join(", ")}`)
-        return works;
     }
     thisOrIf<O extends NodeType>(value: O, pred: (token: TokenType) => boolean, cb: (token: TokenType) => O): O {
         if (this.tokens.length && pred(this.tokens[0])) {

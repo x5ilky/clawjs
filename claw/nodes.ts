@@ -15,10 +15,16 @@ export type BaseNode =
   | IfElseNode
   | WhileNode
   | ForNode
+  | IfRuntimeNode
+  | IfElseRuntimeNode
+  | WhileRuntimeNode
+  | ForRuntimeNode
   | UnaryOperation
   | BinaryOperation
   | Grouping
   | TypeNode
+  | BlockNode
+  | LabelNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -35,11 +41,18 @@ export enum NodeKind {
     WhileNode,
     ForNode,
 
+    IfRuntimeNode,
+    IfElseRuntimeNode,
+    WhileRuntimeNode,
+    ForRuntimeNode,
+
     UnaryOperation,
     BinaryOperation,
     Grouping,
 
-    TypeNode
+    TypeNode,
+    BlockNode,
+    LabelNode,
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -90,7 +103,6 @@ export type IfElseNode = {
     readonly type: NodeKind.IfElseNode,
     readonly predicate: Node,
     readonly body: Node,
-    readonly elsePredicate: Node,
     readonly elseBody: Node,
 }
 export type WhileNode = {
@@ -100,6 +112,29 @@ export type WhileNode = {
 }
 export type ForNode = {
     readonly type: NodeKind.ForNode,
+    readonly initialiser: Node,
+    readonly predicate: Node,
+    readonly post: Node,
+    readonly body: Node,
+}
+export type IfRuntimeNode = {
+    readonly type: NodeKind.IfRuntimeNode,
+    readonly predicate: Node,
+    readonly body: Node,
+}
+export type IfElseRuntimeNode = {
+    readonly type: NodeKind.IfElseRuntimeNode,
+    readonly predicate: Node,
+    readonly body: Node,
+    readonly elseBody: Node,
+}
+export type WhileRuntimeNode = {
+    readonly type: NodeKind.WhileRuntimeNode,
+    readonly predicate: Node,
+    readonly body: Node,
+}
+export type ForRuntimeNode = {
+    readonly type: NodeKind.ForRuntimeNode,
     readonly initialiser: Node,
     readonly predicate: Node,
     readonly post: Node,
@@ -129,7 +164,11 @@ export enum BinaryOperationType {
     Or,
     Modulo,
     Equal,
-    NotEqual
+    NotEqual,
+    Gt,
+    Gte,
+    Lt,
+    Lte
 }
 export type BinaryOperation = {
     readonly type: NodeKind.BinaryOperation
@@ -141,12 +180,17 @@ export type Grouping = {
     readonly type: NodeKind.Grouping,
     readonly value: Node
 }
-
-// Type Node
-
 export type TypeNode = {
     readonly type: NodeKind.TypeNode,
     readonly ref: boolean,
     readonly name: string,
     readonly typeArguments: Nodify<TypeNode>[]
+}
+export type BlockNode = {
+    readonly type: NodeKind.BlockNode,
+    readonly nodes: Node[]
+}
+export type LabelNode = {
+    readonly type: NodeKind.LabelNode,
+    readonly nodes: Node[]
 }
