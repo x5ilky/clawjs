@@ -26,6 +26,7 @@ export type BaseNode =
   | LabelNode
   | FunctionDefinitionNode
   | InterfaceNode
+  | ImplBaseNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -58,6 +59,7 @@ export enum NodeKind {
 
     FunctionDefinitionNode,
     InterfaceNode,
+    ImplBaseNode,
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -213,5 +215,12 @@ export type InterfaceNode = {
     readonly type: NodeKind.InterfaceNode,
     readonly name: string,
     readonly defs: FunctionDefinitionNode[],
-    readonly generics: TypeNode[]
+    readonly typeArguments: TypeNode[]
+} & Loc;
+export type ImplBaseNode = {
+    readonly type: NodeKind.ImplBaseNode,
+    readonly name: string,
+    readonly defs: FunctionDefinitionNode[],
+    readonly generics: string[],
+    readonly typeArguments: TypeNode[],
 } & Loc;

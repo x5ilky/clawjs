@@ -803,15 +803,16 @@ export class Parser {
         type: NodeKind.InterfaceNode,
         name: interfaceNameToken.name,
         defs: functions,
-        generics: generics,
+        typeArguments: generics,
       });
     });
     const implBaseRule = this.ezp.instantiateRule("impl <type>", (ezp) => {
       const interfaceToken = ezp.expect((token) =>
         token.type === "Keyword" && token.value === "impl"
       );
+      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericIdentifierListRule);
       const interfaceNameToken = ezp.expect((token) =>token.type === "Identifier");
-      const generics = ezp.expectRuleOrTerm("Expected generics", genericTypeListRule);
+      const typeArguments = ezp.expectRuleOrTerm("Expected type type arguments", genericTypeListRule);
       let end: Loc = interfaceNameToken;
       const _begin_curly = ezp.expect((token) =>
         token.type === "Symbol" && token.value === "{"
@@ -824,14 +825,16 @@ export class Parser {
           end = ezp.consume();
           break;
         }
-        const f = ezp.expectRule(functionDefinitionRule) as FunctionDefinitionNode;
+        const f = ezp.expectRule(functionRule) as FunctionDefinitionNode;
         functions.push(f);
       }
       return cn(interfaceToken, end, {
-        type: NodeKind.InterfaceNode,
+        type: NodeKind.ImplBaseNode,
         name: interfaceNameToken.name,
         defs: functions,
-        generics: generics,
+        generics: implGenerics,
+        typeArguments
+
       });
     });
     const statementRule = this.ezp.addRule("statement", (ezp) => {
@@ -948,6 +951,7 @@ export class Parser {
 
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        implBaseRule,
         interfaceRule,
         functionRule,
         controlFlowRule,
