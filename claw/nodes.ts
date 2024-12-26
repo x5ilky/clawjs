@@ -25,8 +25,11 @@ export type BaseNode =
   | BlockNode
   | LabelNode
   | FunctionDefinitionNode
+  | StructDefinitionNode
+  | DataStructDefinitionNode
   | InterfaceNode
   | ImplBaseNode
+  | ImplTraitNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -58,8 +61,11 @@ export enum NodeKind {
     LabelNode,
 
     FunctionDefinitionNode,
+    StructDefinitionNode,
+    DataStructDefinitionNode,
     InterfaceNode,
     ImplBaseNode,
+    ImplTraitNode,
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -211,6 +217,18 @@ export type FunctionDefinitionNode = {
     readonly name: string,
     readonly returnType: TypeNode
 } & Loc;
+export type StructDefinitionNode = {
+    readonly type: NodeKind.StructDefinitionNode,
+    readonly members: [string, TypeNode][],
+    readonly name: string,
+    readonly generics: string[]
+} & Loc;
+export type DataStructDefinitionNode = {
+    readonly type: NodeKind.DataStructDefinitionNode,
+    readonly members: [string, TypeNode][],
+    readonly name: string,
+    readonly generics: string[]
+} & Loc;
 export type InterfaceNode = {
     readonly type: NodeKind.InterfaceNode,
     readonly name: string,
@@ -219,8 +237,13 @@ export type InterfaceNode = {
 } & Loc;
 export type ImplBaseNode = {
     readonly type: NodeKind.ImplBaseNode,
-    readonly name: string,
+    readonly targetType: TypeNode,
     readonly defs: FunctionDefinitionNode[],
     readonly generics: string[],
-    readonly typeArguments: TypeNode[],
+} & Loc;
+export type ImplTraitNode = {
+    readonly type: NodeKind.ImplTraitNode,
+    readonly trait: TypeNode,
+    readonly targetType: TypeNode,
+    readonly generics: string[],
 } & Loc;

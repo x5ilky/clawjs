@@ -25,13 +25,13 @@ impl Add<number, number> for number {
     }
 }
 struct sprite {
-    name: string
-    costumes: array<costume>
+    name: string,
+    costumes: array<costume>,
 }
 
 data vec2 {
-    x: int!
-    y: int!
+    x: int,
+    y: int,
 }
 
 impl sprite {

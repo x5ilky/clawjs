@@ -807,13 +807,12 @@ export class Parser {
       });
     });
     const implBaseRule = this.ezp.instantiateRule("impl <type>", (ezp) => {
-      const interfaceToken = ezp.expect((token) =>
+      const implToken = ezp.expect((token) =>
         token.type === "Keyword" && token.value === "impl"
       );
       const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericIdentifierListRule);
-      const interfaceNameToken = ezp.expect((token) =>token.type === "Identifier");
-      const typeArguments = ezp.expectRuleOrTerm("Expected type type arguments", genericTypeListRule);
-      let end: Loc = interfaceNameToken;
+      const targetType = ezp.expectRuleOrTerm("Expected target type", typeRule);
+      let end: Loc = targetType;
       const _begin_curly = ezp.expect((token) =>
         token.type === "Symbol" && token.value === "{"
       );
@@ -828,15 +827,114 @@ export class Parser {
         const f = ezp.expectRule(functionRule) as FunctionDefinitionNode;
         functions.push(f);
       }
-      return cn(interfaceToken, end, {
+      return cn(implToken, end, {
         type: NodeKind.ImplBaseNode,
-        name: interfaceNameToken.name,
+        targetType,
         defs: functions,
         generics: implGenerics,
-        typeArguments
 
       });
     });
+    const implTraitRule = this.ezp.instantiateRule("impl <trait> for <type>", (ezp) => {
+      const implToken = ezp.expect((token) =>
+        token.type === "Keyword" && token.value === "impl"
+      );
+      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericIdentifierListRule);
+      const trait = ezp.expectRuleOrTerm("Expected trait", typeRule);
+      
+      const _forToken = ezp.expect((token) =>
+        token.type === "Keyword" && token.value === "for"
+      );
+      const targetType = ezp.expectRuleOrTerm("Expected target type", typeRule);
+      let end: Loc = targetType;
+      const _begin_curly = ezp.expect((token) =>
+        token.type === "Symbol" && token.value === "{"
+      );
+      const functions = [];
+      while (true) {
+        if (
+          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "}")
+        ) {
+          end = ezp.consume();
+          break;
+        }
+        const f = ezp.expectRule(functionRule) as FunctionDefinitionNode;
+        functions.push(f);
+      }
+      return cn(implToken, end, {
+        type: NodeKind.ImplTraitNode,
+        defs: functions,
+        targetType,
+        generics: implGenerics,
+        trait
+      });
+    });
+    const structRule = this.ezp.instantiateRule("struct", (ezp) => {
+      const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "struct");
+      const structName = ezp.expectOrTerm("Expected struct name", token => token.type === "Identifier");
+      const generics = ezp.expectRuleOrTerm("Expected generics", genericIdentifierListRule);
+      const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
+      const members: [string, TypeNode][] = [];
+      let end: Loc = _start_curly;
+      while (true) {
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
+          end = ezp.consume();
+          break;
+        }
+        const name = ezp.expectOrTerm("Expected member name", token => token.type === "Identifier");
+        const _colon = ezp.expectOrTerm("Expected colon", token => token.type === "Symbol" && token.value === ":");
+        const type = ezp.expectRuleOrTerm("Expected type", typeRule);
+        members.push([name.name, type]);
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
+          end = ezp.consume();
+          break;
+        }
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ":")) {
+          end = ezp.consume();
+          continue;
+        }
+        this.errorAt(type, "Expected ending curly brackets or comma")
+      }
+      return cn(structToken, end, {
+        type: NodeKind.StructDefinitionNode,
+        generics,
+        members,
+        name: structName.name
+      })
+    })
+    const dataRule = this.ezp.instantiateRule("data struct", (ezp) => {
+      const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "data");
+      const structName = ezp.expectOrTerm("Expected data struct name", token => token.type === "Identifier");
+      const generics = ezp.expectRuleOrTerm("Expected generics", genericIdentifierListRule);
+      const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
+      const members: [string, TypeNode][] = [];
+      let end: Loc = _start_curly;
+      while (true) {
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
+          end = ezp.consume();
+          break;
+        }
+        const name = ezp.expectOrTerm("Expected member name", token => token.type === "Identifier");
+        const _colon = ezp.expectOrTerm("Expected colon", token => token.type === "Symbol" && token.value === ":");
+        const type = ezp.expectRuleOrTerm("Expected type", typeRule);
+        members.push([name.name, type]);
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
+          end = ezp.consume();
+          break;
+        }
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ":")) {
+          end = ezp.consume();
+          continue;
+        }
+        this.errorAt(type, "Expected ending curly brackets or comma")
+      }
+      return cn(structToken, end, {
+        type: NodeKind.DataStructDefinitionNode,
+        generics,
+        members,
+        name: structName.name
+      })
+    })
     const statementRule = this.ezp.addRule("statement", (ezp) => {
       const declRule = ezp.instantiateRule("declaration", (ezp) => {
         const name = ezp.expect((token) =>
@@ -951,7 +1049,10 @@ export class Parser {
 
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        structRule,
+        dataRule,
         implBaseRule,
+        implTraitRule,
         interfaceRule,
         functionRule,
         controlFlowRule,
