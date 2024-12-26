@@ -45,6 +45,6 @@ export class SourceHelper {
                 if (r[col][1] >= position) return [row, col];
             }
         }
-        return [row, col];
+        return [col, row];
     }
 }

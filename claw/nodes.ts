@@ -26,6 +26,7 @@ export type BaseNode =
   | BlockNode
   | LabelNode
   | FunctionDefinitionNode
+  | InterfaceNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -56,7 +57,8 @@ export enum NodeKind {
     BlockNode,
     LabelNode,
 
-    FunctionDefinitionNode
+    FunctionDefinitionNode,
+    InterfaceNode,
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -206,4 +208,11 @@ export type FunctionDefinitionNode = {
     readonly args: [string, Nodify<TypeNode>][],
     readonly nodes: Node,
     readonly name: string,
+    readonly returnType: Nodify<TypeNode>
+}
+export type InterfaceNode = {
+    readonly type: NodeKind.InterfaceNode,
+    readonly name: string,
+    readonly defs: Nodify<FunctionDefinitionNode>[],
+    readonly generics: Nodify<TypeNode>[]
 }

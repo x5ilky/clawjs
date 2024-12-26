@@ -4,6 +4,7 @@ import { ClawToken, ClawTokenType, Loc } from "./lexer.ts";
 import {
   BaseNode,
   BinaryOperationType,
+  FunctionDefinitionNode,
   Node,
   NodeKind,
   Nodify,
@@ -30,9 +31,12 @@ export class Parser {
   ezp: EZP<ClawToken, Node>;
   constructor(tokens: ClawToken[], private sourcemap: SourceMap) {
     const sh = new SourceHelper(sourcemap.get(tokens?.[0]?.fp) ?? "");
-    this.ezp = new EZP<ClawToken, Node>(tokens, (tok) => {
-      const [row, col] = sh.getColRow(tok.start);
-      return [tok.fp, row + 1, col + 1];
+    this.ezp = new EZP<ClawToken, Node>(tokens, {
+      getLoc: (tok) => {
+        const [row, col] = sh.getColRow(tok.start);
+        return [tok.fp, row + 1, col + 1];
+      },
+      customError: (error, tok) => this.errorAt(tok, error),
     });
     const typeRule = this.ezp.instantiateRule<ClawToken, Nodify<TypeNode>>(
       "type",
@@ -241,7 +245,7 @@ export class Parser {
                 end = ezp.consume();
                 continue;
               }
-              throw new Error("Expected comma or parentheses");
+              this.errorAt(ezp.consume(), "Expected comma or parentheses");
             }
             lhs = cn(lhs, end, {
               type: NodeKind.CallNode,
@@ -394,7 +398,6 @@ export class Parser {
           type BKey = keyof typeof BINARY_OPERATOR_TO_PRECEDENCE;
           const parseExpression = function (lhs: Node, minPrecedence: number) {
             let lookahead = ezp.peek();
-            console.log("lookahead", lookahead)
             while (
               lookahead !== undefined &&
               lookahead.type === "Symbol" &&
@@ -404,7 +407,6 @@ export class Parser {
             ) {
               const op = ezp.consume() as ClawTokenType<"Symbol">;
               const opPrec = BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][1];
-                console.log(BinaryOperationType[opPrec]);
               let rhs = ezp.expectRule(unaryOperatorRule);
               lookahead = ezp.peek();
               while (
@@ -436,7 +438,6 @@ export class Parser {
             return lhs;
           };
 
-          console.log("parse")
           return parseExpression(ezp.expectRule(unaryOperatorRule), 0);
         },
       );
@@ -629,10 +630,10 @@ export class Parser {
         forRule,
         forRRule,
       );
-      console.log(v);
       return v;
     });
-    const functionRule = this.ezp.instantiateRule("function definition", ezp => {
+
+    const functionDefinitionRule = this.ezp.instantiateRule("function definition", (ezp): Nodify<FunctionDefinitionNode> => {
         const fnKeyword = ezp.expect(token => token.type === "Keyword" && token.value === "fn");
         const name = ezp.expectOrTerm("Expected function name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
         // parse arguments
@@ -656,39 +657,131 @@ export class Parser {
                 end = ezp.consume();
                 break;
             } else {
-                throw new Error("Expected ending parenthese");
+                this.errorAt(ezp.consume(), "Expected ending parenthese");
             }
         }
-        const block = ezp.expectRuleOrTerm("Expected function body", statementRule);
+        const returnType = ezp.expectRuleOrTerm("Expected return type", typeRule)
         return cn(fnKeyword, end, {
             type: NodeKind.FunctionDefinitionNode,
             name: name.name,
             args: args,
-            nodes: block
+            nodes: cn(end, end, {
+                type: NodeKind.BlockNode,
+                nodes: []
+            }),
+            returnType
         })
     })
+    const functionRule = this.ezp.instantiateRule("function", ezp => {
+        const def = ezp.expectRule(functionDefinitionRule) as Nodify<FunctionDefinitionNode>;
+        const block = ezp.expectRuleOrTerm("Expected function body", statementRule);
+        return cn(def, block, {
+            type: NodeKind.FunctionDefinitionNode,
+            name: def.name,
+            args: def.args,
+            nodes: block,
+            returnType: def.returnType
+        });
+    })
+    const interfaceRule = this.ezp.instantiateRule("interface", ezp => {
+        const interfaceToken = ezp.expect(token => token.type === "Keyword" && token.value === "interface");
+        const interfaceNameToken = ezp.expectOrTerm("Expected interface name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
+        const generics = [];
+        let end: Loc = interfaceNameToken;
+        if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "<")) {
+            ezp.consume();
+            while (true) {
+                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
+                    end = ezp.consume();
+                    break;
+                }
+                generics.push(ezp.expectRuleOrTerm("Expected generic", typeRule));
+                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
+                    end = ezp.consume();
+                    break;
+                }
+                else if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ",")) {
+                    end = ezp.consume();
+                    continue;
+                }
+                this.errorAt(ezp.consume(), "Expected commas or right angle bracket")
+            }
+        }
+        const _begin_curly = ezp.expectOrTerm("Expected opening curly", token => token.type === "Symbol" && token.value === "{");
+        const functions = [];
+        while (true) {
+          if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
+            end = ezp.consume();
+            break;
+          }
+          const f = ezp.expectRuleOrTerm("Expected function definition", functionDefinitionRule) as Nodify<FunctionDefinitionNode>;
+          functions.push(f);
+        }
+        return cn(interfaceToken, end, {
+          type: NodeKind.InterfaceNode,
+          name: interfaceNameToken.name,
+          defs: functions,
+          generics: generics
+        })
+    });
+    const implBaseRule = this.ezp.instantiateRule("impl <trait> for <type>", ezp => {
+        const interfaceToken = ezp.expect(token => token.type === "Keyword" && token.value === "impl");
+        const interfaceNameToken = ezp.expect(token => token.type === "Identifier") as ClawTokenType<"Identifier">;
+        const generics = [];
+        let end: Loc = interfaceNameToken;
+        if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "<")) {
+            ezp.consume();
+            while (true) {
+                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
+                    end = ezp.consume();
+                    break;
+                }
+                generics.push(ezp.expectRuleOrTerm("Expected generic", typeRule));
+                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
+                    end = ezp.consume();
+                    break;
+                }
+                else if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ",")) {
+                    end = ezp.consume();
+                    continue;
+                }
+                this.errorAt(ezp.consume(), "Expected commas or right angle bracket")
+            }
+        }
+        const _begin_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
+        const functions = [];
+        while (true) {
+          if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
+            end = ezp.consume();
+            break;
+          }
+          const f = ezp.expectRule(functionDefinitionRule) as Nodify<FunctionDefinitionNode>;
+          functions.push(f);
+        }
+        return cn(interfaceToken, end, {
+          type: NodeKind.InterfaceNode,
+          name: interfaceNameToken.name,
+          defs: functions,
+          generics: generics
+        })
+    });
     const statementRule = this.ezp.addRule("statement", (ezp) => {
       const declRule = ezp.instantiateRule("declaration", (ezp) => {
         const name = ezp.expect((token) =>
           token.type === "Identifier"
         ) as ClawTokenType<"Identifier">;
-        console.log("decl", name)
         const _colon = ezp.expect((token) =>
           token.type === "Symbol" && token.value === ":"
         );
-        console.log("decl_colon", _colon)
         // variable decl
         const type = ezp.tryRule(typeRule);
-        console.log("decltype", type)
         const _equals = ezp.expect((tok) =>
           tok.type === "Symbol" && tok.value === "="
         );
-        console.log("decl_equals", _equals)
         const value = ezp.expectRuleOrTerm(
           "Expected value after equals sign",
           valueRule,
         );
-        console.log("declvalue", value)
         return cn(name, value, {
           type: NodeKind.DeclarationNode,
           name: name.name,
@@ -763,6 +856,7 @@ export class Parser {
 
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        interfaceRule,
         functionRule,
         controlFlowRule,
         declRule,
@@ -782,7 +876,26 @@ export class Parser {
     message: string,
   ): never {
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
-    sh.getLines(location.start, location.end);
+    const lines = sh.getLines(location.start, location.end);
+    const [col, row] = sh.getColRow(location.start);
+    logger.printWithTags([
+      logger.config.levels[LogLevel.ERROR],
+      {
+        color: [196, 34, 235],
+        priority: -20,
+        name: "PARSER",
+      },
+    ], `At ${location.fp}:${col+1}:${row}:`);
+    for (const ln of lines) {
+      logger.printWithTags([
+        logger.config.levels[LogLevel.ERROR],
+        {
+          color: [196, 34, 235],
+          priority: -20,
+          name: "PARSER",
+        },
+      ], ln)
+    }
     logger.printWithTags([
       logger.config.levels[LogLevel.ERROR],
       {

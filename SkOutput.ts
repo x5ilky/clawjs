@@ -1,195 +1,11 @@
 /**
  * SkSFL amalgamate file
  * GitHub: https://github.com/x5ilky/SkSFL
- * Created: 15:41:45 GMT+0800 (中国标准时间)
- * Modules: SkLp, SkAp, SkLg, SkAn
+ * Created: 16:21:46 GMT+0800 (中国标准时间)
+ * Modules: SkAp, SkAn, SkLg, SkLp
  * 
  * Created without care by x5ilky
  */
-
-type EZPScanner<T, O> = (ezp: EZP<T, O>) => O;
-type TargetRule<TokenType, NodeType> = {
-  target: string;
-  scanner: EZPScanner<TokenType, NodeType>;
-};
-export class EZPError extends Error {
-    constructor(message: string, options?: ErrorOptions) {
-        super(message, options);
-    }
-}
-export class EZP<TokenType, NodeType> {
-    tokens: TokenType[];
-    output: NodeType[];
-    targetRules: TargetRule<TokenType, NodeType>[];
-
-    
-    constructor(tokens: TokenType[], private getLoc?: (token: TokenType) => [string, number, number]) {
-        this.tokens = tokens;
-        this.output = [];
-        this.targetRules = [];
-    }
-
-    addRule(target: string, scanner: EZPScanner<TokenType, NodeType>): TargetRule<TokenType, NodeType> {
-        let v;
-        this.targetRules.push(v = {
-            target,
-            scanner
-        });
-        return v;
-    }
-
-    instantiateRule<I extends TokenType, O extends NodeType>(target: string, scanner: EZPScanner<I, O>): TargetRule<I, O> {
-        return {
-            target,
-            scanner
-        }
-    }
-    
-    parse() {
-        while (this.tokens.length) {
-            const err = this.parseOnce();
-            if (err !== true) {
-                let message = `Failed to parse, expected:\n`;
-                for (const r of this.targetRules) {
-                    message += `  ${r.target}\n`;
-                }
-                message += err.map(a => a.message + "\n").join("");
-                message += `But instead got ${JSON.stringify(this.tokens[0])}`;
-                return new Error(message);
-            }
-        }
-        return this.output;
-    }
-    parseOnce() {
-        // deno-lint-ignore no-explicit-any
-        const errors: any[] = [];
-        for (const r of this.targetRules) {
-            try {
-                this.expectRule(r);
-                return true;
-            } catch (e) {
-                // pass
-                errors.push(e)
-            }
-        }
-        return errors
-    }
-    /**
-     * Eats the first token
-     * !!! ONLY USE THIS FUNCTION IF YOU ARE SURE THERE IS A TOKEN
-     * @returns The first token in the stream
-     */
-    consume(): TokenType {
-        return this.tokens.shift()!;
-    }
-    peek(): TokenType {
-        return this.tokens[0];
-    }
-    peekAnd(test: (t: TokenType) => boolean) {
-        return this.peek() !== undefined && test(this.peek());
-    }
-    expect<O extends TokenType>(pred: (token: TokenType) => boolean): O {
-        if (this.tokens.length === 0) throw new EZPError("Not enough elements");
-        let t;
-        if (!pred(t = this.tokens.shift()!)) throw new EZPError("mismatch")
-        return t as O;
-    }
-    expectOrTerm<O extends TokenType>(error: string, pred: (token: TokenType) => boolean): O {
-        if (this.tokens.length === 0) throw new Error(error);
-        let t;
-        if (!pred(t = this.tokens.shift()!)) throw new Error(error);
-        return t as O;
-    }
-    expectRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O {
-        const prevTokens = structuredClone(this.tokens);
-        const prevNodes = structuredClone(this.output);
-        try {
-            const ezp = new EZP<TokenType, O>(this.tokens, this.getLoc);
-            const value = rule.scanner(ezp) as O;
-            this.output.push(value);
-            this.tokens = ezp.tokens;
-            return value;
-        } catch (e) {
-            if (e instanceof EZPError) {
-                this.tokens = prevTokens;
-                this.output = prevNodes;
-                let errMsg = `Expected rule ${rule.target}:\n${e.message}`;
-                if (this.getLoc !== undefined) {
-                    const [fp, ln, col] = this.getLoc(this.tokens[0]);
-                    errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
-                }
-                throw new EZPError(errMsg);
-            } 
-            throw e;
-        }
-    }
-    expectRuleOrTerm<O extends NodeType>(error: string, rule: TargetRule<TokenType, O>): O {
-        try {
-            const ezp = new EZP<TokenType, O>(this.tokens, this.getLoc);
-            const value = rule.scanner(ezp) as O;
-            this.output.push(value);
-            this.tokens = ezp.tokens;
-            return value;
-        } catch (e) {
-            let errMsg = error;
-            if (this.getLoc !== undefined && this.tokens.length) {
-                const [fp, ln, col] = this.getLoc(this.tokens[0]);
-                errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
-            }
-            throw new Error(errMsg + "\n" + (e as Error)?.message);
-        }
-    }
-    getFirstThatWorks<O extends NodeType>(...rules: TargetRule<TokenType, O>[]): O {
-        for (const r of rules) {
-            try {
-                const v = this.expectRule(r) as O;
-                return v;
-            } catch {
-                // nothing
-            }
-        }
-        throw new EZPError("None worked")
-    }
-    getFirstThatWorksOrTerm<O extends NodeType>(error: string, ...rules: TargetRule<TokenType, O>[]): O {
-        const errors = [];
-        for (const r of rules) {
-            try {
-                const v = this.expectRule(r) as O;
-                return v;
-            } catch (e) {
-                // nothing
-                errors.push(e)
-            }
-        }
-        throw new Error(error + errors)
-    }
-
-    tryRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O | null {
-        const prevTokens = structuredClone(this.tokens);
-        const prevNodes = structuredClone(this.output);
-        try {
-            const ezp = new EZP<TokenType, O>(this.tokens, this.getLoc);
-            const value = rule.scanner(ezp) as O;
-            this.output.push(value);
-            this.tokens = ezp.tokens;
-            return value;
-        } catch {
-            this.tokens = prevTokens;
-            this.output = prevNodes;
-            return null;
-        }
-    }
-    thisOrIf<O extends NodeType>(value: O, pred: (token: TokenType) => boolean, cb: (token: TokenType) => O): O {
-        if (this.tokens.length && pred(this.tokens[0])) {
-            return cb(this.tokens.shift()!);
-        }
-        return value;
-    }
-    
-    doesNext(pred: (token: TokenType) => boolean): boolean {
-        return this.tokens.length ? pred(this.tokens[0]) : false;
-    }
-}
 
 // (S)il(k) (A)rgument (P)arser
 
@@ -726,6 +542,108 @@ export namespace skap {
     }
 }
 
+// (S)il(k) (An)si
+
+export const Ansi = {
+    reset: "\x1b[0m",
+    bold: "\x1b[1m",
+    italic: "\x1b[3m",
+    underline: "\x1b[4m",
+    inverse: "\x1b[7m",
+    hidden: "\x1b[8m",
+    strikethrough: "\x1b[9m",
+    black: "\x1b[30m",
+    red: "\x1b[31m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    blue: "\x1b[34m",
+    magenta: "\x1b[35m",
+    cyan: "\x1b[36m",
+    white: "\x1b[37m",
+    gray: "\x1b[90m",
+    grey: "\x1b[90m",
+    blackBright: "\x1b[90m",
+    redBright: "\x1b[91m",
+    greenBright: "\x1b[92m",
+    yellowBright: "\x1b[93m",
+    blueBright: "\x1b[94m",
+    magentaBright: "\x1b[95m",
+    cyanBright: "\x1b[96m",
+    whiteBright: "\x1b[97m",
+    bgBlack: "\x1b[40m",
+    bgRed: "\x1b[41m",
+    bgGreen: "\x1b[42m",
+    bgYellow: "\x1b[43m",
+    bgBlue: "\x1b[44m",
+    bgMagenta: "\x1b[45m",
+    bgCyan: "\x1b[46m",
+    bgWhite: "\x1b[47m",
+    bgGray: "\x1b[100m",
+    bgGrey: "\x1b[100m",
+    bgBlackBright: "\x1b[100m",
+    bgRedBright: "\x1b[101m",
+    bgGreenBright: "\x1b[102m",
+    bgYellowBright: "\x1b[103m",
+    bgBlueBright: "\x1b[104m",
+    bgMagentaBright: "\x1b[105m",
+    bgCyanBright: "\x1b[106m",
+    bgWhiteBright: "\x1b[107m",
+
+    // 24-bit
+    rgb: (r: number, g: number, b: number) => `\x1b[38;2;${r};${g};${b}m`,
+    bgRgb: (r: number, g: number, b: number) => `\x1b[48;2;${r};${g};${b}m`,
+
+    rgbHex: (_hex: string) => "",
+    bgRgbHex: (_hex: string) => "",
+
+    cursor: {
+        // Move the cursor up by n lines
+        moveUp: (n: number) => `\x1b[${n}A`,
+
+        // Move the cursor down by n lines
+        moveDown: (n: number) => `\x1b[${n}B`,
+
+        // Move the cursor forward by n columns
+        moveForward: (n: number) => `\x1b[${n}C`,
+
+        // Move the cursor backward by n columns
+        moveBackward: (n: number) => `\x1b[${n}D`,
+
+        // Move the cursor to a specific position (row, column)
+        moveTo: (row: number, col: number) => `\x1b[${row};${col}H`,
+
+        // Save the current cursor position
+        savePosition: () => `\x1b[s`,
+
+        // Restore the saved cursor position
+        restorePosition: () => `\x1b[u`,
+    },
+    // Clear the screen and move the cursor to the top-left
+    clearScreen: () => `\x1b[2J`,
+
+    // Clear the current line from the cursor to the end
+    clearLineToEnd: () => `\x1b[0K`,
+
+    // Clear the current line from the cursor to the beginning
+    clearLineToStart: () => `\x1b[1K`,
+
+    // Clear the entire current line
+    clearLine: () => `\x1b[2K`,
+};
+
+Ansi.rgbHex = (hex: string) => Ansi.rgb(...hexToRgb(hex));
+Ansi.bgRgbHex = (hex: string) => Ansi.bgRgb(...hexToRgb(hex));
+
+function hexToRgb(hex: string) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)!;
+    return [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16),
+    ] as const;
+}
+
+
 
 
 
@@ -875,104 +793,194 @@ export const LogLevel = {
     ERROR: 30
 };
 
-// (S)il(k) (An)si
-
-export const Ansi = {
-    reset: "\x1b[0m",
-    bold: "\x1b[1m",
-    italic: "\x1b[3m",
-    underline: "\x1b[4m",
-    inverse: "\x1b[7m",
-    hidden: "\x1b[8m",
-    strikethrough: "\x1b[9m",
-    black: "\x1b[30m",
-    red: "\x1b[31m",
-    green: "\x1b[32m",
-    yellow: "\x1b[33m",
-    blue: "\x1b[34m",
-    magenta: "\x1b[35m",
-    cyan: "\x1b[36m",
-    white: "\x1b[37m",
-    gray: "\x1b[90m",
-    grey: "\x1b[90m",
-    blackBright: "\x1b[90m",
-    redBright: "\x1b[91m",
-    greenBright: "\x1b[92m",
-    yellowBright: "\x1b[93m",
-    blueBright: "\x1b[94m",
-    magentaBright: "\x1b[95m",
-    cyanBright: "\x1b[96m",
-    whiteBright: "\x1b[97m",
-    bgBlack: "\x1b[40m",
-    bgRed: "\x1b[41m",
-    bgGreen: "\x1b[42m",
-    bgYellow: "\x1b[43m",
-    bgBlue: "\x1b[44m",
-    bgMagenta: "\x1b[45m",
-    bgCyan: "\x1b[46m",
-    bgWhite: "\x1b[47m",
-    bgGray: "\x1b[100m",
-    bgGrey: "\x1b[100m",
-    bgBlackBright: "\x1b[100m",
-    bgRedBright: "\x1b[101m",
-    bgGreenBright: "\x1b[102m",
-    bgYellowBright: "\x1b[103m",
-    bgBlueBright: "\x1b[104m",
-    bgMagentaBright: "\x1b[105m",
-    bgCyanBright: "\x1b[106m",
-    bgWhiteBright: "\x1b[107m",
-
-    // 24-bit
-    rgb: (r: number, g: number, b: number) => `\x1b[38;2;${r};${g};${b}m`,
-    bgRgb: (r: number, g: number, b: number) => `\x1b[48;2;${r};${g};${b}m`,
-
-    rgbHex: (_hex: string) => "",
-    bgRgbHex: (_hex: string) => "",
-
-    cursor: {
-        // Move the cursor up by n lines
-        moveUp: (n: number) => `\x1b[${n}A`,
-
-        // Move the cursor down by n lines
-        moveDown: (n: number) => `\x1b[${n}B`,
-
-        // Move the cursor forward by n columns
-        moveForward: (n: number) => `\x1b[${n}C`,
-
-        // Move the cursor backward by n columns
-        moveBackward: (n: number) => `\x1b[${n}D`,
-
-        // Move the cursor to a specific position (row, column)
-        moveTo: (row: number, col: number) => `\x1b[${row};${col}H`,
-
-        // Save the current cursor position
-        savePosition: () => `\x1b[s`,
-
-        // Restore the saved cursor position
-        restorePosition: () => `\x1b[u`,
-    },
-    // Clear the screen and move the cursor to the top-left
-    clearScreen: () => `\x1b[2J`,
-
-    // Clear the current line from the cursor to the end
-    clearLineToEnd: () => `\x1b[0K`,
-
-    // Clear the current line from the cursor to the beginning
-    clearLineToStart: () => `\x1b[1K`,
-
-    // Clear the entire current line
-    clearLine: () => `\x1b[2K`,
+type EZPScanner<T, O> = (ezp: EZP<T, O>) => O;
+type TargetRule<TokenType, NodeType> = {
+  target: string;
+  scanner: EZPScanner<TokenType, NodeType>;
 };
-
-Ansi.rgbHex = (hex: string) => Ansi.rgb(...hexToRgb(hex));
-Ansi.bgRgbHex = (hex: string) => Ansi.bgRgb(...hexToRgb(hex));
-
-function hexToRgb(hex: string) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)!;
-    return [
-        parseInt(result[1], 16),
-        parseInt(result[2], 16),
-        parseInt(result[3], 16),
-    ] as const;
+export class EZPError extends Error {
+    constructor(message: string, options?: ErrorOptions) {
+        super(message, options);
+    }
 }
+export class EZP<TokenType, NodeType> {
+    tokens: TokenType[];
+    output: NodeType[];
+    targetRules: TargetRule<TokenType, NodeType>[];
+    last: TokenType;
 
+    
+    constructor(tokens: TokenType[], private options: {
+        getLoc?: (token: TokenType) => [string, number, number],
+        customError?: (error: string, token: TokenType) => Error
+    }) {
+        this.tokens = tokens;
+        this.output = [];
+        this.targetRules = [];
+        this.last = tokens[0];
+        this.options.customError ??= (error) => new Error(error);
+    }
+
+    addRule(target: string, scanner: EZPScanner<TokenType, NodeType>): TargetRule<TokenType, NodeType> {
+        let v;
+        this.targetRules.push(v = {
+            target,
+            scanner
+        });
+        return v;
+    }
+
+    instantiateRule<I extends TokenType, O extends NodeType>(target: string, scanner: EZPScanner<I, O>): TargetRule<I, O> {
+        return {
+            target,
+            scanner
+        }
+    }
+    
+    parse() {
+        while (this.tokens.length) {
+            const err = this.parseOnce();
+            if (err !== true) {
+                let message = `Failed to parse, expected:\n`;
+                for (const r of this.targetRules) {
+                    message += `  ${r.target}\n`;
+                }
+                message += err.map(a => a.message + "\n").join("");
+                message += `But instead got ${JSON.stringify(this.tokens[0])}`;
+                return this.options.customError!(message, this.tokens[0]);
+            }
+        }
+        return this.output;
+    }
+    parseOnce() {
+        // deno-lint-ignore no-explicit-any
+        const errors: any[] = [];
+        for (const r of this.targetRules) {
+            try {
+                this.expectRule(r);
+                return true;
+            } catch (e) {
+                // pass
+                errors.push(e)
+            }
+        }
+        return errors
+    }
+    /**
+     * Eats the first token
+     * !!! ONLY USE THIS FUNCTION IF YOU ARE SURE THERE IS A TOKEN
+     * @returns The first token in the stream
+     */
+    consume(): TokenType {
+        return this.tokens.shift()!;
+    }
+    peek(): TokenType {
+        return this.tokens[0];
+    }
+    peekAnd(test: (t: TokenType) => boolean) {
+        return this.peek() !== undefined && test(this.peek());
+    }
+    expect<O extends TokenType>(pred: (token: TokenType) => boolean): O {
+        if (this.tokens.length === 0) throw new EZPError("Not enough elements");
+        let t;
+        if (!pred(t = this.tokens.shift()!)) throw new EZPError("mismatch")
+        return t as O;
+    }
+    expectOrTerm<O extends TokenType>(error: string, pred: (token: TokenType) => boolean): O {
+        if (this.tokens.length === 0) throw this.options.customError!(error, this.last);
+        let t;
+        if (!pred(t = this.tokens.shift()!)) throw this.options.customError!(error, this.last);
+        return t as O;
+    }
+    expectRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O {
+        const prevTokens = structuredClone(this.tokens);
+        const prevNodes = structuredClone(this.output);
+        try {
+            const ezp = new EZP<TokenType, O>(this.tokens, this.options);
+            const value = rule.scanner(ezp) as O;
+            this.output.push(value);
+            this.tokens = ezp.tokens;
+            return value;
+        } catch (e) {
+            if (e instanceof EZPError) {
+                this.tokens = prevTokens;
+                this.output = prevNodes;
+                let errMsg = `Expected rule ${rule.target}:\n${e.message}`;
+                if (this.options.getLoc !== undefined) {
+                    const [fp, ln, col] = this.options.getLoc(this.tokens[0]);
+                    errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
+                }
+                throw new EZPError(errMsg);
+            } 
+            throw e;
+        }
+    }
+    expectRuleOrTerm<O extends NodeType>(error: string, rule: TargetRule<TokenType, O>): O {
+        try {
+            const ezp = new EZP<TokenType, O>(this.tokens, this.options);
+            const value = rule.scanner(ezp) as O;
+            this.output.push(value);
+            this.tokens = ezp.tokens;
+            return value;
+        } catch (e) {
+            let errMsg = error;
+            if (this.options.getLoc !== undefined && this.tokens.length) {
+                const [fp, ln, col] = this.options.getLoc(this.tokens[0]);
+                errMsg = `At ${fp}:${ln}:${col}: ${errMsg}`
+            }
+            throw this.options.customError!(errMsg + "\n" + (e as Error)?.message, this.tokens[0]);
+        }
+    }
+    getFirstThatWorks<O extends NodeType>(...rules: TargetRule<TokenType, O>[]): O {
+        for (const r of rules) {
+            try {
+                const v = this.expectRule(r) as O;
+                return v;
+            } catch {
+                // nothing
+            }
+        }
+        throw new EZPError("None worked")
+    }
+    getFirstThatWorksOrTerm<O extends NodeType>(error: string, ...rules: TargetRule<TokenType, O>[]): O {
+        const errors = [];
+        for (const r of rules) {
+            try {
+                const v = this.expectRule(r) as O;
+                return v;
+            } catch (e) {
+                // nothing
+                if (e instanceof Error && !(e instanceof EZPError)) {
+                    errors.push(e)
+                }
+            }
+        }
+        throw this.options.customError!(error + errors, this.tokens[0]);
+    }
+
+    tryRule<O extends NodeType>(rule: TargetRule<TokenType, O>): O | null {
+        const prevTokens = structuredClone(this.tokens);
+        const prevNodes = structuredClone(this.output);
+        try {
+            const ezp = new EZP<TokenType, O>(this.tokens, this.options);
+            const value = rule.scanner(ezp) as O;
+            this.output.push(value);
+            this.tokens = ezp.tokens;
+            return value;
+        } catch {
+            this.tokens = prevTokens;
+            this.output = prevNodes;
+            return null;
+        }
+    }
+    thisOrIf<O extends NodeType>(value: O, pred: (token: TokenType) => boolean, cb: (token: TokenType) => O): O {
+        if (this.tokens.length && pred(this.tokens[0])) {
+            return cb(this.tokens.shift()!);
+        }
+        return value;
+    }
+    
+    doesNext(pred: (token: TokenType) => boolean): boolean {
+        return this.tokens.length ? pred(this.tokens[0]) : false;
+    }
+}
