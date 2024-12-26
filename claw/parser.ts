@@ -7,7 +7,6 @@ import {
   FunctionDefinitionNode,
   Node,
   NodeKind,
-  Nodify,
   TypeNode,
   UnaryOperationType,
 } from "./nodes.ts";
@@ -15,11 +14,11 @@ import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 
 // construct node
-function cn<T extends BaseNode>(
+function cn<T extends Omit<BaseNode, keyof Loc>>(
   start: { start: number; end: number; fp: string },
   end: { start: number; end: number; fp: string },
   value: T,
-): Nodify<T> {
+): T & Loc {
   return {
     start: start.start,
     end: end.end,
@@ -38,7 +37,7 @@ export class Parser {
       },
       customError: (error, tok) => this.errorAt(tok, error),
     });
-    const typeRule = this.ezp.instantiateRule<ClawToken, Nodify<TypeNode>>(
+    const typeRule = this.ezp.instantiateRule<ClawToken, TypeNode>(
       "type",
       (ezp) => {
         let ref = false;
@@ -53,51 +52,24 @@ export class Parser {
         }
         const name = ezp.expect((token) =>
           token.type === "Identifier"
-        ) as ClawTokenType<"Identifier">;
-        let end: Loc = name;
-        const generics: Nodify<TypeNode>[] = [];
-        if (
-          ezp.doesNext((token) =>
-            token.type === "Symbol" && token.value === "<"
-          )
+        ) ;
+        const generics: TypeNode[] = ezp.expectRuleOrTerm("Expected type generics", genericTypeListRule);
+        while (
+          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "+")
         ) {
-          // start generics
-          const _start_left = ezp.consume();
-          while (true) {
-            if (
-              ezp.doesNext((token) =>
-                token.type === "Symbol" && token.value === ">"
-              )
-            ) {
-              end = ezp.consume();
-              break;
-            }
-            const type = ezp.expectRule(typeRule);
-            generics.push(type as Nodify<TypeNode>);
-            if (
-              ezp.doesNext((token) =>
-                token.type === "Symbol" && token.value === ">"
-              )
-            ) {
-              end = ezp.consume();
-              break;
-            }
-            ezp.expect((token) =>
-              token.type === "Symbol" && token.value === ","
-            );
-          }
-        }
-        while (ezp.peekAnd(token => token.type === "Symbol" && token.value === "+")) {
-            ezp.consume();
-            const boundName = ezp.expectOrTerm("Expected type bound name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
-            bounds.push(boundName.name);
+          ezp.consume();
+          const boundName = ezp.expectOrTerm(
+            "Expected type bound name",
+            (token) => token.type === "Identifier",
+          ) ;
+          bounds.push(boundName.name);
         }
         return cn(name, name, {
           type: NodeKind.TypeNode,
           name: name.name,
           ref,
           typeArguments: generics,
-          bounds
+          bounds,
         });
       },
     );
@@ -106,7 +78,7 @@ export class Parser {
         const numberRule = ezp.addRule("number", (ezp) => {
           const numberToken = ezp.expect((token) =>
             token.type === "NumericLiteral"
-          ) as ClawTokenType<"NumericLiteral">;
+          ) ;
           return cn(numberToken, numberToken, {
             type: NodeKind.NumberNode,
             value: numberToken.value,
@@ -115,7 +87,7 @@ export class Parser {
         const stringRule = ezp.addRule("string", (ezp) => {
           const stringToken = ezp.expect((token) =>
             token.type === "StringLiteral"
-          ) as ClawTokenType<"StringLiteral">;
+          ) ;
           return cn(stringToken, stringToken, {
             type: NodeKind.StringNode,
             value: stringToken.value,
@@ -124,7 +96,7 @@ export class Parser {
         const variableRule = ezp.addRule("variable", (ezp) => {
           const ident = ezp.expect((token) =>
             token.type === "Identifier"
-          ) as ClawTokenType<"Identifier">;
+          ) ;
           return cn(ident, ident, {
             type: NodeKind.VariableNode,
             name: ident.name,
@@ -223,7 +195,7 @@ export class Parser {
           };
           const parseFunctionArguments = (
             leftLoc: Loc,
-            typeArgs: Nodify<TypeNode>[] | null,
+            typeArgs: TypeNode[] | null,
             ezp: EZP<ClawToken, Node>,
           ) => {
             // function call
@@ -270,7 +242,7 @@ export class Parser {
               const p = ezp.expect((token) =>
                 token.type === "Symbol" && token.value === "<"
               );
-              const typeArgs: Nodify<TypeNode>[] = [];
+              const typeArgs: TypeNode[] = [];
               let end: Loc = p;
               while (true) {
                 if (
@@ -303,7 +275,7 @@ export class Parser {
             );
             const name = ezp.expect((tok) =>
               tok.type === "Identifier"
-            ) as ClawTokenType<"Identifier">;
+            ) ;
             lhs = cn(lhs, name, {
               type: NodeKind.ChildOfNode,
               base: lhs,
@@ -319,7 +291,7 @@ export class Parser {
               );
               const name = ezp.expect((tok) =>
                 tok.type === "Identifier"
-              ) as ClawTokenType<"Identifier">;
+              ) ;
               lhs = cn(lhs, name, {
                 type: NodeKind.MethodOfNode,
                 base: lhs,
@@ -330,9 +302,9 @@ export class Parser {
           );
           while (operatorNext(ezp)) {
             if ((ezp.peek() as ClawTokenType<"Symbol">).value === "<") {
-                // this is so that we dont accidently try force parsing the less than operator as a function generic call
-                const r = ezp.tryRule(functionWithTypeArgsRule);
-                if (r === null) break;
+              // this is so that we dont accidently try force parsing the less than operator as a function generic call
+              const r = ezp.tryRule(functionWithTypeArgsRule);
+              if (r === null) break;
             }
             ezp.getFirstThatWorksOrTerm(
               "Expected function call or function call with generics",
@@ -351,13 +323,13 @@ export class Parser {
           if (peek === undefined) throw new EZPError("Expected value");
           if (peek.type === "Symbol") {
             if (["!", "~", "-"].includes(peek.value)) {
-              const opToken = ezp.consume() as ClawTokenType<"Symbol">;
+              const opToken = ezp.consume() ;
               const rhs = ezp.expectRule(unaryOperatorRule);
               return cn(opToken, rhs, {
                 type: NodeKind.UnaryOperation,
                 value: rhs,
                 oper: (() => {
-                  switch (opToken.value) {
+                  switch ((opToken as ClawTokenType<"Symbol">).value) {
                     case "!":
                       return UnaryOperationType.Not;
                     case "~":
@@ -488,12 +460,12 @@ export class Parser {
           "Expected statement for for loop",
           statementRule,
         );
-        ezp.expect(a => a.type === "Symbol" && a.value === ";");
+        ezp.expect((a) => a.type === "Symbol" && a.value === ";");
         const predicate = ezp.expectRuleOrTerm(
           "Expected predicate for for loop",
           valueRule,
         );
-        ezp.expect(a => a.type === "Symbol" && a.value === ";");
+        ezp.expect((a) => a.type === "Symbol" && a.value === ";");
         const post = ezp.expectRuleOrTerm(
           "Expected post statement for for loop",
           statementRule,
@@ -633,143 +605,240 @@ export class Parser {
       return v;
     });
 
-    const functionDefinitionRule = this.ezp.instantiateRule("function definition", (ezp): Nodify<FunctionDefinitionNode> => {
-        const fnKeyword = ezp.expect(token => token.type === "Keyword" && token.value === "fn");
-        const name = ezp.expectOrTerm("Expected function name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
+    const genericTypeListRule = this.ezp.instantiateHelper<ClawToken, TypeNode[]>(
+      "generics",
+      (ezp): TypeNode[] => {
+        const generics = [];
+        if (
+          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "<")
+        ) {
+          ezp.consume();
+          while (true) {
+            if (
+              ezp.peekAnd((token) =>
+                token.type === "Symbol" && token.value === ">"
+              )
+            ) {
+              ezp.consume();
+              break;
+            }
+            generics.push(ezp.expectRuleOrTerm("Expected generic", typeRule));
+            if (
+              ezp.peekAnd((token) =>
+                token.type === "Symbol" && token.value === ">"
+              )
+            ) {
+              ezp.consume();
+              break;
+            } else if (
+              ezp.peekAnd((token) =>
+                token.type === "Symbol" && token.value === ","
+              )
+            ) {
+              ezp.consume();
+              continue;
+            }
+            this.errorAt(
+              ezp.consume(),
+              "Expected commas or right angle bracket",
+            );
+          }
+        }
+        return generics;
+      },
+    );
+    const genericIdentifierListRule = this.ezp.instantiateHelper<ClawToken, string[]>(
+      "generics",
+      (ezp) => {
+        const generics: string[] = [];
+        if (
+          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "<")
+        ) {
+          ezp.consume();
+          while (true) {
+            if (
+              ezp.peekAnd((token) =>
+                token.type === "Symbol" && token.value === ">"
+              )
+            ) {
+              ezp.consume();
+              break;
+            }
+            generics.push(ezp.expectOrTerm("Expected identifier for generic", token => token.type === "Identifier").name);
+            if (
+              ezp.peekAnd((token) =>
+                token.type === "Symbol" && token.value === ">"
+              )
+            ) {
+              ezp.consume();
+              break;
+            } else if (
+              ezp.peekAnd((token) =>
+                token.type === "Symbol" && token.value === ","
+              )
+            ) {
+              ezp.consume();
+              continue;
+            }
+            this.errorAt(
+              ezp.consume(),
+              "Expected commas or right angle bracket",
+            );
+          }
+        }
+        return generics;
+      },
+    );
+    const functionDefinitionRule = this.ezp.instantiateRule(
+      "function definition",
+      (ezp): FunctionDefinitionNode => {
+        const fnKeyword = ezp.expect((token) =>
+          token.type === "Keyword" && token.value === "fn"
+        );
+        const name = ezp.expectOrTerm("Expected function name", (token) =>
+          token.type === "Identifier") ;
         // parse arguments
-        const _start = ezp.expectOrTerm("Expected starting parenthese", token => token.type === "Symbol" && token.value === "(");
+        const _start = ezp.expectOrTerm(
+          "Expected starting parenthese",
+          (token) => token.type === "Symbol" && token.value === "(",
+        );
         let end: Loc = _start;
 
-        const args: [string, Nodify<TypeNode>][] = [];
+        const args: [string, TypeNode][] = [];
         while (true) {
-            if (ezp.doesNext(token => token.type === "Symbol" && token.value === ")")) {
-                end = ezp.consume();
-                break;
-            }
-            const name = ezp.expectOrTerm("Expected function argument", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
-            const _colon = ezp.expectOrTerm("Expected colon as argument seperator", token => token.type === "Symbol" && token.value === ":") as ClawTokenType<"Symbol">;
-            const type = ezp.expectRuleOrTerm("Expected type", typeRule);
-            args.push([name.name, type] as const)
-            if (ezp.doesNext(token => token.type === "Symbol" && token.value === ",")) {
-                end = ezp.consume();
-                continue;
-            } else if (ezp.doesNext(token => token.type === "Symbol" && token.value === ")")) {
-                end = ezp.consume();
-                break;
-            } else {
-                this.errorAt(ezp.consume(), "Expected ending parenthese");
-            }
+          if (
+            ezp.doesNext((token) =>
+              token.type === "Symbol" && token.value === ")"
+            )
+          ) {
+            end = ezp.consume();
+            break;
+          }
+          const name = ezp.expectOrTerm("Expected function argument", (token) =>
+            token.type === "Identifier") ;
+          const _colon = ezp.expectOrTerm(
+            "Expected colon as argument seperator",
+            (token) => token.type === "Symbol" && token.value === ":",
+          ) ;
+          const type = ezp.expectRuleOrTerm("Expected type", typeRule);
+          args.push([name.name, type] as const);
+          if (
+            ezp.doesNext((token) =>
+              token.type === "Symbol" && token.value === ","
+            )
+          ) {
+            end = ezp.consume();
+            continue;
+          } else if (
+            ezp.doesNext((token) =>
+              token.type === "Symbol" && token.value === ")"
+            )
+          ) {
+            end = ezp.consume();
+            break;
+          } else {
+            this.errorAt(ezp.consume(), "Expected ending parenthese");
+          }
         }
-        const returnType = ezp.expectRuleOrTerm("Expected return type", typeRule)
+        const returnType = ezp.expectRuleOrTerm(
+          "Expected return type",
+          typeRule,
+        );
         return cn(fnKeyword, end, {
-            type: NodeKind.FunctionDefinitionNode,
-            name: name.name,
-            args: args,
-            nodes: cn(end, end, {
-                type: NodeKind.BlockNode,
-                nodes: []
-            }),
-            returnType
-        })
-    })
-    const functionRule = this.ezp.instantiateRule("function", ezp => {
-        const def = ezp.expectRule(functionDefinitionRule) as Nodify<FunctionDefinitionNode>;
-        const block = ezp.expectRuleOrTerm("Expected function body", statementRule);
-        return cn(def, block, {
-            type: NodeKind.FunctionDefinitionNode,
-            name: def.name,
-            args: def.args,
-            nodes: block,
-            returnType: def.returnType
+          type: NodeKind.FunctionDefinitionNode,
+          name: name.name,
+          args: args,
+          nodes: cn(end, end, {
+            type: NodeKind.BlockNode,
+            nodes: [],
+          }),
+          returnType,
         });
-    })
-    const interfaceRule = this.ezp.instantiateRule("interface", ezp => {
-        const interfaceToken = ezp.expect(token => token.type === "Keyword" && token.value === "interface");
-        const interfaceNameToken = ezp.expectOrTerm("Expected interface name", token => token.type === "Identifier") as ClawTokenType<"Identifier">;
-        const generics = [];
-        let end: Loc = interfaceNameToken;
-        if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "<")) {
-            ezp.consume();
-            while (true) {
-                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
-                    end = ezp.consume();
-                    break;
-                }
-                generics.push(ezp.expectRuleOrTerm("Expected generic", typeRule));
-                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
-                    end = ezp.consume();
-                    break;
-                }
-                else if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ",")) {
-                    end = ezp.consume();
-                    continue;
-                }
-                this.errorAt(ezp.consume(), "Expected commas or right angle bracket")
-            }
-        }
-        const _begin_curly = ezp.expectOrTerm("Expected opening curly", token => token.type === "Symbol" && token.value === "{");
-        const functions = [];
-        while (true) {
-          if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
-            end = ezp.consume();
-            break;
-          }
-          const f = ezp.expectRuleOrTerm("Expected function definition", functionDefinitionRule) as Nodify<FunctionDefinitionNode>;
-          functions.push(f);
-        }
-        return cn(interfaceToken, end, {
-          type: NodeKind.InterfaceNode,
-          name: interfaceNameToken.name,
-          defs: functions,
-          generics: generics
-        })
+      },
+    );
+    const functionRule = this.ezp.instantiateRule("function", (ezp) => {
+      const def = ezp.expectRule(functionDefinitionRule) as FunctionDefinitionNode;
+      const block = ezp.expectRuleOrTerm(
+        "Expected function body",
+        statementRule,
+      );
+      return cn(def, block, {
+        type: NodeKind.FunctionDefinitionNode,
+        name: def.name,
+        args: def.args,
+        nodes: block,
+        returnType: def.returnType,
+      });
     });
-    const implBaseRule = this.ezp.instantiateRule("impl <trait> for <type>", ezp => {
-        const interfaceToken = ezp.expect(token => token.type === "Keyword" && token.value === "impl");
-        const interfaceNameToken = ezp.expect(token => token.type === "Identifier") as ClawTokenType<"Identifier">;
-        const generics = [];
-        let end: Loc = interfaceNameToken;
-        if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "<")) {
-            ezp.consume();
-            while (true) {
-                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
-                    end = ezp.consume();
-                    break;
-                }
-                generics.push(ezp.expectRuleOrTerm("Expected generic", typeRule));
-                if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ">")) {
-                    end = ezp.consume();
-                    break;
-                }
-                else if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ",")) {
-                    end = ezp.consume();
-                    continue;
-                }
-                this.errorAt(ezp.consume(), "Expected commas or right angle bracket")
-            }
+    const interfaceRule = this.ezp.instantiateRule("interface", (ezp) => {
+      const interfaceToken = ezp.expect((token) =>
+        token.type === "Keyword" && token.value === "interface"
+      );
+      const interfaceNameToken = ezp.expectOrTerm(
+        "Expected interface name",
+        (token) => token.type === "Identifier",
+      ) ;
+      const generics = ezp.expectRuleOrTerm("expected generics", genericTypeListRule);
+      let end: Loc = interfaceNameToken;
+      // get generics
+      const _begin_curly = ezp.expectOrTerm(
+        "Expected opening curly",
+        (token) => token.type === "Symbol" && token.value === "{",
+      );
+      const functions = [];
+      while (true) {
+        if (
+          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "}")
+        ) {
+          end = ezp.consume();
+          break;
         }
-        const _begin_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
-        const functions = [];
-        while (true) {
-          if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
-            end = ezp.consume();
-            break;
-          }
-          const f = ezp.expectRule(functionDefinitionRule) as Nodify<FunctionDefinitionNode>;
-          functions.push(f);
+        const f = ezp.expectRuleOrTerm(
+          "Expected function definition",
+          functionDefinitionRule,
+        ) as FunctionDefinitionNode;
+        functions.push(f);
+      }
+      return cn(interfaceToken, end, {
+        type: NodeKind.InterfaceNode,
+        name: interfaceNameToken.name,
+        defs: functions,
+        generics: generics,
+      });
+    });
+    const implBaseRule = this.ezp.instantiateRule("impl <type>", (ezp) => {
+      const interfaceToken = ezp.expect((token) =>
+        token.type === "Keyword" && token.value === "impl"
+      );
+      const interfaceNameToken = ezp.expect((token) =>token.type === "Identifier");
+      const generics = ezp.expectRuleOrTerm("Expected generics", genericTypeListRule);
+      let end: Loc = interfaceNameToken;
+      const _begin_curly = ezp.expect((token) =>
+        token.type === "Symbol" && token.value === "{"
+      );
+      const functions = [];
+      while (true) {
+        if (
+          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "}")
+        ) {
+          end = ezp.consume();
+          break;
         }
-        return cn(interfaceToken, end, {
-          type: NodeKind.InterfaceNode,
-          name: interfaceNameToken.name,
-          defs: functions,
-          generics: generics
-        })
+        const f = ezp.expectRule(functionDefinitionRule) as FunctionDefinitionNode;
+        functions.push(f);
+      }
+      return cn(interfaceToken, end, {
+        type: NodeKind.InterfaceNode,
+        name: interfaceNameToken.name,
+        defs: functions,
+        generics: generics,
+      });
     });
     const statementRule = this.ezp.addRule("statement", (ezp) => {
       const declRule = ezp.instantiateRule("declaration", (ezp) => {
         const name = ezp.expect((token) =>
           token.type === "Identifier"
-        ) as ClawTokenType<"Identifier">;
+        ) ;
         const _colon = ezp.expect((token) =>
           token.type === "Symbol" && token.value === ":"
         );
@@ -806,7 +875,17 @@ export class Parser {
       });
       const VALID_ASSIGN_OPERATOR = (
         op: ClawTokenType<"Symbol">["value"],
-      ): boolean => {
+      ): op is 
+          | "+="
+          | "-="
+          | "*="
+          | "/="
+          | "%="
+          | "^="
+          | "|="
+          | "&="
+          | "||="
+          | "&&=" => {
         switch (op) {
           case "+=":
           case "-=":
@@ -824,34 +903,47 @@ export class Parser {
         }
       };
       const OP_TO_OPERATOR = (opequals: string) => {
-        switch(opequals) {
-          case "+=": return BinaryOperationType.Add;
-          case "-=": return BinaryOperationType.Subtract;
-          case "*=": return BinaryOperationType.Multiply;
-          case "/=": return BinaryOperationType.Divide;
-          case "%=": return BinaryOperationType.Modulo;
-          case "^=": return BinaryOperationType.BitwiseXor;
-          case "|=": return BinaryOperationType.BitwiseOr;
-          case "&=": return BinaryOperationType.BitwiseAnd;
-          case "||=": return BinaryOperationType.Or;
-          case "&&=": return BinaryOperationType.And;
-          default: throw "unreachable"
+        switch (opequals) {
+          case "+=":
+            return BinaryOperationType.Add;
+          case "-=":
+            return BinaryOperationType.Subtract;
+          case "*=":
+            return BinaryOperationType.Multiply;
+          case "/=":
+            return BinaryOperationType.Divide;
+          case "%=":
+            return BinaryOperationType.Modulo;
+          case "^=":
+            return BinaryOperationType.BitwiseXor;
+          case "|=":
+            return BinaryOperationType.BitwiseOr;
+          case "&=":
+            return BinaryOperationType.BitwiseAnd;
+          case "||=":
+            return BinaryOperationType.Or;
+          case "&&=":
+            return BinaryOperationType.And;
+          default:
+            throw "unreachable";
         }
-      }
+      };
       const assignOpRule = ezp.instantiateRule("operator assignment", (ezp) => {
         const base = ezp.expectRule(valueRule);
-        const opequals = ezp.expect((tok) => tok.type === "Symbol" && VALID_ASSIGN_OPERATOR(tok.value)) as ClawTokenType<"Symbol">;
+        const opequals = ezp.expect((tok) =>
+          tok.type === "Symbol" && VALID_ASSIGN_OPERATOR(tok.value)
+        ) as ClawTokenType<"Symbol">;
         const value = ezp.expectRule(valueRule);
         return cn(base, value, {
-            type: NodeKind.AssignmentNode,
-            assignee: base,
-            value: cn(value, value, {
-                type: NodeKind.BinaryOperation,
-                oper: OP_TO_OPERATOR(opequals.value),
-                left: base,
-                right: value,
-            })
-        })
+          type: NodeKind.AssignmentNode,
+          assignee: base,
+          value: cn(value, value, {
+            type: NodeKind.BinaryOperation,
+            oper: OP_TO_OPERATOR(opequals.value),
+            left: base,
+            right: value,
+          }),
+        });
       });
 
       return ezp.getFirstThatWorksOrTerm(
@@ -885,7 +977,7 @@ export class Parser {
         priority: -20,
         name: "PARSER",
       },
-    ], `At ${location.fp}:${col+1}:${row}:`);
+    ], `At ${location.fp}:${col + 1}:${row}:`);
     for (const ln of lines) {
       logger.printWithTags([
         logger.config.levels[LogLevel.ERROR],
@@ -894,7 +986,7 @@ export class Parser {
           priority: -20,
           name: "PARSER",
         },
-      ], ln)
+      ], ln);
     }
     logger.printWithTags([
       logger.config.levels[LogLevel.ERROR],
