@@ -6,8 +6,8 @@
 | --------------------- | ---------- |
 | IR -> sb3             | ☑          |
 | Language Design       | ☐          |
-| Lexer                 | ☐          |
-| Parser                | ☐          |
+| Lexer                 | ☑          |
+| Parser                | ☑          |
 | Typechecker           | ☐          |
 | Transpiler            | ☐          |
 | Full standard library | ☐          |

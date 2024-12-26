@@ -169,8 +169,41 @@ export class Parser {
             nodes: blocks,
           });
         });
+        const structOrDataRule = ezp.addRule("struct or data literal", (ezp) => {
+          const type = ezp.expectRule(typeRule);
+          const _colon = ezp.expect(token => token.type === "Symbol" && token.value === ":");
+          const _colon2 = ezp.expect(token => token.type === "Symbol" && token.value === ":");
+          const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
+          const members: {[key: string]: Node} = {};
+          let left: Loc = _start_curly;
+          while (true) {
+            if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
+              left = ezp.consume();
+              break;
+            }
+            const name = ezp.expectOrTerm("expected member name in struct/data literal", token => token.type === "Identifier");
+            const _colon = ezp.expect(token => token.type === "Symbol" && token.value === ":");
+            const value = ezp.expectRuleOrTerm("expected member value in struct/data literal", valueRule);
+            members[name.name] = value;
+            if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
+              left = ezp.consume();
+              break;
+            }
+            if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ",")) {
+              left = ezp.consume();
+              continue;
+            }
+            this.errorAt(left, "Expected right curly or comma")
+          }
+          return cn(type, left, {
+            type: NodeKind.StructLiteralNode,
+            baseType: type,
+            members
+          })
+        })
         return ezp.getFirstThatWorksOrTerm(
           "Expected a value",
+          structOrDataRule,
           groupingRule,
           variableRule,
           numberRule,
@@ -935,6 +968,14 @@ export class Parser {
         name: structName.name
       })
     })
+    const returnRule = this.ezp.instantiateRule("return", (ezp) => {
+      const returnToken = ezp.expect(token => token.type === "Keyword" && token.value === "return");
+      const value = ezp.expectRuleOrTerm("Expected return value", valueRule);
+      return cn(returnToken, value, {
+        type: NodeKind.ReturnNode,
+        value
+      })
+    })
     const statementRule = this.ezp.addRule("statement", (ezp) => {
       const declRule = ezp.instantiateRule("declaration", (ezp) => {
         const name = ezp.expect((token) =>
@@ -954,6 +995,29 @@ export class Parser {
         );
         return cn(name, value, {
           type: NodeKind.DeclarationNode,
+          name: name.name,
+          valueType: type,
+          value,
+        });
+      });
+      const constRule = ezp.instantiateRule("const declaration", (ezp) => {
+        const name = ezp.expect((token) =>
+          token.type === "Identifier"
+        ) ;
+        const _colon = ezp.expect((token) =>
+          token.type === "Symbol" && token.value === ":"
+        );
+        // variable decl
+        const type = ezp.tryRule(typeRule);
+        const _equals = ezp.expect((tok) =>
+          tok.type === "Symbol" && tok.value === ":"
+        );
+        const value = ezp.expectRuleOrTerm(
+          "Expected value after equals sign",
+          valueRule,
+        );
+        return cn(name, value, {
+          type: NodeKind.ConstDeclarationNode,
           name: name.name,
           valueType: type,
           value,
@@ -1049,6 +1113,7 @@ export class Parser {
 
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        returnRule,
         structRule,
         dataRule,
         implBaseRule,
@@ -1056,6 +1121,7 @@ export class Parser {
         interfaceRule,
         functionRule,
         controlFlowRule,
+        constRule,
         declRule,
         assignOpRule,
         assignRule,

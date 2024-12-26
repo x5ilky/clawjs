@@ -5,15 +5,18 @@ export type BaseNode =
   | NumberNode
   | StringNode
   | VariableNode
+  | StructLiteralNode
   | ChildOfNode
   | MethodOfNode
   | CallNode
   | AssignmentNode
   | DeclarationNode
+  | ConstDeclarationNode
   | IfNode
   | IfElseNode
   | WhileNode
   | ForNode
+  | ReturnNode
   | IfRuntimeNode
   | IfElseRuntimeNode
   | WhileRuntimeNode
@@ -35,11 +38,13 @@ export enum NodeKind {
     NumberNode,
     StringNode,
     VariableNode,
+    StructLiteralNode,
     ChildOfNode,
     MethodOfNode,
     CallNode,
     AssignmentNode,
     DeclarationNode,
+    ConstDeclarationNode,
     
     IfNode,
     IfElseNode,
@@ -50,6 +55,7 @@ export enum NodeKind {
     IfElseRuntimeNode,
     WhileRuntimeNode,
     ForRuntimeNode,
+    ReturnNode,
 
     UnaryOperation,
     BinaryOperation,
@@ -79,6 +85,11 @@ export type VariableNode = {
     readonly type: NodeKind.VariableNode,
     readonly name: string
 } & Loc;
+export type StructLiteralNode = {
+    readonly type: NodeKind.StructLiteralNode,
+    readonly baseType: TypeNode,
+    readonly members: {[key: string]: Node}
+} & Loc;
 export type ChildOfNode = {
     readonly type: NodeKind.ChildOfNode,
     readonly base: Node,
@@ -106,6 +117,12 @@ export type DeclarationNode = {
     readonly name: string,
     readonly value: Node
 } & Loc;
+export type ConstDeclarationNode = {
+    readonly type: NodeKind.ConstDeclarationNode,
+    readonly valueType: TypeNode | null,
+    readonly name: string,
+    readonly value: Node
+} & Loc;
 
 export type IfNode = {
     readonly type: NodeKind.IfNode,
@@ -129,6 +146,10 @@ export type ForNode = {
     readonly predicate: Node,
     readonly post: Node,
     readonly body: Node,
+} & Loc;
+export type ReturnNode = {
+    readonly type: NodeKind.ReturnNode,
+    readonly value: Node
 } & Loc;
 export type IfRuntimeNode = {
     readonly type: NodeKind.IfRuntimeNode,
