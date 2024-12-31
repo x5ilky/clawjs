@@ -38,7 +38,7 @@ impl sprite {
     fn new(name: string) sprite {
         return sprite::{
             name: name,
-            costumes: []
+            costumes: array.new()
         }
     }
 

@@ -23,9 +23,8 @@ const irShape = skap.command({
     })
   }).required()
 }).description("commands related to the intermediate representation");
-export const shape = skap.command({
+const devShape = skap.command({
   subc: skap.subcommand({
-    ir: irShape,
     lex: skap.command({
       inputFile:     skap.string("-i").required().description("The source file"),
       debugDumpFile: skap.string("-Ddumpfile").description("Whether or not to dump the file, if so, what path"),
@@ -35,7 +34,16 @@ export const shape = skap.command({
       inputFile:     skap.string("-i").required().description("The source file"),
       debugDumpFile: skap.string("-Ddumpfile").description("Whether or not to dump the file, if so, what path"),
       format:        skap.boolean("-F")
-    }).description("parse an input file into ast")
+    }).description("parse an input file into ast"),
+    check: skap.command({
+      inputFile:     skap.string("-i").required().description("The source file"),
+    }).description("check a singular file for type errors")
+  })
+})
+export const shape = skap.command({
+  subc: skap.subcommand({
+    ir: irShape,
+    dev: devShape,
   }).required()
 })
 
@@ -54,7 +62,12 @@ async function main() {
   });
   if (cmd.subc.selected === "ir") {
     await ir(cmd)
-  } else if (cmd.subc.selected === "lex") {
+  } else if (cmd.subc.selected === "dev") {
+    await dev(cmd.subc.commands.dev!)
+  }
+}
+async function dev(cmd: skap.SkapInfer<typeof devShape>) {
+  if (cmd.subc.selected === "lex") {
     const { inputFile, debugDumpFile, format } = cmd.subc.commands.lex!;
     const smap = new SourceMap();
     smap.set(inputFile, await Deno.readTextFile(inputFile));
@@ -77,6 +90,7 @@ async function main() {
     if (parsed instanceof Error) {
       logger.error(parsed);
     }
+    // deno-lint-ignore no-explicit-any
     const replacer = function(this: any, key: string, value: any) {
       if (key === "type") {
         return NodeKind[value.toString()]
