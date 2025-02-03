@@ -922,7 +922,7 @@ export class Parser {
           end = ezp.consume();
           break;
         }
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ":")) {
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ",")) {
           end = ezp.consume();
           continue;
         }
@@ -939,7 +939,7 @@ export class Parser {
       const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "data");
       const structName = ezp.expectOrTerm("Expected data struct name", token => token.type === "Identifier");
       const generics = ezp.expectRuleOrTerm("Expected generics", genericIdentifierListRule);
-      const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
+      const _start_curly = ezp.expectOrTerm("Expected starting curly", token => token.type === "Symbol" && token.value === "{");
       const members: [string, TypeNode][] = [];
       let end: Loc = _start_curly;
       while (true) {
@@ -955,7 +955,7 @@ export class Parser {
           end = ezp.consume();
           break;
         }
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ":")) {
+        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ",")) {
           end = ezp.consume();
           continue;
         }
@@ -1114,8 +1114,8 @@ export class Parser {
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
         returnRule,
-        structRule,
         dataRule,
+        structRule,
         implBaseRule,
         implTraitRule,
         interfaceRule,

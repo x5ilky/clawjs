@@ -38,7 +38,7 @@ const devShape = skap.command({
     check: skap.command({
       inputFile:     skap.string("-i").required().description("The source file"),
     }).description("check a singular file for type errors")
-  })
+  }).required()
 })
 export const shape = skap.command({
   subc: skap.subcommand({

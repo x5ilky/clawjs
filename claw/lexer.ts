@@ -132,7 +132,7 @@ export class Lexer {
       } else if (/[a-zA-Z$_]/.test(initial)) {
         // identifier
         let buf = "";
-        while (this.chars.length && /[a-zA-Z_$]/.test(this.peek()!)) {
+        while (this.chars.length && /[a-zA-Z0-9_$]/.test(this.peek()!)) {
           buf += this.eat();
         }
         if (this.peek() === "!") {
