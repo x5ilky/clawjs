@@ -1,7 +1,7 @@
 /**
  * SkSFL amalgamate file
  * GitHub: https://github.com/x5ilky/SkSFL
- * Created: 16:54:14 GMT+1100 (澳大利亚东部夏令时间)
+ * Created: 19:42:08 GMT+1100 (澳大利亚东部夏令时间)
  * Modules: SkAn, SkLg, SkLp, SkAr, SkAp
  * 
  * Created without care by x5ilky
@@ -475,6 +475,10 @@ export function arreq<T, U>(a: T[], b: U[], eq: (a: T, b: U) => boolean) {
         if (!eq(a[i], b[i])) return false;
     }
     return true;
+}
+
+export function arrjoinwith<T, U>(a: T[], map: (a: T) => U, join: string) {
+    return a.map(map).join(join);
 }
 
 // (S)il(k) (A)rgument (P)arser

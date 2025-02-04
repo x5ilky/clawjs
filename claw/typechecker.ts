@@ -1,8 +1,6 @@
-import { SourceMapping } from "node:module";
 import { logger } from "../src/main.ts";
 import { ChainCustomMap } from "./chainmap.ts";
-import { appendFile } from "node:fs";
-import { arreq } from "../SkOutput.ts";
+import { arreq, arrjoinwith } from "../SkOutput.ts";
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
     constructor() {
@@ -23,7 +21,7 @@ export class TypeIndex {
     }
     getTypeInterfaceImplementations(type: ClawType, int: ClawInterface, inputs: ClawType[]) {
         if (inputs.length !== int.generics.length) {
-            logger.error("assert: in TypeIndex.doesTypeImplementInterface, inputs.length !== ClawInterface.generics.length")
+            logger.error("assert: in TypeIndex.getTypeInterfaceImplementations, inputs.length !== ClawInterface.generics.length")
             Deno.exit(1);
         }
         const works = [];
@@ -57,15 +55,30 @@ export class TypeIndex {
             const t = mappings.get(type);
             if (t === undefined) {
                 errorStack.push(`No generic "${type.toDisplay()}"`)
-                return new VariableClawType("ERROR", [])
+                return new BuiltinClawType("ERROR", [])
             }
             return t[1];
         } else if (type instanceof VariableClawType) {
-            return new VariableClawType(type.name, this.substituteRaw(type.generics, mappings, errorStack));
-        } else {
-            errorStack.push(`Unimplemented claw type: ${type.toDisplay()}`);
+            return new VariableClawType(type.name, this.substituteRaw(type.generics, mappings, errorStack), this.substituteRawSingle(type.base, mappings, errorStack));
+        } else if (type instanceof StructureClawType) {
+            return new StructureClawType(
+                type.name, 
+                type.generics, 
+                new Map(
+                    type.members.entries().map(([k, v]) => [k, this.substituteRawSingle(v, mappings, errorStack)] as const)
+                )
+            );
+        } else if (type instanceof FunctionClawType) {
+            return new FunctionClawType(
+                type.name,
+                type.generics,
+                this.substituteRaw(type.args, mappings, errorStack),
+                this.substituteRawSingle(type.output, mappings, errorStack)
+            );
+        } else if (type instanceof BuiltinClawType) {
+            return new BuiltinClawType(type.name, []);
         }
-        return new VariableClawType("ERROR", [])
+        return new BuiltinClawType("ERROR", [])
     }
 
     extractGeneric(template: ClawType[], values: ClawType[], gcm: GenericChainMap) {
@@ -74,6 +87,7 @@ export class TypeIndex {
         if (values.length !== template.length) {
             logger.error("in TypeIndex.extractGeneric, template.length !== values.length")
             logger.error("failed to extract generic due to template being wildly different from extractee")
+            logger.error(`template in question: ${arrjoinwith(template, a => a.toDisplay(), ", ")}`)
             Deno.exit(1);
         }
 
@@ -102,9 +116,48 @@ export class TypeIndex {
                 }
             }
             gcm.set(template, value);
-        } else {
-            logger.error(`Unimplemented claw type: ${template.toDisplay()}`)
+        } else if (template instanceof FunctionClawType) {
+            if (!(value instanceof FunctionClawType)) {
+                logger.error(`${value.toDisplay()} is not a function type`);
+                return;
+            }
+            if (value.args.length !== template.args.length) {
+                logger.error(`${value.toDisplay()} has different argument count`);
+                logger.error(`expected: ${template.toDisplay()}`);
+                return;
+            }
+            this.extractGeneric(template.args, value.args, gcm);
+            this.extractGenericSingle(template.output, value.output, gcm);
+        } else if (template instanceof StructureClawType) {
+            if (!(value instanceof StructureClawType)) {
+                logger.error(`${value.toDisplay()} is not a structure type`);
+                logger.error(`expected: ${template.toDisplay()}`);
+                return;
+            }
+            const templateMembers = new Set(template.members.keys().toArray());
+            const valueMembers = new Set(value.members.keys().toArray());
+            if (templateMembers.size !== valueMembers.size) {
+                logger.error(`${value.toDisplay()} has different member count to template`);
+                logger.error(`expected: ${template.toDisplay()}`);
+                return;
+            }
+
+            if ([...templateMembers].every(x => valueMembers.has(x))) {
+                this.extractGeneric(
+                    template.members.values().toArray(),
+                    value.members.values().toArray(),
+                    gcm
+                );
+            } else {
+                logger.error("template and value members have different members");
+            }
+        } else if (template instanceof BuiltinClawType) {
+            return (
+                value instanceof BuiltinClawType
+                && template.eq(value)
+            )
         }
+        
     }
 }
 export class BaseClawType {
@@ -112,6 +165,9 @@ export class BaseClawType {
         public name: string,
         public generics: ClawType[],
     ) {
+        if (name === "ERROR") {
+            console.log(`ERROR type generated, stack trace: ${new Error().stack}`)
+        }
     }
 
     isBuiltinType() {
@@ -146,6 +202,9 @@ export class BaseClawType {
                 && arreq(this.generics, other.generics, (a, b) => a.eq(b))
             )
         }
+        if (this instanceof BuiltinClawType && other instanceof BuiltinClawType) {
+            return (this.name === other.name)
+        }
         return false;
     }
 
@@ -163,8 +222,8 @@ export class FunctionClawType extends BaseClawType {
     constructor(
         name: string,
         generics: ClawType[],
-        private args: ClawType[],
-        private output: ClawType
+        public args: ClawType[],
+        public output: ClawType
     ) {
         super(name, generics);
     }
@@ -177,19 +236,20 @@ export class StructureClawType extends BaseClawType {
     constructor(
         name: string,
         generics: ClawType[],
-        private members: Map<string, ClawType>
+        public members: Map<string, ClawType>
     ) { 
         super(name, generics);
     }
 
     override toDisplay(): string {
-        return `struct ${name} {\n${this.members.entries().map(([k, v]) => `\t${k}: ${v.toDisplay()}`)}\n}`
+        return `struct ${name} {\n${arrjoinwith(this.members.entries().toArray(), ([k, v]) => `\t${k}: ${v.toDisplay()}`, ", ")}\n}`
     }
 }
 export class VariableClawType extends BaseClawType {
     constructor(
         name: string,
         generics: ClawType[],
+        public base: ClawType
     ) { 
         super(name, generics);
     }
@@ -198,6 +258,11 @@ export class VariableClawType extends BaseClawType {
         if (this.generics.length) 
             return `${this.name}<${this.generics.map(a => a.toDisplay()).join(", ")}>`;
         return `${this.name}`
+    }
+}
+export class BuiltinClawType extends BaseClawType {
+    override toDisplay(): string {
+        return this.name
     }
 }
 export class GenericClawType extends BaseClawType {
@@ -215,13 +280,13 @@ export class GenericClawType extends BaseClawType {
         return this.name
     }
 }
-type ClawType = FunctionClawType | StructureClawType | VariableClawType | GenericClawType;
+type ClawType = FunctionClawType | StructureClawType | VariableClawType | GenericClawType | BaseClawType;
 
 export class ClawInterface {
     generics: ClawType[];
     name: string;
     specificImplementations: {
-        generics: GenericClawType[],
+        generics: ClawType[],
         inputs: ClawType[],
         functions: FunctionClawType[]
         target: ClawType
