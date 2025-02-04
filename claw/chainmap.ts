@@ -54,4 +54,19 @@ export class ChainCustomMap<K, V> {
         else 
             layer.push([k, v])
     }
+
+    flatten(): [K, V][] {
+        const out: [K, V][] = [];
+        const addedKeys: K[] = [];
+        for (const layer of this.#inner.toReversed()) {
+            for (const [key, value] of layer) {
+                if (addedKeys.find(a => this.equality(a, key)) === undefined) {
+                    out.push([key, value]);
+                    addedKeys.push(key)
+                }
+            }
+        }
+
+        return out;
+    }
 }
