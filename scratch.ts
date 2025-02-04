@@ -1,6 +1,13 @@
-import { BuiltinClawType, ClawInterface, GenericClawType, StructureClawType, TypeIndex, VariableClawType } from "./claw/typechecker.ts";
+import { BuiltinClawType, ClawInterface, FunctionClawType, GenericClawType, StructureClawType, TypeIndex, VariableClawType } from "./claw/typechecker.ts";
 
-const AddInterface = new ClawInterface("Add", [new GenericClawType("Right", []), new GenericClawType("Output", [])]);
+const self = new BuiltinClawType("self", []);
+const AddInterface = new ClawInterface("Add", [new GenericClawType("Right", []), new GenericClawType("Output", [])], new Map([
+    ["add", new FunctionClawType("add", [], [self, new GenericClawType("Right", [])], new GenericClawType("Output", []))]
+]));
+const DoubleInterface = new ClawInterface("Double", [], new Map([
+    ["double", new FunctionClawType("double", [], [self], self)]
+]));
+
 
 const number = new BuiltinClawType("int", []);
 const string = new BuiltinClawType("string", []);
@@ -23,7 +30,7 @@ AddInterface.specificImplementations.push({
             vec
         )
     ],
-    inputs: [vec, number],
+    inputs: [new VariableClawType("vec", [new GenericClawType("T", [])], vec), number],
     target: number
 })
 AddInterface.specificImplementations.push({
@@ -33,5 +40,9 @@ AddInterface.specificImplementations.push({
     target: number
 })
 
+// should match Add<Vec<T>, number>
+// where T = Vec<number>
+//  or
+// where T = number
 const res = ti.getTypeInterfaceImplementations(number, AddInterface, [new VariableClawType("vec", [number], vec), number]);
 console.log(res.map(a => a.flatten()))

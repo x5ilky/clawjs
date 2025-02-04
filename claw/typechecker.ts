@@ -103,7 +103,11 @@ export class TypeIndex {
 
     extractGenericSingle(template: ClawType, value: ClawType, gcm: GenericChainMap) {
         if (template instanceof VariableClawType) {
-            if (value.name !== template.name) {
+            if (!(value instanceof VariableClawType)) {
+                logger.error(`${template.toDisplay()} cannot map onto ${value.toDisplay()}`);
+                return;
+            }
+            if (!value.base.eq(template.base)) {
                 logger.error(`${template.toDisplay()} cannot map onto ${value.toDisplay()}`);
                 return;
             }
@@ -242,7 +246,10 @@ export class StructureClawType extends BaseClawType {
     }
 
     override toDisplay(): string {
-        return `struct ${name} {\n${arrjoinwith(this.members.entries().toArray(), ([k, v]) => `\t${k}: ${v.toDisplay()}`, ", ")}\n}`
+        let genTxt = ``;
+        if (this.generics.length) 
+            genTxt = `<${arrjoinwith(this.generics, (a) => a.toDisplay(), ", ")}>`
+        return `struct ${this.name}${genTxt} {\n${arrjoinwith(this.members.entries().toArray(), ([k, v]) => `\t${k}: ${v.toDisplay()}`, ", ")}\n}`
     }
 }
 export class VariableClawType extends BaseClawType {
@@ -285,6 +292,7 @@ type ClawType = FunctionClawType | StructureClawType | VariableClawType | Generi
 export class ClawInterface {
     generics: ClawType[];
     name: string;
+    functions: Map<string, FunctionClawType>;
     specificImplementations: {
         generics: ClawType[],
         inputs: ClawType[],
@@ -292,9 +300,10 @@ export class ClawInterface {
         target: ClawType
     }[];
 
-    constructor(name: string, generics: ClawType[]) {
+    constructor(name: string, generics: ClawType[], functions: Map<string, FunctionClawType>) {
         this.name = name;
         this.generics = generics;
+        this.functions = functions;
         this.specificImplementations = [];
     }
 
