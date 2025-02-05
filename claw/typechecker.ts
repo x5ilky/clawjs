@@ -246,21 +246,7 @@ export class BaseClawType {
     }
   }
 
-  isBuiltinType() {
-    if (
-      [
-        "int",
-        "int!",
-        "string",
-        "string!",
-        "bool",
-        "bool!",
-      ].includes(this.name)
-    ) return true;
-    return false;
-  }
-
-  eq(other: ClawType): boolean {
+  eq(other: ClawType, stop: boolean = false): boolean {
     if (this instanceof GenericClawType && other instanceof GenericClawType) {
       return this.name === other.name;
     }
@@ -270,11 +256,14 @@ export class BaseClawType {
         arreq(this.generics, other.generics, (a, b) => a.eq(b))
       );
     }
-    if (this instanceof VariableClawType && other instanceof VariableClawType) {
-      return (
-        this.name === other.name &&
-        arreq(this.generics, other.generics, (a, b) => a.eq(b))
-      );
+    if (this instanceof VariableClawType) {
+      if (other instanceof VariableClawType) {
+        return (
+          this.name === other.name &&
+          arreq(this.generics, other.generics, (a, b) => a.eq(b))
+        );
+      }
+      return this.base.eq(other);
     }
     if (
       this instanceof StructureClawType && other instanceof StructureClawType
@@ -287,7 +276,11 @@ export class BaseClawType {
     if (this instanceof BuiltinClawType && other instanceof BuiltinClawType) {
       return (this.name === other.name);
     }
-    return false;
+    if (this instanceof ReferenceClawType && other instanceof ReferenceClawType) {
+      return (this.base.eq(other.base))
+    }
+    if (stop) return false;
+    return other.eq(this, true);
   }
 
   toDisplay(): string {
@@ -427,12 +420,15 @@ export const ANY_TYPE = new BuiltinClawType("any", []);
 export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
+  scope: ChainMap<string, ClawType>
 
 
   constructor(public sourcemap: SourceMap) {
     this.ti = new TypeIndex(new ChainMap(), new Map());
     this.gcm = new GenericChainMap();
     this.gcm.push();
+    this.scope = new ChainMap();
+    this.scope.push();
     this.addBuiltinTypes();
   }
 
@@ -455,12 +451,16 @@ export class Typechecker {
   }
   typecheckSingle(node: Node): Node {
     if (node.type === NodeKind.DeclarationNode) {
-        if (node.valueType === null) {
-            // TODO(x5ilky): type inference later, not up to that yet 
-        } else {
-            this.resolveTypeNode(node.valueType, this.gcm);
+      const type = this.evaluateTypeFromValue(node.value);
+      if (node.valueType !== null) {
+        const targetType = this.resolveTypeNode(node.valueType, this.gcm);
+        if (!type.eq(targetType)) {
+          this.errorAt(node, `annotated type and actual type are different:`)
+          this.errorExcerptAt(node.valueType, `expected: ${targetType.toDisplay()}`)
+          this.errorExcerptAt(node.value, `received: ${type.toDisplay()}`)
         }
-        return node;
+      }
+      return node;
     }
     this.errorAt(node, `Unimplemented typechecker node: ${NodeKind[node.type]}`);
     return node;
@@ -504,6 +504,60 @@ export class Typechecker {
     return type;
   }
 
+  evaluateTypeFromValue(node: Node): ClawType {
+    // todo(x5ilky): finish this function
+
+    switch(node.type) {
+      case NodeKind.NumberNode:
+        return this.ti.getTypeFromName("int")!;
+      case NodeKind.StringNode:
+        return this.ti.getTypeFromName("string")!;
+      case NodeKind.VariableNode: {
+        const val = this.scope.get(node.name);
+        if (val === undefined) {
+          this.errorAt(node, `No variable called ${node.name}`);
+          Deno.exit(1);
+        }
+        return val;
+      }
+      case NodeKind.StructLiteralNode:
+      case NodeKind.ChildOfNode:
+      case NodeKind.MethodOfNode:
+      case NodeKind.CallNode:
+      case NodeKind.UnaryOperation:
+      case NodeKind.BinaryOperation:
+      case NodeKind.BlockNode:
+      case NodeKind.LabelNode:
+        logger.error(`Unimplemented node in evaluateTypeFromValue: ${NodeKind[node.type]}`);
+        Deno.exit(1);
+        break;
+      case NodeKind.Grouping:
+      case NodeKind.TypeNode:
+      case NodeKind.FunctionDefinitionNode:
+      case NodeKind.StructDefinitionNode:
+      case NodeKind.DataStructDefinitionNode:
+      case NodeKind.InterfaceNode:
+      case NodeKind.ImplBaseNode:
+      case NodeKind.ImplTraitNode:
+      case NodeKind.AssignmentNode:
+      case NodeKind.DeclarationNode:
+      case NodeKind.ConstDeclarationNode:
+      case NodeKind.IfNode:
+      case NodeKind.IfElseNode:
+      case NodeKind.WhileNode:
+      case NodeKind.ForNode:
+      case NodeKind.IfRuntimeNode:
+      case NodeKind.IfElseRuntimeNode:
+      case NodeKind.WhileRuntimeNode:
+      case NodeKind.ForRuntimeNode:
+      case NodeKind.ReturnNode:
+        logger.error(`${NodeKind[node.type]} cannot be used as value`);
+        Deno.exit(1);
+        break;
+    }
+
+  }
+
   errorAt(
     location: { start: number; end: number; fp: string },
     message: string,
@@ -537,5 +591,16 @@ export class Typechecker {
             name: "typechecker",
         },
     ], `${message}`);
+  }
+
+  errorExcerptAt(
+    location: { start: number; end: number; fp: string },
+    message: string,
+  ) {
+    const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
+    const lines = sh.getLines(location.start, location.end);
+
+    logger.error(lines.map(a => "\t" + a.trim()));
+    logger.error(message);
   }
 }

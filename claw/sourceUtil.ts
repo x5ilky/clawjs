@@ -21,10 +21,12 @@ export class SourceHelper {
 
     getLines(start: number, end: number): string[] {
         const out = [];
+        let prevIdx = 0;
         for (const [ln, idx] of this.indexedLines) {
-            if (idx > start && idx <= end) {
+            if (start >= prevIdx && end <= idx) {
                 out.push(ln.map(a => a[0]).join(""))
             }
+            prevIdx = idx;
         }
         return out;
     }
