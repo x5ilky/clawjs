@@ -2,6 +2,7 @@ import { Lexer } from "../claw/lexer.ts";
 import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
 import { SourceMap } from "../claw/sourcemap.ts";
+import { Typechecker } from "../claw/typechecker.ts";
 import { Logger, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 
@@ -100,6 +101,17 @@ async function dev(cmd: skap.SkapInfer<typeof devShape>) {
     const out = format ? JSON.stringify(parsed, replacer, 4) : JSON.stringify(parsed, replacer)
     if (debugDumpFile) await Deno.writeTextFile(debugDumpFile, out);
     else console.log(out);
+  } else if (cmd.subc.selected === "check") {
+    const { inputFile } = cmd.subc.commands.check!;
+    const smap = new SourceMap();
+    smap.set(inputFile, await Deno.readTextFile(inputFile));
+    const lexer = new Lexer(inputFile, smap);
+    const tokens = lexer.lex();
+    const parser = new Parser(tokens, smap);
+    const parsed = parser.parse();
+
+    const tc = new Typechecker(smap);
+    // tc.typecheckNodes(parsed)
   }
 }
 
