@@ -1,1 +1,3 @@
-i : int = "hello, world!"
+i : int = 1
+
+i = "Hello, world!"

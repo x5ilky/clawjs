@@ -420,7 +420,7 @@ export const ANY_TYPE = new BuiltinClawType("any", []);
 export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
-  scope: ChainMap<string, ClawType>
+  scope: ChainMap<string, ClawType>;
 
 
   constructor(public sourcemap: SourceMap) {
@@ -444,23 +444,63 @@ export class Typechecker {
 
   typecheck(nodes: Node[]): Node[] {
     const out = [];
+    this.scope.push();
     for (const node of nodes) {
         out.push(this.typecheckSingle(node));
     }
+    this.scope.pop();
     return out;
   }
   typecheckSingle(node: Node): Node {
-    if (node.type === NodeKind.DeclarationNode) {
-      const type = this.evaluateTypeFromValue(node.value);
-      if (node.valueType !== null) {
-        const targetType = this.resolveTypeNode(node.valueType, this.gcm);
-        if (!type.eq(targetType)) {
-          this.errorAt(node, `annotated type and actual type are different:`)
-          this.errorExcerptAt(node.valueType, `expected: ${targetType.toDisplay()}`)
-          this.errorExcerptAt(node.value, `received: ${type.toDisplay()}`)
+    switch(node.type) {
+        case NodeKind.DeclarationNode: {
+            let type = this.evaluateTypeFromValue(node.value);
+            if (node.valueType !== null) {
+                const targetType = this.resolveTypeNode(node.valueType, this.gcm);
+                if (!type.eq(targetType)) {
+                    this.errorAt(node, `annotated type and actual type are different:`)
+                    this.errorExcerptAt(node.valueType, `expected: ${targetType.toDisplay()}`)
+                    this.errorExcerptAt(node.value, `received: ${type.toDisplay()}`)
+                }
+                type = targetType;
+            }
+            this.scope.set(node.name, type);
+            return node;
         }
-      }
-      return node;
+        case NodeKind.AssignmentNode: {
+            const value = this.evaluateTypeFromValue(node.assignee);
+            const type = this.evaluateTypeFromValue(node.value);
+            if (!value.eq(type)) {
+                this.errorAt(node, `variable type and assigned type are different:`)
+                this.errorExcerptAt(node.assignee, `expected: ${value.toDisplay()}`);
+                this.errorExcerptAt(node.value, `received: ${type.toDisplay()}`);
+            }
+            return node;
+        }
+        case NodeKind.StructLiteralNode:
+        case NodeKind.CallNode:
+        case NodeKind.ConstDeclarationNode:
+        case NodeKind.IfNode:
+        case NodeKind.IfElseNode:
+        case NodeKind.WhileNode:
+        case NodeKind.ForNode:
+        case NodeKind.IfRuntimeNode:
+        case NodeKind.IfElseRuntimeNode:
+        case NodeKind.WhileRuntimeNode:
+        case NodeKind.ForRuntimeNode:
+        case NodeKind.ReturnNode:
+        case NodeKind.UnaryOperation:
+        case NodeKind.BinaryOperation:
+        case NodeKind.Grouping:
+        case NodeKind.TypeNode:
+        case NodeKind.FunctionDefinitionNode:
+        case NodeKind.StructDefinitionNode:
+        case NodeKind.DataStructDefinitionNode:
+        case NodeKind.InterfaceNode:
+        case NodeKind.ImplBaseNode:
+        case NodeKind.ImplTraitNode:
+            logger.error(`Unimplemented node type: ${NodeKind[node.type]}`);
+            Deno.exit(1);
     }
     this.errorAt(node, `Unimplemented typechecker node: ${NodeKind[node.type]}`);
     return node;
