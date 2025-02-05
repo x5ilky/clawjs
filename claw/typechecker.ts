@@ -505,6 +505,11 @@ export class Typechecker {
 
         return node;
       }
+      case NodeKind.FunctionDefinitionNode: {
+        const typeArgs = node;
+        return node;
+      }
+
       case NodeKind.IfNode:
       case NodeKind.IfElseNode:
       case NodeKind.WhileNode:
@@ -516,7 +521,6 @@ export class Typechecker {
       case NodeKind.ReturnNode:
       case NodeKind.Grouping:
       case NodeKind.TypeNode:
-      case NodeKind.FunctionDefinitionNode:
       case NodeKind.StructDefinitionNode:
       case NodeKind.DataStructDefinitionNode:
       case NodeKind.InterfaceNode:

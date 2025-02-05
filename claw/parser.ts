@@ -730,6 +730,7 @@ export class Parser {
         );
         const name = ezp.expectOrTerm("Expected function name", (token) =>
           token.type === "Identifier") ;
+        const typeArgs = ezp.expectRuleOrTerm("Expected type arguments", genericTypeListRule);
         // parse arguments
         const _start = ezp.expectOrTerm(
           "Expected starting parenthese",
@@ -781,6 +782,7 @@ export class Parser {
           type: NodeKind.FunctionDefinitionNode,
           name: name.name,
           args: args,
+          typeArgs,
           nodes: cn(end, end, {
             type: NodeKind.BlockNode,
             nodes: [],
@@ -801,6 +803,7 @@ export class Parser {
         args: def.args,
         nodes: block,
         returnType: def.returnType,
+        typeArgs: def.typeArgs
       });
     });
     const interfaceRule = this.ezp.instantiateRule("interface", (ezp) => {

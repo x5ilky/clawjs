@@ -233,6 +233,7 @@ export type LabelNode = {
 
 export type FunctionDefinitionNode = {
     readonly type: NodeKind.FunctionDefinitionNode,
+    readonly typeArgs: TypeNode[],
     readonly args: [string, TypeNode][],
     readonly nodes: Node,
     readonly name: string,
