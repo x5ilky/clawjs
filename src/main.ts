@@ -3,15 +3,23 @@ import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
 import { SourceMap } from "../claw/sourcemap.ts";
 import { Typechecker } from "../claw/typechecker.ts";
-import { Logger, skap } from "../SkOutput.ts";
+import { Logger, LogLevel, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 
 export const logger = new Logger({
   prefixTags: [{
     priority: -10,
     color: [198, 23, 64],
-    name: "Claw"
-  }]
+    name: "claw"
+  }],
+  tagSuffix: "",
+  tagPrefix: "",
+  levels: {
+    [LogLevel.DEBUG]: {color: [77, 183, 53], name: "debug", priority: 0},
+    [LogLevel.INFO]: {color: [54, 219, 180], name: "info", priority: 10},
+    [LogLevel.WARN]: {color: [219, 158, 54], name: "warn", priority: 20},
+    [LogLevel.ERROR]: {color: [219, 54, 54], name: "error", priority: 30}
+  }
 })
 const irShape = skap.command({
   subc: skap.subcommand({
@@ -109,9 +117,13 @@ async function dev(cmd: skap.SkapInfer<typeof devShape>) {
     const tokens = lexer.lex();
     const parser = new Parser(tokens, smap);
     const parsed = parser.parse();
+    if (parsed instanceof Error) {
+      logger.error("Failed to parse file");
+      Deno.exit(1);
+    }
 
     const tc = new Typechecker(smap);
-    // tc.typecheckNodes(parsed)
+    tc.typecheck(parsed)
   }
 }
 
