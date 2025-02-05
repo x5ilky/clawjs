@@ -5,6 +5,8 @@ import { Node } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
+import { TypeNode } from "./nodes.ts";
+import { type } from "node:os";
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
   constructor() {
@@ -108,6 +110,8 @@ export class TypeIndex {
       );
     } else if (type instanceof BuiltinClawType) {
       return new BuiltinClawType(type.name, []);
+    } else if (type instanceof ReferenceClawType) {
+      return new ReferenceClawType(this.substituteRawSingle(type.base, mappings, errorStack));
     }
     return new BuiltinClawType("ERROR", []);
   }
@@ -215,7 +219,22 @@ export class TypeIndex {
         value instanceof BuiltinClawType &&
         template.eq(value)
       );
+    } else if (template instanceof ReferenceClawType) {
+      if (!(value instanceof ReferenceClawType)) {
+        logger.error(`provided value should be a reference`)
+        logger.error(`expected: ${template.toDisplay()}`)
+        logger.error(`got: ${value.toDisplay()}`)
+        return;
+      }
+      this.extractGenericSingle(template.base, value.base, gcm);
     }
+  }
+
+  getTypeFromName(name: string) {
+    return this.types.get(name);
+  }
+  getInterfaceFromName(name: string) {
+    return this.interfaces.get(name);
   }
 }
 export class BaseClawType {
@@ -332,6 +351,19 @@ export class VariableClawType extends BaseClawType {
     return `${this.name}`;
   }
 }
+
+export class ReferenceClawType extends BaseClawType {
+  constructor(
+    public base: ClawType,
+  ) {
+    super("&" + base.name, []);
+  }
+
+  override toDisplay(): string {
+    return `${this.name}`;
+  }
+}
+
 export class BuiltinClawType extends BaseClawType {
   override toDisplay(): string {
     return this.name;
@@ -357,7 +389,8 @@ type ClawType =
   | StructureClawType
   | VariableClawType
   | GenericClawType
-  | BaseClawType;
+  | BaseClawType
+  | ReferenceClawType;
 
 export class ClawInterface {
   generics: ClawType[];
@@ -386,21 +419,96 @@ export class ClawInterface {
   }
 }
 
+// deno-lint-ignore no-explicit-any
+function assertType<TTarget>(_v: any): _v is TTarget {
+  return true;
+}
+
+export const ANY_TYPE = new BuiltinClawType("any", []);
 export class Typechecker {
   ti: TypeIndex;
+  gcm: GenericChainMap;
+
 
   constructor(public sourcemap: SourceMap) {
     this.ti = new TypeIndex(new ChainMap(), new Map());
+    this.gcm = new GenericChainMap();
+    this.gcm.push();
+    this.addBuiltinTypes();
   }
 
+  addBuiltinTypes() {
+    this.ti.types.set("int", new BuiltinClawType("int", []))
+    this.ti.types.set("string", new BuiltinClawType("string", []))
+    this.ti.types.set("bool", new BuiltinClawType("bool", []))
+    this.ti.types.set("int!", new BuiltinClawType("int!", []))
+    this.ti.types.set("string!", new BuiltinClawType("string!", []))
+    this.ti.types.set("bool!", new BuiltinClawType("bool!", []))
+    this.ti.types.set("any", ANY_TYPE)
+  }
+
+  typecheck(nodes: Node[]): Node[] {
+    const out = [];
+    for (const node of nodes) {
+        out.push(this.typecheckSingle(node));
+    }
+    return out;
+  }
   typecheckSingle(node: Node): Node {
+    if (node.type === NodeKind.DeclarationNode) {
+        if (node.valueType === null) {
+            // TODO(x5ilky): type inference later, not up to that yet 
+        } else {
+            this.resolveTypeNode(node.valueType, this.gcm);
+        }
+        return node;
+    }
+    this.errorAt(node, `Unimplemented typechecker node: ${NodeKind[node.type]}`);
     return node;
+  }
+
+  resolveTypeNode(typenode: TypeNode, gcm: GenericChainMap): ClawType {
+    if (typenode.ref) {
+        return new ReferenceClawType(this.resolveTypeNode({
+            ...typenode,
+            ref: false
+        }, gcm));
+    }
+    let type = this.ti.getTypeFromName(typenode.name);
+    if (type === undefined) {
+        const bounds = [];
+        for (const bound of typenode.bounds) {
+            const b = this.ti.getInterfaceFromName(typenode.name);
+            if (b === undefined) {
+                this.errorAt(typenode, `No interface called ${bound}`);
+                return ANY_TYPE
+            }
+            bounds.push(b);
+        }
+        const tryGeneric = gcm.get(new GenericClawType(typenode.name, bounds))
+        if (tryGeneric === undefined) {
+            this.errorAt(typenode, `No type/generic called ${typenode.name}`);
+            return ANY_TYPE
+        }
+        type = tryGeneric[1];
+    }
+    if (!assertType<ClawType>(type)) throw new Error();
+    const generics = [];
+    for (const ta of typenode.typeArguments) {
+      generics.push(this.resolveTypeNode(ta, gcm));
+    }
+    if (type.generics.length !== generics.length) {
+      this.errorAt(typenode, `Too many type arguments`)
+      logger.error(`Expected ${type.generics.length} type arguments, instead got ${generics.length}`)
+    }
+    if (!(type instanceof VariableClawType)) type = new VariableClawType(type.name, generics, type);
+    return type;
   }
 
   errorAt(
     location: { start: number; end: number; fp: string },
     message: string,
-  ): never {
+  ) {
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
     const lines = sh.getLines(location.start, location.end);
     const [col, row] = sh.getColRow(location.start);
@@ -409,7 +517,7 @@ export class Typechecker {
       {
         color: [192, 123, 0],
         priority: -20,
-        name: "TYPECHECKER",
+        name: "typechecker",
       },
     ], `At ${location.fp}:${col + 1}:${row}:`);
     for (const ln of lines) {
@@ -418,7 +526,7 @@ export class Typechecker {
         {
           color: [192, 123, 0],
           priority: -20,
-          name: "TYPECHECKER",
+          name: "typechecker",
         },
       ], ln);
     }
@@ -427,9 +535,8 @@ export class Typechecker {
         {
             color: [192, 123, 0],
             priority: -20,
-            name: "TYPECHECKER",
+            name: "typechecker",
         },
     ], `${message}`);
-    Deno.exit(1);
   }
 }
