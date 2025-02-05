@@ -1,6 +1,8 @@
 import { logger } from "../src/main.ts";
-import { ChainCustomMap } from "./chainmap.ts";
+import { ChainCustomMap, ChainMap } from "./chainmap.ts";
 import { arreq, arrjoinwith } from "../SkOutput.ts";
+import { Node } from "./nodes.ts";
+import { NodeKind } from "./nodes.ts";
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
     constructor() {
@@ -10,10 +12,10 @@ export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
 
 export class TypeIndex {
     constructor (
-        public types: Map<string, ClawType>,
+        public types: ChainMap<string, ClawType>,
         public interfaces: Map<string, ClawInterface>
     ) {
-
+        this.types.push();
     }
 
     doesTypeImplementInterface(type: ClawType, int: ClawInterface, inputs: ClawType[]) {
@@ -35,6 +37,7 @@ export class TypeIndex {
             }
             const mapping = new GenericChainMap();
             mapping.push();
+            mapping.set(new GenericClawType("Self", []), type);
             this.extractGeneric(spec.inputs, inputs, mapping);
             const errorStack: string[] = [];
             const _subsituted = this.substituteRaw(spec.inputs, mapping, errorStack)
@@ -214,10 +217,6 @@ export class BaseClawType {
         return false;
     }
 
-    getImplementedTraits(ti: TypeIndex) {
-        
-    }
-
     toDisplay(): string {
         logger.error("UNIMPLEMENTED")
         throw new Error("UNIMPLEMENTED");
@@ -311,5 +310,16 @@ export class ClawInterface {
 
     toDisplay() {
         return `interface ${this.name}`
+    }
+}
+
+export class Typechecker {
+    ti: TypeIndex;
+
+    constructor() {
+        this.ti = new TypeIndex(new ChainMap(), new Map());
+    }
+
+    typecheckSingle(node: Node) {
     }
 }
