@@ -20,6 +20,7 @@ const ti = new TypeIndex(new Map(), new Map());
 
 ti.types.set("int", number);
 ti.interfaces.set("Add", AddInterface);
+ti.interfaces.set("Double", DoubleInterface);
 
 AddInterface.specificImplementations.push({
     functions: [],
@@ -40,9 +41,18 @@ AddInterface.specificImplementations.push({
     target: number
 })
 
+DoubleInterface.specificImplementations.push({
+    functions: [new FunctionClawType("double", [], [self], number)],
+    generics: [],
+    inputs: [],
+    target: number
+})
+
 // should match Add<Vec<T>, number>
 // where T = Vec<number>
 //  or
 // where T = number
 const res = ti.getTypeInterfaceImplementations(number, AddInterface, [new VariableClawType("vec", [number], vec), number]);
-console.log(res.map(a => a.flatten()))
+const res2 = ti.getTypeInterfaceImplementations(number, DoubleInterface, []);
+console.log(res)
+console.log(res2)

@@ -30,7 +30,9 @@ export class TypeIndex {
             //      ^ spec.generics
             //               ^ spec.inputs
             //                              ^ spec.target
-            if (!spec.target.eq(type)) continue;
+            if (!spec.target.eq(type)) {
+                continue;
+            }
             const mapping = new GenericChainMap();
             mapping.push();
             this.extractGeneric(spec.inputs, inputs, mapping);
@@ -39,7 +41,7 @@ export class TypeIndex {
             if (errorStack.length) {
                 continue;
             }
-            works.push(mapping)
+            works.push({ mapping, spec })
         }
         return works;
     }
