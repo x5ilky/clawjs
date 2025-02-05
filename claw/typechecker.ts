@@ -472,6 +472,7 @@ export class Typechecker {
   }
   typecheckSingle(node: Node): Node {
     switch (node.type) {
+      case NodeKind.ConstDeclarationNode:
       case NodeKind.DeclarationNode: {
         let type = this.evaluateTypeFromValue(node.value);
         if (node.valueType !== null) {
@@ -504,7 +505,6 @@ export class Typechecker {
 
         return node;
       }
-      case NodeKind.ConstDeclarationNode:
       case NodeKind.IfNode:
       case NodeKind.IfElseNode:
       case NodeKind.WhileNode:
