@@ -1,12 +1,11 @@
 import { logger } from "../src/main.ts";
 import { ChainCustomMap, ChainMap } from "./chainmap.ts";
-import { Ansi, arreq, arrjoinwith, arrzip, LogLevel } from "../SkOutput.ts";
+import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
 import { Node } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 import { TypeNode } from "./nodes.ts";
-import { lookup } from "node:dns";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
 
@@ -568,7 +567,7 @@ export class Typechecker {
       case NodeKind.BlockNode: {
         this.scope.push();
 
-        const [nodes, retVals] = this.typecheckForReturn(node.nodes);
+        const [_nodes, retVals] = this.typecheckForReturn(node.nodes);
         if (retVals.length) {
           throw retVals;
         }
@@ -809,7 +808,7 @@ export class Typechecker {
   ) {
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
     const lines = sh.getRawLines(location.start, location.end);
-    const [col, row] = sh.getColRow(location.start);
+    const [col, _row] = sh.getColRow(location.start);
     logger.error(Ansi.yellow + "note: " + Ansi.reset + message + ` (${location.fp}:${col})`);
 
     for (const line of lines) {
