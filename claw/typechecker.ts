@@ -313,7 +313,6 @@ export class BaseClawType {
     return this; 
   }
 }
-
 export class FunctionClawType extends BaseClawType {
   constructor(
     name: string,
@@ -371,7 +370,6 @@ export class VariableClawType extends BaseClawType {
     return `${this.base.name}`;
   }
 }
-
 export class ReferenceClawType extends BaseClawType {
   constructor(
     loc: { fp: string; start: number; end: number },
@@ -384,7 +382,6 @@ export class ReferenceClawType extends BaseClawType {
     return `${this.name}`;
   }
 }
-
 export class BuiltinClawType extends BaseClawType {
   override toDisplay(): string {
     return this.name;
@@ -474,6 +471,7 @@ export class Typechecker {
 
   addBuiltinTypes() {
     const num = () => this.ti.getTypeFromName("int")!;;
+    const string = () => this.ti.getTypeFromName("string")!;;
     const bool = () => this.ti.getTypeFromName("bool")!;;
     this.ti.types.set("int", new BuiltinClawType("int", [], BUILTIN_LOC));
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
@@ -532,7 +530,15 @@ export class Typechecker {
     addInterface("Lt", "lt", num(), bool());
     addInterface("Lt", "lte", num(), bool());
 
-    
+    const RuntimeInterface = new ClawInterface(
+      "Runtime",
+      [],
+      new Map([
+        ["to_scratch_value", new FunctionClawType("to_scratch_value", [], BUILTIN_LOC, [Self], string())],
+        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num())]
+      ])
+    );
+    this.ti.interfaces.set("Runtime", RuntimeInterface);
   }
 
   typecheck(nodes: Node[]): Node[] {
@@ -707,7 +713,26 @@ export class Typechecker {
         this.ti.types.set(name, new StructureClawType(name, generics, node, newMap));
         return node;
       }
-      case NodeKind.DataStructDefinitionNode:
+      case NodeKind.DataStructDefinitionNode: {
+        const name = node.name;
+        const generics = this.resolveTypeGenerics(node.generics);
+        this.ti.types.push();
+        for (const t of generics) this.ti.types.set(t.name, t);
+        const newMap: Map<string, ClawType> = new Map();
+        for (const [k, v] of node.members) {
+          newMap.set(k, this.resolveTypeNode(v, this.gcm));
+        }
+        for (const [k, v] of newMap) {
+          if (!this.ti.doesTypeImplementInterface(v, this.ti.getInterfaceFromName("Runtime")!, [])) {
+            this.errorAt(v.loc, `(${k}): ${v.toDisplay()} does not implement Runtime, cannot be a data struct`);
+          }
+        }
+        this.ti.types.pop();
+
+        this.ti.types.set(name, new StructureClawType(name, generics, node, newMap));
+        return node;
+
+      }
       case NodeKind.InterfaceNode:
       case NodeKind.ImplBaseNode:
       case NodeKind.ImplTraitNode:
@@ -831,7 +856,7 @@ export class Typechecker {
         this.gcm.pop();
 
         return type;
-      } break;
+      }
       case NodeKind.CallNode: {
         const fn = this.evaluateTypeFromValue(node.callee);
         if (!(fn instanceof FunctionClawType)) {

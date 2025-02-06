@@ -940,7 +940,7 @@ export class Parser {
     const dataRule = this.ezp.instantiateRule("data struct", (ezp) => {
       const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "data");
       const structName = ezp.expectOrTerm("Expected data struct name", token => token.type === "Identifier");
-      const generics = ezp.expectRuleOrTerm("Expected generics", genericIdentifierListRule);
+      const generics = ezp.expectRuleOrTerm("Expected generics", genericTypeListRule);
       const _start_curly = ezp.expectOrTerm("Expected starting curly", token => token.type === "Symbol" && token.value === "{");
       const members: [string, TypeNode][] = [];
       let end: Loc = _start_curly;

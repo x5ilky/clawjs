@@ -249,7 +249,7 @@ export type DataStructDefinitionNode = {
     readonly type: NodeKind.DataStructDefinitionNode,
     readonly members: [string, TypeNode][],
     readonly name: string,
-    readonly generics: string[]
+    readonly generics: TypeNode[]
 } & Loc;
 export type InterfaceNode = {
     readonly type: NodeKind.InterfaceNode,
