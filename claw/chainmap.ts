@@ -1,26 +1,26 @@
 export class ChainMap<K, V> {
-    #inner: Map<K, V>[];
+    __inner: Map<K, V>[];
 
     constructor() {
-        this.#inner = [];
+        this.__inner = [];
     }
 
     push() {
-        this.#inner.push(new Map())        
+        this.__inner.push(new Map())        
     }
 
     pop() {
-        this.#inner.pop()
+        this.__inner.pop()
     }
     
     get(k: K) {
-        for (const layer of this.#inner.toReversed()) {
+        for (const layer of this.__inner.toReversed()) {
             if (layer.has(k)) return layer.get(k);
         }
         return undefined;
     }
     set(k: K, v: V) {
-        this.#inner[this.#inner.length-1].set(k, v);
+        this.__inner[this.__inner.length-1].set(k, v);
     }
 }
 

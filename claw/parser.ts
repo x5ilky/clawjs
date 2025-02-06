@@ -907,7 +907,7 @@ export class Parser {
     const structRule = this.ezp.instantiateRule("struct", (ezp) => {
       const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "struct");
       const structName = ezp.expectOrTerm("Expected struct name", token => token.type === "Identifier");
-      const generics = ezp.expectRuleOrTerm("Expected generics", genericIdentifierListRule);
+      const generics = ezp.expectRuleOrTerm("Expected generics", genericTypeListRule);
       const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
       const members: [string, TypeNode][] = [];
       let end: Loc = _start_curly;

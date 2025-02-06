@@ -4,6 +4,12 @@ fn print(str: string) void {
 
 }
 
-while i + 3 < 6 {
-    print("Hello, world!")    
+struct Array<T> {
+    test: T,
+    value: string,
+}
+
+test := Array<int>::{
+    test: 1,
+    value: "test"
 }

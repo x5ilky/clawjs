@@ -364,11 +364,11 @@ export class VariableClawType extends BaseClawType {
 
   override toDisplay(): string {
     if (this.generics.length) {
-      return `${this.name}<${
+      return `${this.base.name}<${
         this.generics.map((a) => a.toDisplay()).join(", ")
       }>`;
     }
-    return `${this.name}`;
+    return `${this.base.name}`;
   }
 }
 
@@ -690,9 +690,23 @@ export class Typechecker {
         }
         return node;
       };
+      
       case NodeKind.Grouping:
-      case NodeKind.TypeNode:
-      case NodeKind.StructDefinitionNode:
+        return this.typecheckSingle(node.value);
+      case NodeKind.StructDefinitionNode: {
+        const name = node.name;
+        const generics = this.resolveTypeGenerics(node.generics);
+        this.ti.types.push();
+        for (const t of generics) this.ti.types.set(t.name, t);
+        const newMap = new Map();
+        for (const [k, v] of node.members) {
+          newMap.set(k, this.resolveTypeNode(v, this.gcm));
+        }
+        this.ti.types.pop();
+
+        this.ti.types.set(name, new StructureClawType(name, generics, node, newMap));
+        return node;
+      }
       case NodeKind.DataStructDefinitionNode:
       case NodeKind.InterfaceNode:
       case NodeKind.ImplBaseNode:
@@ -785,6 +799,39 @@ export class Typechecker {
         }
         return val;
       }
+      case NodeKind.StructLiteralNode: {
+        const type = this.resolveTypeNode(node.baseType, this.gcm) as VariableClawType;
+        if (!(type.base instanceof StructureClawType)) {
+          this.errorAt(node.baseType, `Structure literal base type is not a struct`);
+          return Deno.exit(1);
+        }
+        
+        const base = type.base;
+        if (Object.keys(node.members).length !== base.members.size) {
+          this.errorAt(node, `Mismatching member counts`);
+          this.errorNoteAt(type.loc, `Expected ${base.members.size}, instead: ${Object.keys(node.members).length}`);
+        }
+        this.gcm.push();
+        for (const [gen, correct] of arrzip(type.generics, base.generics)) this.gcm.set(correct as GenericClawType, gen);
+        for (const k in node.members) {
+          const v = node.members[k];
+          const vType = this.evaluateTypeFromValue(v);
+          const matching = base.members.get(k);
+          if (matching === undefined) {
+            this.errorAt(v, `Type ${type.toDisplay()} does not have member ${k}`);
+            continue;
+          }
+          const errorStack: string[] = [];
+          const subs = this.ti.substituteRawSingle(matching, this.gcm, errorStack);
+          if (!vType.eq(subs)) {
+            this.errorAt(v, `Mismatching member type`);
+            this.errorNoteAt(type.base.loc, `Expected ${subs.toDisplay()}, got ${vType.toDisplay()}`)
+          }
+        }
+        this.gcm.pop();
+
+        return type;
+      } break;
       case NodeKind.CallNode: {
         const fn = this.evaluateTypeFromValue(node.callee);
         if (!(fn instanceof FunctionClawType)) {
@@ -884,7 +931,6 @@ export class Typechecker {
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
       }
-      case NodeKind.StructLiteralNode:
       case NodeKind.ChildOfNode:
       case NodeKind.MethodOfNode:
       case NodeKind.BlockNode:
