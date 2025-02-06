@@ -439,6 +439,15 @@ function assertType<TTarget>(_v: any): _v is TTarget {
 
 export const ANY_TYPE = (loc: BaseClawType["loc"]) =>
   new BuiltinClawType("any", [], loc);
+
+export class TCReturnValue {
+  constructor(
+    public value: ClawType,
+  ) {
+
+  }
+}
+
 export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
@@ -478,29 +487,7 @@ export class Typechecker {
     this.scope.pop();
     return out;
   }
-  typecheckScope(nodes: Node[]): [Node[], ClawType] {
-    const out = [];
-    let rv = this.ti.getTypeFromName("void")!;
-    this.scope.push();
-    for (const node of nodes) {
-      if (node.type === NodeKind.ReturnNode) {
-        if (rv.eq(this.ti.getTypeFromName("void")!)) {
-          rv = this.evaluateTypeFromValue(node.value);
-        } else {
-          // multiple return values???
-          this.errorAt(node, `Multiple return types`);
-          this.errorExcerptAt(rv.loc, `Previous return value`);
-        }
-        out.push(this.typecheckSingle(node));
-      } else if ("body" in node) {
-        // TODO
-      } else {
-        out.push(this.typecheckSingle(node));
-      }
-    }
-    this.scope.pop();
-    return [out, rv];
-  }
+  
   typecheckSingle(node: Node): Node {
     switch (node.type) {
       case NodeKind.ConstDeclarationNode:
@@ -550,12 +537,29 @@ export class Typechecker {
         const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
         const fn = new FunctionClawType(node.name, ta, node, args, returnValue);
         this.scope.set(fn.name, fn);
-
+        let retType = this.ti.getTypeFromName("void")!;
+        try {
+          this.typecheck([node.nodes]);
+        } catch (e) {
+          if (e instanceof Error) throw e;
+          else if (e instanceof TCReturnValue) {
+            retType = e.value;
+          }
+        }
+        console.log(retType)
 
         this.ti.types.pop();
         return node;
       }
 
+      case NodeKind.BlockNode: {
+        this.scope.push();
+
+        this.typecheck(node.nodes);
+
+        this.scope.pop();
+        return node;
+      }
       case NodeKind.IfNode:
       case NodeKind.IfElseNode:
       case NodeKind.WhileNode:

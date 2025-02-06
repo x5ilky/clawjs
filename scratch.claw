@@ -1,7 +1,7 @@
 i : int = 1
 
-fn foo(a: int) void {
-
+fn foo(a: int) int {
+    return 1
 }
 
-foo()
+foo(1)
