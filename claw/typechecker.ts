@@ -1,7 +1,7 @@
 import { logger } from "../src/main.ts";
 import { ChainCustomMap, ChainMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { Node } from "./nodes.ts";
+import { BinaryOperationType, Node } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -16,6 +16,7 @@ export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
 }
 
 export class TypeIndex {
+
   constructor(
     public types: ChainMap<string, ClawType>,
     public interfaces: Map<string, ClawInterface>,
@@ -42,11 +43,12 @@ export class TypeIndex {
       Deno.exit(1);
     }
     const works = [];
-    for (const spec of int.specificImplementations) {
+    outer: for (const spec of int.specificImplementations) {
       // impl<T> start<T, number> for string
       //      ^ spec.generics
       //               ^ spec.inputs
       //                              ^ spec.target
+      // console.log(spec)
       if (!spec.target.eq(type)) {
         continue;
       }
@@ -55,7 +57,14 @@ export class TypeIndex {
       mapping.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
       this.extractGeneric(spec.inputs, inputs, mapping);
       const errorStack: string[] = [];
-      const _subsituted = this.substituteRaw(spec.inputs, mapping, errorStack);
+      const subsituted = this.substituteRaw(spec.inputs, mapping, errorStack);
+      for (let i = 0; i < subsituted.length; i++) {
+        const sub = subsituted[i];
+        const inp = inputs[i];
+        if (!inp.eq(sub)) {
+          continue outer;
+        } 
+      }
       if (errorStack.length) {
         continue;
       }
@@ -256,6 +265,7 @@ export class BaseClawType {
   }
 
   eq(other: ClawType, stop: boolean = false): boolean {
+    if (this instanceof BuiltinClawType && this.name === "any") return true;
     if (this instanceof GenericClawType && other instanceof GenericClawType) {
       return this.name === other.name;
     }
@@ -464,6 +474,8 @@ export class Typechecker {
   }
 
   addBuiltinTypes() {
+    const num = () => this.ti.getTypeFromName("int")!;;
+    const bool = () => this.ti.getTypeFromName("bool")!;;
     this.ti.types.set("int", new BuiltinClawType("int", [], BUILTIN_LOC));
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
     this.ti.types.set("bool", new BuiltinClawType("bool", [], BUILTIN_LOC));
@@ -476,6 +488,52 @@ export class Typechecker {
     this.ti.types.set("bool!", new BuiltinClawType("bool!", [], BUILTIN_LOC));
     this.ti.types.set("void!", new BuiltinClawType("void!", [], BUILTIN_LOC));
     this.ti.types.set("any", ANY_TYPE(BUILTIN_LOC));
+
+    const Self = new GenericClawType("Self", BUILTIN_LOC, []);
+
+    const addInterface = (interfaceName: string, functionName: string, takes: ClawType, returns: ClawType) => {
+      const AddInterface = new ClawInterface(interfaceName, [
+        new GenericClawType("Right", BUILTIN_LOC, []), 
+        new GenericClawType("Output", BUILTIN_LOC, [])
+      ], new Map([
+          [functionName, 
+            new FunctionClawType(
+              functionName,
+              [], 
+              BUILTIN_LOC,
+              [Self, new GenericClawType("Right", BUILTIN_LOC, [])], 
+              new GenericClawType("Output", BUILTIN_LOC, [])
+            )
+          ]
+      ]));
+      AddInterface.specificImplementations.push({
+        functions: [
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [takes], returns)
+        ],
+        generics: [],
+        inputs: [takes, returns],
+        target: num()
+      })
+      this.ti.interfaces.set(interfaceName, AddInterface);
+    }
+    addInterface("Add", "add", num(), num());
+    addInterface("Sub", "sub", num(), num());
+    addInterface("Mul", "mul", num(), num());
+    addInterface("Div", "div", num(), num());
+    addInterface("BitwiseXor", "bitwise_xor", num(), num());
+    addInterface("BitwiseOr", "bitwise_or", num(), num());
+    addInterface("BitwiseAnd", "bitwise_and", num(), num());
+    addInterface("And", "and", num(), bool());
+    addInterface("Or", "or", num(), bool());
+    addInterface("Mod", "modulo", num(), bool());
+    addInterface("Eq", "eq", num(), bool());
+    addInterface("NEq", "neq", num(), bool());
+    addInterface("Gt", "gt", num(), bool());
+    addInterface("Gte", "gte", num(), bool());
+    addInterface("Lt", "lt", num(), bool());
+    addInterface("Lt", "lte", num(), bool());
+
+    
   }
 
   typecheck(nodes: Node[]): Node[] {
@@ -737,11 +795,52 @@ export class Typechecker {
         this.gcm.pop();
         return this.ti.substituteRawSingle(fn.output, this.gcm, errorStack);
       }
+      case NodeKind.UnaryOperation:
+        // todo
+        throw "todo";
+      case NodeKind.BinaryOperation: {
+        const OPER_TO_TRAIT = {
+          [BinaryOperationType.Add]: "Add",
+          [BinaryOperationType.Subtract]: "Sub",
+          [BinaryOperationType.Multiply]: "Mul",
+          [BinaryOperationType.Divide]: "Div",
+          [BinaryOperationType.BitwiseXor]: "BitwiseXor",
+          [BinaryOperationType.BitwiseOr]: "BitwiseOr",
+          [BinaryOperationType.BitwiseAnd]: "BitwiseAnd",
+          [BinaryOperationType.And]: "And",
+          [BinaryOperationType.Or]: "Or",
+          [BinaryOperationType.Modulo]: "Mod",
+          [BinaryOperationType.Equal]: "Eq",
+          [BinaryOperationType.NotEqual]: "Neq",
+          [BinaryOperationType.Gt]: "Gt",
+          [BinaryOperationType.Gte]: "Gte",
+          [BinaryOperationType.Lt]: "Lt",
+          [BinaryOperationType.Lte]: "Lte",
+        };
+        const itfName = OPER_TO_TRAIT[node.oper];
+        const itf = this.ti.getInterfaceFromName(itfName);
+        if (itf === undefined) {
+          this.errorAt(node, `Internal error, no trait for builtin binary operation`);
+          Deno.exit(1);
+        }
+        const leftType = this.evaluateTypeFromValue(node.left);
+        const rightType = this.evaluateTypeFromValue(node.right);
+        const impls = this.ti.getTypeInterfaceImplementations(leftType, itf, [rightType, ANY_TYPE(BUILTIN_LOC)]);
+        if (!impls.length) {
+          this.errorAt(node, `No implementation for operator ${itfName}<${rightType.toDisplay()}> for ${leftType.toDisplay()}`);
+          logger.error(`Implement ${itfName}<${rightType.toDisplay()}, ...> for ${leftType.toDisplay()} to let it use operators`) ;
+          Deno.exit(1);
+        }
+        if (impls.length > 1) {
+          this.errorAt(node, `TODO: sort implementations by specifity, defaulting to first implementation`);
+        }
+        const impl = impls[0];
+        const returnValue = impl.spec.functions[0].output;
+        return returnValue;
+      }
       case NodeKind.StructLiteralNode:
       case NodeKind.ChildOfNode:
       case NodeKind.MethodOfNode:
-      case NodeKind.UnaryOperation:
-      case NodeKind.BinaryOperation:
       case NodeKind.BlockNode:
       case NodeKind.LabelNode:
         logger.error(
