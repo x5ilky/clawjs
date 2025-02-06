@@ -480,9 +480,9 @@ export class Typechecker {
   }
 
   typecheck(nodes: Node[]): Node[] {
-    return this.typecheckScope(nodes)[0];
+    return this.typecheckForReturn(nodes)[0];
   }
-  typecheckScope(nodes: Node[]): [Node[], TCReturnValue[]] {
+  typecheckForReturn(nodes: Node[]): [Node[], TCReturnValue[]] {
     const out = [];
     let returnVals: TCReturnValue[] = [];
     this.scope.push();
@@ -550,7 +550,7 @@ export class Typechecker {
         const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
         const fn = new FunctionClawType(node.name, ta, node, args, returnValue);
         this.scope.set(fn.name, fn);
-        const types = this.typecheckScope([node.nodes])[1];
+        const types = this.typecheckForReturn([node.nodes])[1];
         if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
           this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
         }
@@ -568,7 +568,7 @@ export class Typechecker {
       case NodeKind.BlockNode: {
         this.scope.push();
 
-        const [nodes, retVals] = this.typecheckScope(node.nodes);
+        const [nodes, retVals] = this.typecheckForReturn(node.nodes);
         if (retVals.length) {
           throw retVals;
         }
