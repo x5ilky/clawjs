@@ -750,6 +750,7 @@ export class Typechecker {
         Deno.exit(1);
         break;
       case NodeKind.Grouping:
+        return this.evaluateTypeFromValue(node.value);
       case NodeKind.TypeNode:
       case NodeKind.FunctionDefinitionNode:
       case NodeKind.StructDefinitionNode:
