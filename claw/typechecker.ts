@@ -1,6 +1,6 @@
 import { logger } from "../src/main.ts";
 import { ChainCustomMap, ChainMap } from "./chainmap.ts";
-import { arreq, arrjoinwith, arrzip, Logger, LogLevel } from "../SkOutput.ts";
+import { arreq, arrjoinwith, arrzip, LogLevel } from "../SkOutput.ts";
 import { Node } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
@@ -298,6 +298,11 @@ export class BaseClawType {
     logger.error("UNIMPLEMENTED");
     throw new Error("UNIMPLEMENTED");
   }
+
+  withLoc(loc: BaseClawType["loc"]) {
+    this.loc = loc;
+    return this; 
+  }
 }
 
 export class FunctionClawType extends BaseClawType {
@@ -446,18 +451,21 @@ export class Typechecker {
     this.scope = new ChainMap();
     this.scope.push();
     this.addBuiltinTypes();
+    this.sourcemap.set("<builtin>", "")
   }
 
   addBuiltinTypes() {
     this.ti.types.set("int", new BuiltinClawType("int", [], BUILTIN_LOC));
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
     this.ti.types.set("bool", new BuiltinClawType("bool", [], BUILTIN_LOC));
+    this.ti.types.set("void", new BuiltinClawType("void", [], BUILTIN_LOC));
     this.ti.types.set("int!", new BuiltinClawType("int!", [], BUILTIN_LOC));
     this.ti.types.set(
       "string!",
       new BuiltinClawType("string!", [], BUILTIN_LOC),
     );
     this.ti.types.set("bool!", new BuiltinClawType("bool!", [], BUILTIN_LOC));
+    this.ti.types.set("void!", new BuiltinClawType("void!", [], BUILTIN_LOC));
     this.ti.types.set("any", ANY_TYPE(BUILTIN_LOC));
   }
 
@@ -469,6 +477,29 @@ export class Typechecker {
     }
     this.scope.pop();
     return out;
+  }
+  typecheckScope(nodes: Node[]): [Node[], ClawType] {
+    const out = [];
+    let rv = this.ti.getTypeFromName("void")!;
+    this.scope.push();
+    for (const node of nodes) {
+      if (node.type === NodeKind.ReturnNode) {
+        if (rv.eq(this.ti.getTypeFromName("void")!)) {
+          rv = this.evaluateTypeFromValue(node.value);
+        } else {
+          // multiple return values???
+          this.errorAt(node, `Multiple return types`);
+          this.errorExcerptAt(rv.loc, `Previous return value`);
+        }
+        out.push(this.typecheckSingle(node));
+      } else if ("body" in node) {
+        // TODO
+      } else {
+        out.push(this.typecheckSingle(node));
+      }
+    }
+    this.scope.pop();
+    return [out, rv];
   }
   typecheckSingle(node: Node): Node {
     switch (node.type) {
@@ -506,7 +537,22 @@ export class Typechecker {
         return node;
       }
       case NodeKind.FunctionDefinitionNode: {
-        const typeArgs = node;
+        const ta = this.resolveTypeGenerics(node.typeArgs);
+        this.ti.types.push();
+        for (const t of ta) this.ti.types.set(t.name, t);
+
+        const args = [];
+        for (const arg of node.args) {
+          const v = this.resolveTypeNode(arg[1], this.gcm);
+          args.push(v);
+        }
+
+        const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
+        const fn = new FunctionClawType(node.name, ta, node, args, returnValue);
+        this.scope.set(fn.name, fn);
+
+
+        this.ti.types.pop();
         return node;
       }
 
@@ -582,14 +628,30 @@ export class Typechecker {
     return type;
   }
 
+  resolveTypeGenerics(tns: TypeNode[]) {
+    const typeArgs = [];
+    for (const ta of tns) {
+      const bounds = [];
+      for (const bound of ta.bounds) {
+        const b = this.ti.getInterfaceFromName(bound)
+        if (b === undefined) {
+          this.errorAt(ta, `No interface called ${bound}`);
+        } else bounds.push(b);
+      }
+      typeArgs.push(new GenericClawType(ta.name, ta, bounds))
+    }
+
+    return typeArgs;
+  }
+
   evaluateTypeFromValue(node: Node): ClawType {
     // todo(x5ilky): finish this function
 
     switch (node.type) {
       case NodeKind.NumberNode:
-        return this.ti.getTypeFromName("int")!;
+        return this.ti.getTypeFromName("int")!.withLoc(node);
       case NodeKind.StringNode:
-        return this.ti.getTypeFromName("string")!;
+        return this.ti.getTypeFromName("string")!.withLoc(node);
       case NodeKind.VariableNode: {
         const val = this.scope.get(node.name);
         if (val === undefined) {
@@ -715,7 +777,7 @@ export class Typechecker {
           priority: -20,
           name: "typechecker",
         },
-      ], ln);
+      ], "\t" + ln);
     }
     logger.printWithTags([
       logger.config.levels[LogLevel.ERROR],
