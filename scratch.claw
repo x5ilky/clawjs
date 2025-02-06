@@ -1,6 +1,6 @@
 i : int = 1
 
-fn foo(a: int) int {
+fn foo(a: int) void {
     return 1
 }
 

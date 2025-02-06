@@ -30,6 +30,17 @@ export class SourceHelper {
         }
         return out;
     }
+    getRawLines(start: number, end: number): [string, number][][] {
+        const out = [];
+        let prevIdx = 0;
+        for (const [ln, idx] of this.indexedLines) {
+            if (start >= prevIdx && end <= idx) {
+                out.push(ln)
+            }
+            prevIdx = idx;
+        }
+        return out;
+    }
     getLine(start: number): string {
         for (const [ln, idx] of this.indexedLines) {
             if (idx > start) {

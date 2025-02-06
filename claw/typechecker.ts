@@ -1,11 +1,12 @@
 import { logger } from "../src/main.ts";
 import { ChainCustomMap, ChainMap } from "./chainmap.ts";
-import { arreq, arrjoinwith, arrzip, LogLevel } from "../SkOutput.ts";
+import { Ansi, arreq, arrjoinwith, arrzip, LogLevel } from "../SkOutput.ts";
 import { Node } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 import { TypeNode } from "./nodes.ts";
+import { lookup } from "node:dns";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
 
@@ -479,13 +480,25 @@ export class Typechecker {
   }
 
   typecheck(nodes: Node[]): Node[] {
+    return this.typecheckScope(nodes)[0];
+  }
+  typecheckScope(nodes: Node[]): [Node[], TCReturnValue[]] {
     const out = [];
+    let returnVals: TCReturnValue[] = [];
     this.scope.push();
     for (const node of nodes) {
-      out.push(this.typecheckSingle(node));
+      try {
+        out.push(this.typecheckSingle(node));
+      } catch (e) {
+        if (e instanceof Error) throw e;
+        else if (Array.isArray(e)) {
+          returnVals = returnVals.concat(e);
+        }
+      }
     }
+    // console.log(returnVals, new Error().stack)
     this.scope.pop();
-    return out;
+    return [out, returnVals];
   }
   
   typecheckSingle(node: Node): Node {
@@ -497,11 +510,11 @@ export class Typechecker {
           const targetType = this.resolveTypeNode(node.valueType, this.gcm);
           if (!type.eq(targetType)) {
             this.errorAt(node, `annotated type and actual type are different:`);
-            this.errorExcerptAt(
+            this.errorNoteAt(
               node.valueType,
               `expected: ${targetType.toDisplay()}`,
             );
-            this.errorExcerptAt(node.value, `received: ${type.toDisplay()}`);
+            this.errorNoteAt(node.value, `received: ${type.toDisplay()}`);
           }
           type = targetType;
         }
@@ -513,8 +526,8 @@ export class Typechecker {
         const type = this.evaluateTypeFromValue(node.value);
         if (!value.eq(type)) {
           this.errorAt(node, `variable type and assigned type are different:`);
-          this.errorExcerptAt(node.assignee, `expected: ${value.toDisplay()}`);
-          this.errorExcerptAt(node.value, `received: ${type.toDisplay()}`);
+          this.errorNoteAt(node.assignee, `expected: ${value.toDisplay()}`);
+          this.errorNoteAt(node.value, `received: ${type.toDisplay()}`);
         }
         return node;
       }
@@ -537,16 +550,16 @@ export class Typechecker {
         const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
         const fn = new FunctionClawType(node.name, ta, node, args, returnValue);
         this.scope.set(fn.name, fn);
-        let retType = this.ti.getTypeFromName("void")!;
-        try {
-          this.typecheck([node.nodes]);
-        } catch (e) {
-          if (e instanceof Error) throw e;
-          else if (e instanceof TCReturnValue) {
-            retType = e.value;
+        const types = this.typecheckScope([node.nodes])[1];
+        if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
+          this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
+        }
+        for (const type of types) {
+          if (!type.value.eq(returnValue)) {
+            this.errorAt(type.value.loc, `Mismatching return types`);
+            this.errorNoteAt(returnValue.loc, `Definition here`);
           }
         }
-        console.log(retType)
 
         this.ti.types.pop();
         return node;
@@ -555,10 +568,16 @@ export class Typechecker {
       case NodeKind.BlockNode: {
         this.scope.push();
 
-        this.typecheck(node.nodes);
+        const [nodes, retVals] = this.typecheckScope(node.nodes);
+        if (retVals.length) {
+          throw retVals;
+        }
 
         this.scope.pop();
         return node;
+      }
+      case NodeKind.ReturnNode: {
+        throw [new TCReturnValue(this.evaluateTypeFromValue(node.value))];
       }
       case NodeKind.IfNode:
       case NodeKind.IfElseNode:
@@ -568,7 +587,6 @@ export class Typechecker {
       case NodeKind.IfElseRuntimeNode:
       case NodeKind.WhileRuntimeNode:
       case NodeKind.ForRuntimeNode:
-      case NodeKind.ReturnNode:
       case NodeKind.Grouping:
       case NodeKind.TypeNode:
       case NodeKind.StructDefinitionNode:
@@ -683,7 +701,7 @@ export class Typechecker {
         }
         if (fn.generics.length !== generics.length) {
           this.errorAt(node, `Mismatched type argument count`);
-          this.errorExcerptAt(fn.loc, "Definition here");
+          this.errorNoteAt(fn.loc, "Definition here");
           logger.error(
             `Expected ${fn.generics.length}, instead received ${generics.length}`,
           );
@@ -691,7 +709,7 @@ export class Typechecker {
         }
         if (fn.args.length !== args.length) {
           this.errorAt(node, `Mismatched argument count`);
-          this.errorExcerptAt(fn.loc, "Definition here");
+          this.errorNoteAt(fn.loc, "Definition here");
           logger.error(
             `Expected ${fn.args.length}, instead received ${args.length}`,
           );
@@ -712,7 +730,7 @@ export class Typechecker {
         for (const [key, value] of arrzip(fn.args, args)) {
           if (!key.eq(value)) {
             this.errorAt(value.loc, `Mismatched argument type`);
-            this.errorExcerptAt(key.loc, `Definition here`);
+            this.errorNoteAt(key.loc, `Definition here`);
             logger.error(`expected: ${key.toDisplay()}`);
             logger.error(`received: ${value.toDisplay()}`);
           }
@@ -763,44 +781,52 @@ export class Typechecker {
     message: string,
   ) {
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
-    const lines = sh.getLines(location.start, location.end);
     const [col, row] = sh.getColRow(location.start);
-    logger.printWithTags([
-      logger.config.levels[LogLevel.ERROR],
-      {
-        color: [192, 123, 0],
-        priority: -20,
-        name: "typechecker",
-      },
-    ], `At ${location.fp}:${col + 1}:${row}:`);
-    for (const ln of lines) {
-      logger.printWithTags([
-        logger.config.levels[LogLevel.ERROR],
-        {
-          color: [192, 123, 0],
-          priority: -20,
-          name: "typechecker",
-        },
-      ], "\t" + ln);
-    }
-    logger.printWithTags([
-      logger.config.levels[LogLevel.ERROR],
-      {
-        color: [192, 123, 0],
-        priority: -20,
-        name: "typechecker",
-      },
-    ], `${message}`);
+    logger.error(message);
+    logger.error(`At ${location.fp}:${col + 1}:${row}:`);
+    const lines = sh.getRawLines(location.start, location.end);
+
+    for (const line of lines) {
+      let out = "";
+      let pad = "";
+      for (const [char, index] of line) {
+        if (location.start <= index && index < location.end) {
+          out += Ansi.yellow + char + Ansi.reset;
+          pad += "^";
+        } else {
+          pad += " ";
+          out += Ansi.gray + char + Ansi.reset;
+        }
+      }
+      logger.error(out);
+      logger.error(pad);
+    } 
   }
 
-  errorExcerptAt(
+  errorNoteAt(
     location: { start: number; end: number; fp: string },
     message: string,
   ) {
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
-    const lines = sh.getLines(location.start, location.end);
+    const lines = sh.getRawLines(location.start, location.end);
+    const [col, row] = sh.getColRow(location.start);
+    logger.error(Ansi.yellow + "note: " + Ansi.reset + message + ` (${location.fp}:${col})`);
 
-    logger.error(lines.map((a) => "\t" + a.trim()));
-    logger.error(message);
+    for (const line of lines) {
+      let out = "";
+      let pad = "";
+      for (const [char, index] of line) {
+        if (location.start <= index && index < location.end) {
+          out += Ansi.yellow + char + Ansi.reset;
+          pad += "^";
+        } else {
+          pad += " ";
+          out += Ansi.gray + char + Ansi.reset;
+        }
+      }
+      logger.error(out);
+      logger.error(pad);
+    } 
   }
+
 }
