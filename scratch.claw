@@ -4,6 +4,10 @@ fn print(str: string) void {
 
 }
 
+interface Test {
+    fn test() void
+}
+
 struct Array<T> {
     test: T,
     value: string,

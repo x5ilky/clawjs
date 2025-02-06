@@ -733,7 +733,30 @@ export class Typechecker {
         return node;
 
       }
-      case NodeKind.InterfaceNode:
+      case NodeKind.InterfaceNode: {
+        const name = node.name;
+        this.ti.types.push();
+        const ta = this.resolveTypeGenerics(node.typeArguments);
+        for (const t of ta) this.ti.types.set(t.name, t);
+        const map = new Map<string, FunctionClawType>();
+        for (const def of node.defs) {
+          this.ti.types.push();
+          const ta = this.resolveTypeGenerics(def.typeArgs);
+          for (const t of ta) this.ti.types.set(t.name, t);
+
+          const retType = this.resolveTypeNode(def.returnType, this.gcm);
+          const args = [];
+          for (const [_n, arg] of def.args) {
+            args.push(this.resolveTypeNode(arg, this.gcm));
+          }
+          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType));
+          this.ti.types.pop();
+        }
+        this.ti.types.pop();
+        this.ti.interfaces.set(name, new ClawInterface(name, ta, map))
+
+        return node;
+      }
       case NodeKind.ImplBaseNode:
       case NodeKind.ImplTraitNode:
         logger.error(`Unimplemented node type: ${NodeKind[node.type]}`);
