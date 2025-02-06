@@ -1,1 +1,9 @@
-i : int = 1 > 2
+i : int = 1 + 2
+
+fn print(str: string) void {
+
+}
+
+while i + 3 < 6 {
+    print("Hello, world!")    
+}

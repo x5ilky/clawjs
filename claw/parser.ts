@@ -53,14 +53,13 @@ export class Parser {
         const name = ezp.expect((token) =>
           token.type === "Identifier"
         ) ;
-        const generics: TypeNode[] = ezp.expectRuleOrTerm("Expected type generics", genericTypeListRule);
+        const generics: TypeNode[] = ezp.expectRule(genericTypeListRule);
         while (
           ezp.peekAnd((token) => token.type === "Symbol" && token.value === "+")
         ) {
-          ezp.consume();
-          const boundName = ezp.expectOrTerm(
-            "Expected type bound name",
-            (token) => token.type === "Identifier",
+          ezp.consume()
+          const boundName = ezp.expect(
+             (token) => token.type === "Identifier",
           ) ;
           bounds.push(boundName.name);
         }
@@ -655,7 +654,7 @@ export class Parser {
               ezp.consume();
               break;
             }
-            generics.push(ezp.expectRuleOrTerm("Expected generic", typeRule));
+            generics.push(ezp.expectRule(typeRule));
             if (
               ezp.peekAnd((token) =>
                 token.type === "Symbol" && token.value === ">"
@@ -1117,13 +1116,13 @@ export class Parser {
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
         returnRule,
+        controlFlowRule,
         dataRule,
         structRule,
         implBaseRule,
         implTraitRule,
         interfaceRule,
         functionRule,
-        controlFlowRule,
         constRule,
         declRule,
         assignOpRule,
@@ -1141,34 +1140,27 @@ export class Parser {
     location: { start: number; end: number; fp: string },
     message: string,
   ): never {
+    const tag = {
+      color: [196, 34, 235] as [number, number, number],
+      priority: -20,
+      name: "parser",
+    };
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
     const lines = sh.getLines(location.start, location.end);
     const [col, row] = sh.getColRow(location.start);
     logger.printWithTags([
       logger.config.levels[LogLevel.ERROR],
-      {
-        color: [196, 34, 235],
-        priority: -20,
-        name: "PARSER",
-      },
+      tag
     ], `At ${location.fp}:${col + 1}:${row}:`);
     for (const ln of lines) {
       logger.printWithTags([
         logger.config.levels[LogLevel.ERROR],
-        {
-          color: [196, 34, 235],
-          priority: -20,
-          name: "PARSER",
-        },
+        tag
       ], ln);
     }
     logger.printWithTags([
       logger.config.levels[LogLevel.ERROR],
-      {
-        color: [196, 34, 235],
-        priority: -20,
-        name: "PARSER",
-      },
+      tag
     ], `${message}`);
     Deno.exit(1);
   }

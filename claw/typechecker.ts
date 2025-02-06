@@ -48,7 +48,6 @@ export class TypeIndex {
       //      ^ spec.generics
       //               ^ spec.inputs
       //                              ^ spec.target
-      // console.log(spec)
       if (!spec.target.eq(type)) {
         continue;
       }
@@ -553,7 +552,6 @@ export class Typechecker {
         }
       }
     }
-    // console.log(returnVals, new Error().stack)
     this.scope.pop();
     return [out, returnVals];
   }
@@ -636,14 +634,62 @@ export class Typechecker {
       case NodeKind.ReturnNode: {
         throw [new TCReturnValue(this.evaluateTypeFromValue(node.value))];
       }
-      case NodeKind.IfNode:
-      case NodeKind.IfElseNode:
-      case NodeKind.WhileNode:
-      case NodeKind.ForNode:
       case NodeKind.IfRuntimeNode:
+      case NodeKind.IfNode: {
+        const name = node.type === NodeKind.IfNode ? "bool" : "bool!";
+        const predValue = this.evaluateTypeFromValue(node.predicate);
+        if (!predValue.eq(this.ti.getTypeFromName(name)!)) {
+          this.errorAt(node.predicate, `Predicate has to be a ${name}`);
+        }
+        const [_nodes, body] = this.typecheckForReturn([node.body]);
+        if (body.length) {
+          throw body;
+        }
+        return node;
+      }
       case NodeKind.IfElseRuntimeNode:
+      case NodeKind.IfElseNode: {
+        const name = node.type === NodeKind.IfElseNode ? "bool" : "bool!";
+        const predValue = this.evaluateTypeFromValue(node.predicate);
+        if (!predValue.eq(this.ti.getTypeFromName(name)!)) {
+          this.errorAt(node.predicate, `Predicate has to be a ${name}`);
+        }
+        const [_nodes, body] = this.typecheckForReturn([node.body]);
+        const [_nodes2, elseBody] = this.typecheckForReturn([node.elseBody]);
+        if (body.length || elseBody.length) {
+          throw body.concat(elseBody);
+        }
+        return node;
+      }
       case NodeKind.WhileRuntimeNode:
-      case NodeKind.ForRuntimeNode:
+      case NodeKind.WhileNode: {
+        const name = node.type === NodeKind.WhileNode ? "bool" : "bool!";
+        const predValue = this.evaluateTypeFromValue(node.predicate);
+        if (!predValue.eq(this.ti.getTypeFromName(name)!)) {
+          this.errorAt(node.predicate, `Predicate has to be a ${name}`);
+        }
+        const [_nodes, body] = this.typecheckForReturn([node.body]);
+        if (body.length) {
+          throw body;
+        }
+        return node;
+      }
+
+      case NodeKind.ForRuntimeNode: 
+      case NodeKind.ForNode: {
+        const name = node.type === NodeKind.ForNode ? "bool" : "bool!";
+        const predValue = this.evaluateTypeFromValue(node.predicate);
+        if (!predValue.eq(this.ti.getTypeFromName(name)!)) {
+          this.errorAt(node.predicate, `Predicate has to be a ${name}`);
+        }
+        this.typecheckSingle(node.initialiser);
+        this.typecheckSingle(node.post);
+        const [_nodes, body] = this.typecheckForReturn([node.body]);
+        if (body.length) {
+          throw body;
+        }
+        return node;
+      };
       case NodeKind.Grouping:
       case NodeKind.TypeNode:
       case NodeKind.StructDefinitionNode:
