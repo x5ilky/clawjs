@@ -909,7 +909,7 @@ export class Typechecker {
     const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
     const lines = sh.getRawLines(location.start, location.end);
     const [col, _row] = sh.getColRow(location.start);
-    logger.error(Ansi.yellow + "note: " + Ansi.reset + message + ` (${location.fp}:${col})`);
+    logger.error(Ansi.yellow + "note: " + Ansi.reset + message + ` (${location.fp}:${col+1})`);
 
     for (const line of lines) {
       let out = "";
