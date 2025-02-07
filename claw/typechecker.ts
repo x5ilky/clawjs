@@ -171,16 +171,15 @@ export class TypeIndex {
 
   extractGenericSingle(
     template: ClawType,
-    value: ClawType,
+    v: ClawType,
     gcm: GenericChainMap,
   ) {
+    let value = v;
     if (template instanceof VariableClawType) {
       if (!(value instanceof VariableClawType)) {
-        logger.error(
-          `${template.toDisplay()} cannot map onto ${value.toDisplay()}`,
-        );
-        return;
+        value = new VariableClawType(value.name, [], value.loc, value);
       }
+      if (!assertType<VariableClawType>(value)) return;
       if (!value.base.eq(template.base)) {
         logger.error(
           `${template.toDisplay()} cannot map onto ${value.toDisplay()}`,
@@ -264,9 +263,9 @@ export class BaseClawType {
     public generics: ClawType[],
     public loc: { fp: string; start: number; end: number },
   ) {
-    if (name === "ERROR") {
-      console.log(`ERROR type generated, stack trace: ${new Error().stack}`);
-    }
+    // if (name === "ERROR") {
+    //   console.log(`ERROR type generated, stack trace: ${new Error().stack}`);
+    // }
   }
 
   eq(other: ClawType, stop: boolean = false): boolean {
@@ -793,10 +792,56 @@ export class Typechecker {
         return node;
       }
 
-      case NodeKind.ImplTraitNode:
-        logger.error(`Unimplemented node type: ${NodeKind[node.type]}`);
-        Deno.exit(1);
-        break;
+      case NodeKind.ImplTraitNode: {
+        this.gcm.push();
+        const [trait, inputs] = this.resolveInterface(node.trait);
+        const tas = this.resolveTypeGenerics(node.generics);
+        this.ti.types.push();
+          for (const ta of tas) this.ti.types.set(ta.name, ta);
+          const tt = this.resolveTypeNode(node.targetType, this.gcm);
+        this.ti.types.pop();
+        this.gcm.set(new GenericClawType("Self", tt.loc, []), tt);
+        const map = new Map<string, FunctionClawType>();
+        if (node.defs.length !== trait.functions.size) {
+          this.errorAt(node, `Not enough method implementations, expected ${trait.functions.size}, got ${node.defs.length}`);
+          return node;
+        } 
+        for (const def of node.defs) {
+          if (!trait.functions.has(def.name)) {
+            this.errorAt(def, `Interface ${trait.name} has no method ${def.name}`);
+            return node;
+          }
+          this.ti.types.push();
+          const ta = this.resolveTypeGenerics(def.typeArgs);
+          for (const t of ta) this.ti.types.set(t.name, t);
+
+          const retType = this.resolveTypeNode(def.returnType, this.gcm);
+          const args = [];
+          for (const [_n, arg] of def.args) {
+            args.push(this.resolveTypeNode(arg, this.gcm));
+          }
+          const v = new FunctionClawType(def.name, ta, def, args, retType)
+          const errorStack: string[] = [];
+          
+          const template = this.ti.substituteRawSingle(trait.functions.get(def.name)!, this.gcm, errorStack);
+          console.log(template.toDisplay(), v.toDisplay())
+          if (!template.eq(v)) {
+            this.errorAt(def, `Mismatching function definition`);
+            this.errorNoteAt(trait.functions.get(def.name)!.loc, `Expected: ${template.toDisplay()}, got: ${v.toDisplay()}`);
+            continue;
+          }
+          map.set(def.name, v);
+          this.ti.types.pop();
+        }
+        this.gcm.pop();
+        trait.specificImplementations.push({
+          generics: tas,
+          target: tt,
+          inputs,
+          functions: map.values().toArray()
+        });
+        return node;
+      }
       default:
         this.errorAt(node, `${NodeKind[node.type]} is not a valid statement`);
         return node;
@@ -864,6 +909,20 @@ export class Typechecker {
     }
 
     return typeArgs;
+  }
+
+  resolveInterface(tn: TypeNode): [ClawInterface, ClawType[]] {
+    const int = this.ti.getInterfaceFromName(tn.name);
+    if (int === undefined) {
+      this.errorAt(tn, `No interface called ${tn.name}`);
+      Deno.exit(1);
+    }
+    const tas = [];
+    for (const t of tn.typeArguments) {
+      const v = this.resolveTypeNode(t, this.gcm);
+      tas.push(v);
+    }
+    return [int, tas];
   }
 
   evaluateTypeFromValue(node: Node): ClawType {

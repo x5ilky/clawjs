@@ -13,6 +13,12 @@ struct Foo<T> {
     test: T,
     value: string,
 }
+impl Add<int, string> for Foo<int> {
+    fn add(self: Self<int>, other: int) string {
+        return "10"
+    }
+}
+
 impl<T> Foo<T> {
     fn bar() void {
         print("hello, world!")
@@ -23,3 +29,5 @@ test := Foo<int>::{
     test: 1,
     value: "test"
 }
+
+test2 : string = test + 2
