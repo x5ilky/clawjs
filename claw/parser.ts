@@ -845,7 +845,7 @@ export class Parser {
       const implToken = ezp.expect((token) =>
         token.type === "Keyword" && token.value === "impl"
       );
-      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericIdentifierListRule);
+      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericTypeListRule);
       const targetType = ezp.expectRuleOrTerm("Expected target type", typeRule);
       let end: Loc = targetType;
       const _begin_curly = ezp.expect((token) =>
@@ -874,7 +874,7 @@ export class Parser {
       const implToken = ezp.expect((token) =>
         token.type === "Keyword" && token.value === "impl"
       );
-      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericIdentifierListRule);
+      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericTypeListRule);
       const trait = ezp.expectRuleOrTerm("Expected trait", typeRule);
       
       const _forToken = ezp.expect((token) =>

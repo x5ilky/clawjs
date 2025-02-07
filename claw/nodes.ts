@@ -261,11 +261,11 @@ export type ImplBaseNode = {
     readonly type: NodeKind.ImplBaseNode,
     readonly targetType: TypeNode,
     readonly defs: FunctionDefinitionNode[],
-    readonly generics: string[],
+    readonly generics: TypeNode[],
 } & Loc;
 export type ImplTraitNode = {
     readonly type: NodeKind.ImplTraitNode,
     readonly trait: TypeNode,
     readonly targetType: TypeNode,
-    readonly generics: string[],
+    readonly generics: TypeNode[],
 } & Loc;

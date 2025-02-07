@@ -8,12 +8,18 @@ interface Test {
     fn test() void
 }
 
-struct Array<T> {
+
+struct Foo<T> {
     test: T,
     value: string,
 }
+impl<T> Foo<T> {
+    fn bar() void {
+        print("hello, world!")
+    }
+}
 
-test := Array<int>::{
+test := Foo<int>::{
     test: 1,
     value: "test"
 }

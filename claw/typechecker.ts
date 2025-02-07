@@ -16,11 +16,17 @@ export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
 }
 
 export class TypeIndex {
-
+  baseImplementations: {
+    generics: ClawType[];
+    inputs: ClawType[];
+    functions: FunctionClawType[];
+    target: ClawType;
+  }[];
   constructor(
     public types: ChainMap<string, ClawType>,
     public interfaces: Map<string, ClawInterface>,
   ) {
+    this.baseImplementations = [];
     this.types.push();
   }
 
@@ -757,7 +763,36 @@ export class Typechecker {
 
         return node;
       }
-      case NodeKind.ImplBaseNode:
+
+      case NodeKind.ImplBaseNode: {
+        const tas = this.resolveTypeGenerics(node.generics);
+        this.ti.types.push();
+        for (const ta of tas) this.ti.types.set(ta.name, ta);
+        const tt = this.resolveTypeNode(node.targetType, this.gcm);
+        this.ti.types.pop();
+        const map = new Map<string, FunctionClawType>();
+        for (const def of node.defs) {
+          this.ti.types.push();
+          const ta = this.resolveTypeGenerics(def.typeArgs);
+          for (const t of ta) this.ti.types.set(t.name, t);
+
+          const retType = this.resolveTypeNode(def.returnType, this.gcm);
+          const args = [];
+          for (const [_n, arg] of def.args) {
+            args.push(this.resolveTypeNode(arg, this.gcm));
+          }
+          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType));
+          this.ti.types.pop();
+        }
+        this.ti.baseImplementations.push({
+          generics: tas,
+          target: tt,
+          inputs: tt.generics,
+          functions: map.values().toArray()
+        });
+        return node;
+      }
+
       case NodeKind.ImplTraitNode:
         logger.error(`Unimplemented node type: ${NodeKind[node.type]}`);
         Deno.exit(1);
