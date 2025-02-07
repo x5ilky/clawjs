@@ -276,7 +276,9 @@ export class BaseClawType {
     if (this instanceof FunctionClawType && other instanceof FunctionClawType) {
       return (
         this.name === other.name &&
-        arreq(this.generics, other.generics, (a, b) => a.eq(b))
+        arreq(this.generics, other.generics, (a, b) => a.eq(b)) &&
+        arreq(this.args, other.args, (a, b) => a.eq(b)) &&
+        this.output.eq(other.output)
       );
     }
     if (this instanceof VariableClawType) {
@@ -403,7 +405,7 @@ export class GenericClawType extends BaseClawType {
 
   override toDisplay(): string {
     if (this.bounds.length) {
-      return `${this.name}: ${this.bounds.map((a) => a.toDisplay())}`;
+      return `${this.name} + ${this.bounds.map((a) => a.toDisplay()).join(" + ")}`;
     }
     return this.name;
   }
@@ -827,10 +829,19 @@ export class Typechecker {
           for (let i = 0; i < inputs.length; i++) this.gcm.set(trait.generics[i] as GenericClawType, inputs[i])
           const template = this.ti.substituteRawSingle(trait.functions.get(def.name)!, this.gcm, errorStack);
           this.gcm.pop()
+
           if (!template.eq(v)) {
             this.errorAt(def, `Mismatching function definition`);
             this.errorNoteAt(trait.functions.get(def.name)!.loc, `Expected: ${template.toDisplay()}, got: ${v.toDisplay()}`);
-            continue;
+            return node;
+          }
+          const [_nodes, actualRetType] = this.typecheckForReturn([def.nodes]);
+          for (const rt of actualRetType) {
+            if (!rt.value.eq(retType)) {
+              this.errorAt(rt.value.loc, `Mismatched return types, expected: ${retType.toDisplay()}, got: ${rt.value.toDisplay()}`);
+              this.errorNoteAt(retType.loc, `Return type specified here:`)
+              continue;
+            }
           }
           map.set(def.name, v);
           this.ti.types.pop();

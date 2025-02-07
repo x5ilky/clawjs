@@ -13,9 +13,9 @@ struct Foo<T> {
     test: T,
     value: string,
 }
-impl Add<int, string> for Foo<int> {
-    fn add(self: Self<int>, other: int) string {
-        return "10"
+impl Add<int, int> for Foo<int> {
+    fn add(self: Self<int>, other: int) int {
+        return 10
     }
 }
 
@@ -30,4 +30,4 @@ test := Foo<int>::{
     value: "test"
 }
 
-test2 : string = test + 2
+test2 : int = test + 2
