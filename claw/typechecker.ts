@@ -823,7 +823,10 @@ export class Typechecker {
           const v = new FunctionClawType(def.name, ta, def, args, retType)
           const errorStack: string[] = [];
           
+          this.gcm.push()
+          for (let i = 0; i < inputs.length; i++) this.gcm.set(trait.generics[i] as GenericClawType, inputs[i])
           const template = this.ti.substituteRawSingle(trait.functions.get(def.name)!, this.gcm, errorStack);
+          this.gcm.pop()
           console.log(template.toDisplay(), v.toDisplay())
           if (!template.eq(v)) {
             this.errorAt(def, `Mismatching function definition`);
