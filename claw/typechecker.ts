@@ -1012,6 +1012,12 @@ export class Typechecker {
           );
           Deno.exit(1);
         }
+        for (const [actual, generic] of arrzip(generics, fn.generics)) {
+          if (!(generic instanceof GenericClawType)) throw new Error("should be unreachable");
+          for (const bound of generic.bounds) {
+            if (!this.ti.doesTypeImplementInterface(actual, bound, new Array(bound.generics.length).fill(this.ti.getTypeFromName("any")!)));
+          }
+        }
         if (fn.args.length !== args.length) {
           this.errorAt(node, `Mismatched argument count`);
           this.errorNoteAt(fn.loc, "Definition here");
