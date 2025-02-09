@@ -1178,8 +1178,9 @@ export class Typechecker {
             logger.error(`received: ${value.toDisplay()}`);
           }
         }
+        const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack);
         this.gcm.pop();
-        return this.ti.substituteRawSingle(fn.output, this.gcm, errorStack);
+        return out;
       }
       case NodeKind.UnaryOperation:
         // todo
