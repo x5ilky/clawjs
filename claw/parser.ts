@@ -264,7 +264,6 @@ export class Parser {
                 end = ezp.consume();
                 break;
               }
-
               args.push(ezp.expectRule(valueRule));
               if (ezp.peekAnd((t) => t.type === "Symbol" && t.value === ")")) {
                 end = ezp.consume();
@@ -323,7 +322,8 @@ export class Parser {
                 }
                 throw new EZPError("Expected comma or right angle bracket");
               }
-              parseFunctionArguments(end, typeArgs, ezp);
+              const _St = ezp.expect(a => a.type === "Symbol" && a.value === "(")
+              parseFunctionArguments(_St, typeArgs, ezp);
               return lhs;
             },
           );
@@ -363,6 +363,7 @@ export class Parser {
               // this is so that we dont accidently try force parsing the less than operator as a function generic call
               const r = ezp.tryRule(functionWithTypeArgsRule);
               if (r === null) break;
+              else continue;
             }
             ezp.getFirstThatWorksOrTerm(
               "Expected function call or function call with generics",

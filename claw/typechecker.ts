@@ -286,6 +286,7 @@ export class BaseClawType {
   }
 
   eq(other: ClawType, stop: boolean = false): boolean {
+    if (this instanceof VariableClawType && this.base instanceof VariableClawType) return this.base.eq(other);
     if (this instanceof BuiltinClawType && this.name === "any") return true;
     if (this instanceof GenericClawType && other instanceof GenericClawType) {
       return this.name === other.name;
@@ -395,6 +396,7 @@ export class VariableClawType extends BaseClawType {
   }
 
   override toDisplay(): string {
+    if (this.base instanceof VariableClawType) return this.base.toDisplay()
     if (this.generics.length) {
       return `${this.base.name}<${
         this.generics.map((a) => a.toDisplay()).join(", ")
@@ -1168,7 +1170,7 @@ export class Typechecker {
           Deno.exit(1);
         }
 
-        for (const [key, value] of arrzip(fn.args, args)) {
+        for (const [key, value] of arrzip(mapped, args)) {
           if (!key.eq(value)) {
             this.errorAt(value.loc, `Mismatched argument type`);
             this.errorNoteAt(key.loc, `Definition here`);
