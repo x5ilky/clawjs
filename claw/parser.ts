@@ -296,28 +296,27 @@ export class Parser {
           const functionWithTypeArgsRule = ezp.instantiateRule(
             "function call with generics",
             (ezp) => {
-              const p = ezp.expect((token) =>
+              const _p = ezp.expect((token) =>
                 token.type === "Symbol" && token.value === "<"
               );
               const typeArgs: TypeNode[] = [];
-              let end: Loc = p;
               while (true) {
                 if (
                   ezp.peekAnd((t) => t.type === "Symbol" && t.value === ">")
                 ) {
-                  end = ezp.consume();
+                  ezp.consume();
                   break;
                 }
                 typeArgs.push(ezp.expectRule(typeRule));
                 if (
                   ezp.peekAnd((t) => t.type === "Symbol" && t.value === ">")
                 ) {
-                  end = ezp.consume();
+                  ezp.consume();
                   break;
                 } else if (
                   ezp.peekAnd((t) => t.type === "Symbol" && t.value === ",")
                 ) {
-                  end = ezp.consume();
+                  ezp.consume();
                   continue;
                 }
                 throw new EZPError("Expected comma or right angle bracket");
