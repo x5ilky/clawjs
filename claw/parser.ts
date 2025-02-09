@@ -37,7 +37,33 @@ export class Parser {
       },
       customError: (error, tok) => this.errorAt(tok, error),
     });
-    const typeRule = this.ezp.instantiateRule<ClawToken, TypeNode>(
+    const typeRule = this.ezp.instantiateHelper<ClawToken, TypeNode>("type", (ezp): TypeNode => {
+      return ezp.getFirstThatWorks(
+        groupTypeRule,
+        ofTypeRule,
+        baseTypeRule
+      )
+    })
+    const groupTypeRule = this.ezp.instantiateRule<ClawToken, TypeNode>("type grouping", (ezp): TypeNode => {
+      const _start_paren = ezp.expect(a => a.type === "Symbol" && a.value === "(");
+      const type = ezp.expectRule(typeRule);
+      const _end_paren = ezp.expect(a => a.type === "Symbol" && a.value === ")");
+      return type;
+    })
+    const ofTypeRule = this.ezp.instantiateRule<ClawToken, TypeNode>("of type", (ezp): TypeNode => {
+      const traitName = ezp.expectRule(baseTypeRule);
+      const _period = ezp.expect(a => a.type === "Symbol" && a.value === ".");
+      const traitType = ezp.expectRule(baseTypeRule);
+      const _of = ezp.expect(a => a.type === "Keyword" && a.value === "of");
+      const type = ezp.expectRuleOrTerm("expected base type", typeRule);
+      return cn(traitName, type, {
+        type: NodeKind.OfTypeNode,
+        baseType: type,
+        int: traitName,
+        intType: traitType,
+      })
+    })
+    const baseTypeRule = this.ezp.instantiateRule<ClawToken, TypeNode>(
       "type",
       (ezp) => {
         let ref = false;
@@ -64,7 +90,7 @@ export class Parser {
           bounds.push(boundName.name);
         }
         return cn(name, name, {
-          type: NodeKind.TypeNode,
+          type: NodeKind.NormalTypeNode,
           name: name.name,
           ref,
           typeArguments: generics,
@@ -679,48 +705,48 @@ export class Parser {
         return generics;
       },
     );
-    const genericIdentifierListRule = this.ezp.instantiateHelper<ClawToken, string[]>(
-      "generics",
-      (ezp) => {
-        const generics: string[] = [];
-        if (
-          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "<")
-        ) {
-          ezp.consume();
-          while (true) {
-            if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === ">"
-              )
-            ) {
-              ezp.consume();
-              break;
-            }
-            generics.push(ezp.expectOrTerm("Expected identifier for generic", token => token.type === "Identifier").name);
-            if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === ">"
-              )
-            ) {
-              ezp.consume();
-              break;
-            } else if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === ","
-              )
-            ) {
-              ezp.consume();
-              continue;
-            }
-            this.errorAt(
-              ezp.consume(),
-              "Expected commas or right angle bracket",
-            );
-          }
-        }
-        return generics;
-      },
-    );
+    // const genericIdentifierListRule = this.ezp.instantiateHelper<ClawToken, string[]>(
+    //   "generics",
+    //   (ezp) => {
+    //     const generics: string[] = [];
+    //     if (
+    //       ezp.peekAnd((token) => token.type === "Symbol" && token.value === "<")
+    //     ) {
+    //       ezp.consume();
+    //       while (true) {
+    //         if (
+    //           ezp.peekAnd((token) =>
+    //             token.type === "Symbol" && token.value === ">"
+    //           )
+    //         ) {
+    //           ezp.consume();
+    //           break;
+    //         }
+    //         generics.push(ezp.expectOrTerm("Expected identifier for generic", token => token.type === "Identifier").name);
+    //         if (
+    //           ezp.peekAnd((token) =>
+    //             token.type === "Symbol" && token.value === ">"
+    //           )
+    //         ) {
+    //           ezp.consume();
+    //           break;
+    //         } else if (
+    //           ezp.peekAnd((token) =>
+    //             token.type === "Symbol" && token.value === ","
+    //           )
+    //         ) {
+    //           ezp.consume();
+    //           continue;
+    //         }
+    //         this.errorAt(
+    //           ezp.consume(),
+    //           "Expected commas or right angle bracket",
+    //         );
+    //       }
+    //     }
+    //     return generics;
+    //   },
+    // );
     const functionDefinitionRule = this.ezp.instantiateRule(
       "function definition",
       (ezp): FunctionDefinitionNode => {
@@ -987,7 +1013,7 @@ export class Parser {
           token.type === "Symbol" && token.value === ":"
         );
         // variable decl
-        const type = ezp.tryRule(typeRule);
+        const type = ezp.tryRule<TypeNode>(typeRule);
         const _equals = ezp.expect((tok) =>
           tok.type === "Symbol" && tok.value === "="
         );
@@ -1010,7 +1036,7 @@ export class Parser {
           token.type === "Symbol" && token.value === ":"
         );
         // variable decl
-        const type = ezp.tryRule(typeRule);
+        const type = ezp.tryRule<TypeNode>(typeRule);
         const _equals = ezp.expect((tok) =>
           tok.type === "Symbol" && tok.value === ":"
         );

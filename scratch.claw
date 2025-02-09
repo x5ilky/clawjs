@@ -30,4 +30,8 @@ test := Foo<int>::{
     value: "test"
 }
 
+fn foo<T + Add>(left: T, right: T) (Add.Output of T) {
+    return left + right
+}
+
 test2 : int = test + 2

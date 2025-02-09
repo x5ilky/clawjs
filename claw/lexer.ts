@@ -82,7 +82,8 @@ const KEYWORD = [
   "data",
   "interface",
   "impl",
-  "return"
+  "return",
+  "of"
 ] as const;
 const SYMBOLS = <readonly string[]> S;
 type TSymbol = typeof S[number];

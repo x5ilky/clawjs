@@ -61,7 +61,8 @@ export enum NodeKind {
     BinaryOperation,
     Grouping,
 
-    TypeNode,
+    NormalTypeNode,
+    OfTypeNode,
     BoundNode,
     BlockNode,
     LabelNode,
@@ -214,12 +215,19 @@ export type Grouping = {
     readonly type: NodeKind.Grouping,
     readonly value: Node
 } & Loc;
-export type TypeNode = {
-    readonly type: NodeKind.TypeNode,
+export type TypeNode = NormalTypeNode | OfTypeNode;
+export type NormalTypeNode = {
+    readonly type: NodeKind.NormalTypeNode,
     readonly ref: boolean,
     readonly name: string,
     readonly typeArguments: TypeNode[],
     readonly bounds: string[]
+} & Loc;
+export type OfTypeNode = {
+    readonly type: NodeKind.OfTypeNode,
+    readonly int: TypeNode,
+    readonly intType: TypeNode,
+    readonly baseType: TypeNode,
 } & Loc;
 
 export type BlockNode = {

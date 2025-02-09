@@ -23,6 +23,28 @@ export class ChainMap<K, V> {
         this.__inner[this.__inner.length-1].set(k, v);
     }
 }
+export class ChainArray<V> {
+    layers: V[][]
+    constructor() {
+        this.layers = [];
+    }
+
+    stack() {
+        this.layers.push([])
+    }
+
+    take() {
+        this.layers.pop();
+    }
+
+    push(v: V) {
+        this.layers[this.layers.length-1].push(v);
+    }
+
+    flatten() {
+        return this.layers.flat();
+    }
+}
 
 export class ChainCustomMap<K, V> {
     #inner: [K, V][][];
