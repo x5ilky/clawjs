@@ -8,6 +8,7 @@ import { SourceHelper } from "./sourceUtil.ts";
 import { TypeNode } from "./nodes.ts";
 import { Loc } from "./lexer.ts";
 import { UnaryOperationType } from "./nodes.ts";
+import { threadId } from "node:worker_threads";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
 
@@ -382,7 +383,7 @@ export class StructureClawType extends BaseClawType {
     }
     return `struct ${this.name}${genTxt} {\n${
       arrjoinwith(this.members.entries().toArray(), ([k, v]) =>
-        `\t${k}: ${v.toDisplay()}`, ", ")
+        `  ${k}: ${v.toDisplay()}`, ",\n")
     }\n}`;
   }
 }
@@ -1287,7 +1288,12 @@ export class Typechecker {
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
       }
-      case NodeKind.ChildOfNode:
+      case NodeKind.ChildOfNode: {
+        const baseValue = this.evaluateTypeFromValue(node.base);
+        const child = this.getTypeChild(baseValue, node.extension);
+        console.log(child.toDisplay())
+        return baseValue;
+      } break;
       case NodeKind.MethodOfNode:
       case NodeKind.BlockNode:
       case NodeKind.LabelNode:
@@ -1350,6 +1356,32 @@ export class Typechecker {
       logger.error(pad);
     } 
   }
+
+  getValueBase(f: ClawType) {
+    if (f instanceof VariableClawType) return f.base;
+    else {
+      this.errorAt(f.loc, `Unresolved type here, this is probably a bug in the typechecker`);
+      Deno.exit(1);
+    }
+  }
+  getTypeChild(baseValue: ClawType, extension: string): ClawType {
+    const base = this.getValueBase(baseValue);
+    console.log(base.toDisplay())
+
+    if (base instanceof StructureClawType) {
+      const member = base.members.get(extension);
+      if (member !== undefined) return member;
+      else {
+        this.errorAt(baseValue.loc, `Method access hasn't been implemented yet`);
+        Deno.exit(1);
+      }
+    }
+
+    this.errorAt(baseValue.loc, `Unimplemented`);
+    Deno.exit(1);
+    return baseValue;
+  }
+
   warnAt(
     location: { start: number; end: number; fp: string },
     message: string,
