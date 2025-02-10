@@ -1,44 +1,17 @@
 i : int = 1 + 2
 
-fn print(str: string) void {
-
+struct Test<T> {
+    value: T
 }
 
-interface Test {
-    fn test() void
-}
-
-
-struct Foo<T> {
-    test: T,
-    value: string,
-}
-impl Add<int, int> for Foo<int> {
-    fn add(self: Self<int>, other: int) int {
-        return 10
-    }
-}
-impl Add<Foo<int>, int> for Foo<int> {
-    fn add(self: Self<int>, other: Foo<int>) int {
-        return 10
-    }
-}
-
-impl<T> Foo<T> {
+impl Test<int> {
     fn bar() void {
-        print("hello, world!")
+        
     }
 }
 
-test := Foo<int>::{
-    test: 1,
-    value: "test"
+t := Test<int>::{
+    value: 10
 }
 
-fn foo<T + Add>(left: T, right: T) (Add.Output of T) {
-    return left + right
-}
-
-test2 : Foo<int> = foo<Foo<int>>(test, test)
-
-test3 := test2.add(test2, 2)
+t.bar()

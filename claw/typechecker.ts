@@ -50,6 +50,38 @@ export class TypeIndex {
     }
     return this.getTypeInterfaceImplementations(type, int, inputs).length > 0;
   }
+  getTypeBaseImplementations(
+    type: ClawType,
+    mapping?: GenericChainMap,
+  ) {
+    const gcm = mapping ?? new GenericChainMap();
+    const works = [];
+    for (const spec of this.baseImplementations) { 
+      if (!spec.target.eq(type)) {
+        continue;
+      }
+  
+      gcm.push();
+      gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
+      const errorStack: string[] = [];
+      const _subsituted = this.substituteRaw(spec.inputs, gcm, errorStack, false);
+      // for (let i = 0; i < subsituted.length; i++) {
+      //   const sub = subsituted[i];
+      //   const inp = inputs[i];
+      //   if (!inp.eq(sub)) {
+      //     gcm.pop();
+      //     continue outer;
+      //   }
+      // }
+      if (errorStack.length) {
+        gcm.pop();
+        continue;
+      }
+      works.push({ gcm, spec });
+      gcm.pop();
+    }
+    return works;
+  }
   getTypeInterfaceImplementations(
     type: ClawType,
     int: ClawInterface,
@@ -848,7 +880,6 @@ export class Typechecker {
         }
         return node;
       }
-
       case NodeKind.ForRuntimeNode: 
       case NodeKind.ForNode: {
         const name = node.type === NodeKind.ForNode ? "bool" : "bool!";
@@ -1398,7 +1429,6 @@ export class Typechecker {
         const rightType = this.evaluateTypeFromValue(node.right);
         const impls = this.ti.getTypeInterfaceImplementations(leftType, itf, [rightType, ANY_TYPE(BUILTIN_LOC)], this.gcm);
         if (!impls.length) {
-          
           this.errorAt(node, `No implementation for operator ${itfName}<${rightType.toDisplay()}> for ${leftType.toDisplay()}`);
           logger.error(`Implement ${itfName}<${rightType.toDisplay()}, ...> for ${leftType.toDisplay()} to let it use operators`) ;
           throw new TypecheckerError();
@@ -1427,7 +1457,6 @@ export class Typechecker {
           `Unimplemented node in evaluateTypeFromValue: ${NodeKind[node.type]}`,
         );
         throw new TypecheckerError();
-        break;
       case NodeKind.Grouping:
         return this.evaluateTypeFromValue(node.value);
       case NodeKind.NormalTypeNode:
@@ -1452,7 +1481,6 @@ export class Typechecker {
       case NodeKind.ReturnNode:
         logger.error(`${NodeKind[node.type]} cannot be used as value`);
         throw new TypecheckerError();
-        break;
     }
   }
 
@@ -1520,7 +1548,6 @@ export class Typechecker {
 
     this.errorAt(baseValue.loc, `Unimplemented`);
     throw new TypecheckerError();
-    return baseValue;
   }
 
   getMethodsOfChild(type: ClawType, interfaces: ClawInterface[]): MultiMap<string, FunctionClawType> {
@@ -1533,6 +1560,14 @@ export class Typechecker {
         }
       }
     }
+    this.gcm.push();
+    const other = this.ti.getTypeBaseImplementations(type, this.gcm)
+    for (const impl of other) {
+      for (const fn of impl.spec.functions) {
+        out.push(fn.name, fn);
+      }
+    }
+    this.gcm.pop();
 
     return out;
   }
