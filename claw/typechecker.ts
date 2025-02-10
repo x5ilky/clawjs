@@ -1,5 +1,5 @@
 import { logger } from "../src/main.ts";
-import { ChainArray, ChainCustomMap, ChainMap } from "./chainmap.ts";
+import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
 import { BinaryOperationType, Node, NormalTypeNode } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
@@ -51,9 +51,9 @@ export class TypeIndex {
     type: ClawType,
     int: ClawInterface,
     inputs: ClawType[],
-    _mapping?: GenericChainMap
+    mapping?: GenericChainMap
   ) {
-    const mapping = _mapping ?? new GenericChainMap();
+    const gcm = mapping ?? new GenericChainMap();
     if (inputs.length !== int.generics.length) {
       logger.error(
         "assert: in TypeIndex.getTypeInterfaceImplementations, inputs.length !== ClawInterface.generics.length",
@@ -70,11 +70,11 @@ export class TypeIndex {
         continue;
       }
   
-      mapping.push();
-      mapping.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
-      this.extractGeneric(spec.inputs, inputs, mapping);
+      gcm.push();
+      gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
+      this.extractGeneric(spec.inputs, inputs, gcm);
       const errorStack: string[] = [];
-      const subsituted = this.substituteRaw(spec.inputs, mapping, errorStack);
+      const subsituted = this.substituteRaw(spec.inputs, gcm, errorStack);
       for (let i = 0; i < subsituted.length; i++) {
         const sub = subsituted[i];
         const inp = inputs[i];
@@ -82,20 +82,53 @@ export class TypeIndex {
           if (sub instanceof OfClawType && sub.base.eq(inp)) {
             // skip
           } else {
-            mapping.pop();
+            gcm.pop();
             continue outer;
           }
         } 
       }
       if (errorStack.length) {
-            mapping.pop();
+            gcm.pop();
         continue;
       }
-      works.push({ mapping, spec });
-            mapping.pop();
+      works.push({ gcm, spec });
+            gcm.pop();
     }
     return works;
   }
+
+  getAllTypeInterfaceImplementations(
+    type: ClawType,
+    int: ClawInterface,
+    mapping?: GenericChainMap
+  ) {
+    const gcm = mapping ?? new GenericChainMap();
+    const works = [];
+    for (const spec of int.specificImplementations.flatten()) {
+      // impl<T> start<T, number> for string
+      //      ^ spec.generics
+      //               ^ spec.inputs
+      //                              ^ spec.target
+      if (!spec.target.eq(type)) {
+        continue;
+      }
+  
+      gcm.push();
+      gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
+      const errorStack: string[] = [];
+      const subsituted = this.substituteRaw(spec.inputs, gcm, errorStack); 
+      for (let i = 0; i < subsituted.length; i++) {
+        if (errorStack.length) {
+          gcm.pop();
+          continue;
+        }
+        works.push({ gcm, spec });
+        gcm.pop();
+      }
+    }
+    return works;
+  }
+
   substituteRaw(
     types: ClawType[],
     mappings: GenericChainMap,
@@ -1148,7 +1181,8 @@ export class Typechecker {
         return type;
       }
       case NodeKind.CallNode: {
-        const fn = this.evaluateTypeFromValue(node.callee);
+        const fn = this.evaluateTypeFromValue(node.callee)
+
         if (!(fn instanceof FunctionClawType)) {
           this.errorAt(node, `Callee is not a function`);
           logger.error(`received: ${fn.toDisplay()}`);
@@ -1194,9 +1228,8 @@ export class Typechecker {
         }
         const errorStack: string[] = [];
         const mapped = this.ti.substituteRaw(fn.args, this.gcm, errorStack);
-        if (errorStack.length) {
-          this.errorAt(node, `Failed to substitute generics`);
-          logger.error(mapped);
+        if (mapped.some(a => a.eq(new BuiltinClawType("ERROR", [], BUILTIN_LOC)))) {
+          this.errorAt(node, `Failed to substitute generics: ${errorStack.join("\n")}`);
           Deno.exit(1);
         }
 
@@ -1291,9 +1324,8 @@ export class Typechecker {
       case NodeKind.ChildOfNode: {
         const baseValue = this.evaluateTypeFromValue(node.base);
         const child = this.getTypeChild(baseValue, node.extension);
-        console.log(child.toDisplay())
-        return baseValue;
-      } break;
+        return child;
+      }
       case NodeKind.MethodOfNode:
       case NodeKind.BlockNode:
       case NodeKind.LabelNode:
@@ -1360,26 +1392,55 @@ export class Typechecker {
   getValueBase(f: ClawType) {
     if (f instanceof VariableClawType) return f.base;
     else {
-      this.errorAt(f.loc, `Unresolved type here, this is probably a bug in the typechecker`);
-      Deno.exit(1);
+      return f;
     }
   }
   getTypeChild(baseValue: ClawType, extension: string): ClawType {
     const base = this.getValueBase(baseValue);
-    console.log(base.toDisplay())
 
     if (base instanceof StructureClawType) {
       const member = base.members.get(extension);
       if (member !== undefined) return member;
       else {
-        this.errorAt(baseValue.loc, `Method access hasn't been implemented yet`);
-        Deno.exit(1);
+        const methods = this.getMethodsOfChild(baseValue, this.ti.interfaces.values().toArray());
+        if (methods.has(extension)) {
+          const v = methods.get(extension)![0];
+          return v;
+        } else {
+          this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
+          Deno.exit(1);
+        }
       }
+    } else if (base instanceof ReferenceClawType) {
+      return this.getTypeChild(base.base, extension);
+    } else if (base instanceof VariableClawType) {
+      return this.getTypeChild(base.base, extension);
+    } else if (base instanceof GenericClawType) {
+      // todo
+    } else if (base instanceof FunctionClawType) {
+      this.errorAt(base.loc, "Cannot get the member of a function");
+      Deno.exit(1);
+    } else if (base instanceof BuiltinClawType) {
+      // 
     }
 
     this.errorAt(baseValue.loc, `Unimplemented`);
     Deno.exit(1);
     return baseValue;
+  }
+
+  getMethodsOfChild(type: ClawType, interfaces: ClawInterface[]): MultiMap<string, FunctionClawType> {
+    const out = new MultiMap<string, FunctionClawType>();
+    for (const int of interfaces) {
+      const all = this.ti.getAllTypeInterfaceImplementations(type, int);
+      for (const impl of all) {
+        for (const fn of impl.spec.functions) {
+          out.push(fn.name, fn);
+        }
+      }
+    }
+
+    return out;
   }
 
   warnAt(

@@ -92,3 +92,24 @@ export class ChainCustomMap<K, V> {
         return out;
     }
 }
+
+export class MultiMap<K, V> {
+    inner: Map<K, V[]>
+
+    constructor() {
+        this.inner = new Map();
+    }
+
+    push(k: K, v: V) {
+        if (this.inner.has(k)) this.inner.get(k)!.push(v);
+        else this.inner.set(k, [v]);
+    }
+
+    get(k: K): V[] | undefined {
+        return this.inner.get(k);
+    }
+
+    has(k: K): boolean {
+        return this.inner.has(k);
+    }
+}

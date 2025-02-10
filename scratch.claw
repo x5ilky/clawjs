@@ -36,4 +36,4 @@ fn foo<T + Add>(left: T, right: T) (Add.Output of T) {
 
 test2 : Foo<int> = foo<Foo<int>>(test, test)
 
-test3 := test2.value
+test3 := test2.add(test2, 2)
