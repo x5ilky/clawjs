@@ -1,16 +1,19 @@
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { BinaryOperationType, Node, NormalTypeNode } from "./nodes.ts";
+import { BinaryOperationType, FunctionDefinitionNode, Node, NormalTypeNode } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 import { TypeNode } from "./nodes.ts";
 import { Loc } from "./lexer.ts";
 import { UnaryOperationType } from "./nodes.ts";
-import { threadId } from "node:worker_threads";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
+
+export class TypecheckerError {
+
+}
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
   constructor() {
@@ -51,14 +54,14 @@ export class TypeIndex {
     type: ClawType,
     int: ClawInterface,
     inputs: ClawType[],
-    mapping?: GenericChainMap
+    mapping?: GenericChainMap,
   ) {
     const gcm = mapping ?? new GenericChainMap();
     if (inputs.length !== int.generics.length) {
       logger.error(
         "assert: in TypeIndex.getTypeInterfaceImplementations, inputs.length !== ClawInterface.generics.length",
       );
-      Deno.exit(1);
+      throw new TypecheckerError();
     }
     const works = [];
     outer: for (const spec of int.specificImplementations.flatten()) {
@@ -66,33 +69,30 @@ export class TypeIndex {
       //      ^ spec.generics
       //               ^ spec.inputs
       //                              ^ spec.target
+
       if (!spec.target.eq(type)) {
         continue;
       }
   
       gcm.push();
       gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
-      this.extractGeneric(spec.inputs, inputs, gcm);
       const errorStack: string[] = [];
-      const subsituted = this.substituteRaw(spec.inputs, gcm, errorStack);
+      this.tryExtractGeneric(spec.inputs, inputs, gcm, errorStack);
+      const subsituted = this.substituteRaw(spec.inputs, gcm, errorStack, false);
       for (let i = 0; i < subsituted.length; i++) {
         const sub = subsituted[i];
         const inp = inputs[i];
         if (!inp.eq(sub)) {
-          if (sub instanceof OfClawType && sub.base.eq(inp)) {
-            // skip
-          } else {
-            gcm.pop();
-            continue outer;
-          }
-        } 
+          gcm.pop();
+          continue outer;
+        }
       }
       if (errorStack.length) {
-            gcm.pop();
+        gcm.pop();
         continue;
       }
       works.push({ gcm, spec });
-            gcm.pop();
+      gcm.pop();
     }
     return works;
   }
@@ -133,10 +133,11 @@ export class TypeIndex {
     types: ClawType[],
     mappings: GenericChainMap,
     errorStack: string[],
+    careAboutGenerics: boolean = true
   ) {
     const outTypes: ClawType[] = [];
     for (const type of types) {
-      outTypes.push(this.substituteRawSingle(type, mappings, errorStack));
+      outTypes.push(this.substituteRawSingle(type, mappings, errorStack, careAboutGenerics));
     }
     return outTypes;
   }
@@ -144,20 +145,25 @@ export class TypeIndex {
     type: ClawType,
     mappings: GenericChainMap,
     errorStack: string[],
+    careAboutGenerics: boolean = true
   ): ClawType {
     if (type instanceof GenericClawType) {
       const t = mappings.get(type);
       if (t === undefined) {
-        errorStack.push(`No generic "${type.toDisplay()}"`);
+        if (careAboutGenerics) {
+          errorStack.push(`No generic "${type.toDisplay()}"`);
+        }
         return new BuiltinClawType("ERROR", [], BUILTIN_LOC);
       }
       return t[1];
     } else if (type instanceof VariableClawType) {
+      const generics = this.substituteRaw(type.generics, mappings, errorStack, careAboutGenerics);
+      
       return new VariableClawType(
         type.name,
-        this.substituteRaw(type.generics, mappings, errorStack),
+        generics,
         BUILTIN_LOC,
-        this.substituteRawSingle(type.base, mappings, errorStack),
+        this.substituteRawSingle(type.base, mappings, errorStack, careAboutGenerics),
       );
     } else if (type instanceof StructureClawType) {
       return new StructureClawType(
@@ -166,7 +172,7 @@ export class TypeIndex {
         BUILTIN_LOC,
         new Map(
           type.members.entries().map(([k, v]) =>
-            [k, this.substituteRawSingle(v, mappings, errorStack)] as const
+            [k, this.substituteRawSingle(v, mappings, errorStack, careAboutGenerics)] as const
           ),
         ),
       );
@@ -175,19 +181,21 @@ export class TypeIndex {
         type.name,
         type.generics,
         BUILTIN_LOC,
-        this.substituteRaw(type.args, mappings, errorStack),
-        this.substituteRawSingle(type.output, mappings, errorStack),
+        arrzip(type.args.map(a => a[0]), this.substituteRaw(type.args.map(a => a[1]), mappings, errorStack, careAboutGenerics)),
+        this.substituteRawSingle(type.output, mappings, errorStack, careAboutGenerics),
+        type.body
       );
     } else if (type instanceof BuiltinClawType) {
       return new BuiltinClawType(type.name, [], BUILTIN_LOC);
     } else if (type instanceof ReferenceClawType) {
       return new ReferenceClawType(
         BUILTIN_LOC,
-        this.substituteRawSingle(type.base, mappings, errorStack),
+        this.substituteRawSingle(type.base, mappings, errorStack, careAboutGenerics),
       );
     } else if (type instanceof OfClawType) {
-      const base = this.substituteRawSingle(type.base, mappings, errorStack);
-      return base;
+      // const base = this.substituteRawSingle(type.base, mappings, errorStack);
+      // return base;
+      return this.getTypeFromName("any")!;
     }
     throw new Error("UNIMPLEMENTED CLAWTYPE VARIANT")
   }
@@ -211,7 +219,12 @@ export class TypeIndex {
           arrjoinwith(template, (a) => a.toDisplay(), ", ")
         }`,
       );
-      Deno.exit(1);
+      logger.error(
+        `value in question: ${
+          arrjoinwith(values, (a) => a.toDisplay(), ", ")
+        }`,
+      );
+      throw new TypecheckerError();
     }
 
     for (let i = 0; i < values.length; i++) {
@@ -229,6 +242,57 @@ export class TypeIndex {
     v: ClawType,
     gcm: GenericChainMap,
   ) {
+    const errorStack: string[] = [];
+    this.tryExtractGenericSingle(template, v, gcm, errorStack);
+    if (errorStack.length) {
+      for (const e of errorStack) logger.error(e);
+    }
+  }
+
+  tryExtractGeneric(
+    template: ClawType[],
+    values: ClawType[],
+    gcm: GenericChainMap,
+    errorStack: string[]
+  ): GenericChainMap {
+    const mapping = new GenericChainMap();
+
+    if (values.length !== template.length) {
+      logger.error(
+        "in TypeIndex.extractGeneric, template.length !== values.length",
+      );
+      logger.error(
+        "failed to extract generic due to template being wildly different from extractee",
+      );
+      logger.error(
+        `template in question: ${
+          arrjoinwith(template, (a) => a.toDisplay(), ", ")
+        }`,
+      );
+      logger.error(
+        `value in question: ${
+          arrjoinwith(values, (a) => a.toDisplay(), ", ")
+        }`,
+      );
+      throw new TypecheckerError();
+    }
+
+    for (let i = 0; i < values.length; i++) {
+      const temp = template[i];
+      const val = values[i];
+
+      this.tryExtractGenericSingle(temp, val, gcm, errorStack);
+    }
+
+    return mapping;
+  }
+
+  tryExtractGenericSingle(
+    template: ClawType,
+    v: ClawType,
+    gcm: GenericChainMap,
+    errorStack: string[]
+  ) {
     let value = v;
     if (template instanceof VariableClawType) {
       if (!(value instanceof VariableClawType)) {
@@ -236,16 +300,18 @@ export class TypeIndex {
       }
       if (!assertType<VariableClawType>(value)) return;
       if (!value.base.eq(template.base)) {
-        logger.error(
+        errorStack.push(
           `${template.toDisplay()} cannot map onto ${value.toDisplay()}`,
         );
         return;
       }
+      const ANY = this.getTypeFromName("any")!;
+      if (value.eq(ANY) || template.eq(ANY)) return;
       this.extractGeneric(template.generics, value.generics, gcm);
     } else if (template instanceof GenericClawType) {
       for (const bound of template.bounds) {
         if (!this.doesTypeImplementInterface(value, bound, value.generics)) {
-          logger.error(
+          errorStack.push(
             `${value.toDisplay()} does not implement bound ${bound.toDisplay()}`,
           );
           return;
@@ -254,29 +320,29 @@ export class TypeIndex {
       gcm.set(template, value);
     } else if (template instanceof FunctionClawType) {
       if (!(value instanceof FunctionClawType)) {
-        logger.error(`${value.toDisplay()} is not a function type`);
+        errorStack.push(`${value.toDisplay()} is not a function type`);
         return;
       }
       if (value.args.length !== template.args.length) {
-        logger.error(`${value.toDisplay()} has different argument count`);
-        logger.error(`expected: ${template.toDisplay()}`);
+        errorStack.push(`${value.toDisplay()} has different argument count`);
+        errorStack.push(`expected: ${template.toDisplay()}`);
         return;
       }
-      this.extractGeneric(template.args, value.args, gcm);
+      this.extractGeneric(template.args.map(a => a[1]), value.args.map(a => a[1]), gcm);
       this.extractGenericSingle(template.output, value.output, gcm);
     } else if (template instanceof StructureClawType) {
       if (!(value instanceof StructureClawType)) {
-        logger.error(`${value.toDisplay()} is not a structure type`);
-        logger.error(`expected: ${template.toDisplay()}`);
+        errorStack.push(`${value.toDisplay()} is not a structure type`);
+        errorStack.push(`expected: ${template.toDisplay()}`);
         return;
       }
       const templateMembers = new Set(template.members.keys().toArray());
       const valueMembers = new Set(value.members.keys().toArray());
       if (templateMembers.size !== valueMembers.size) {
-        logger.error(
+        errorStack.push(
           `${value.toDisplay()} has different member count to template`,
         );
-        logger.error(`expected: ${template.toDisplay()}`);
+        errorStack.push(`expected: ${template.toDisplay()}`);
         return;
       }
 
@@ -287,7 +353,7 @@ export class TypeIndex {
           gcm,
         );
       } else {
-        logger.error("template and value members have different members");
+        errorStack.push("template and value members have different members");
       }
     } else if (template instanceof BuiltinClawType) {
       return (
@@ -296,9 +362,9 @@ export class TypeIndex {
       );
     } else if (template instanceof ReferenceClawType) {
       if (!(value instanceof ReferenceClawType)) {
-        logger.error(`provided value should be a reference`);
-        logger.error(`expected: ${template.toDisplay()}`);
-        logger.error(`got: ${value.toDisplay()}`);
+        errorStack.push(`provided value should be a reference`);
+        errorStack.push(`expected: ${template.toDisplay()}`);
+        errorStack.push(`got: ${value.toDisplay()}`);
         return;
       }
       this.extractGenericSingle(template.base, value.base, gcm);
@@ -321,7 +387,8 @@ export class BaseClawType {
   }
 
   eq(other: ClawType, stop: boolean = false): boolean {
-    if (this instanceof VariableClawType && this.base instanceof VariableClawType) return this.base.eq(other);
+    if (this instanceof VariableClawType && this.base instanceof VariableClawType) return this.base.eq(other) || other.eq(this.base);
+    if (other instanceof VariableClawType && other.base instanceof VariableClawType) return other.base.eq(this) || this.eq(other.base);
     if (this instanceof BuiltinClawType && this.name === "any") return true;
     if (this instanceof GenericClawType && other instanceof GenericClawType) {
       return this.name === other.name;
@@ -330,7 +397,7 @@ export class BaseClawType {
       return (
         this.name === other.name &&
         arreq(this.generics, other.generics, (a, b) => a.eq(b)) &&
-        arreq(this.args, other.args, (a, b) => a.eq(b)) &&
+        arreq(this.args, other.args, ([_, a], [__, b]) => a.eq(b)) &&
         this.output.eq(other.output)
       );
     }
@@ -387,15 +454,16 @@ export class FunctionClawType extends BaseClawType {
     name: string,
     generics: ClawType[],
     loc: { fp: string; start: number; end: number },
-    public args: ClawType[],
+    public args: [string, ClawType][],
     public output: ClawType,
+    public body: Node[] | null
   ) {
     super(name, generics, loc);
   }
 
   override toDisplay(): string {
     return `fn (${
-      this.args.map((a) => a.toDisplay()).join(", ")
+      this.args.map(([k, v]) => `${k}: ${v.toDisplay()}`).join(", ")
     }) -> ${this.output.toDisplay()}`;
   }
 }
@@ -593,14 +661,15 @@ export class Typechecker {
               functionName,
               [], 
               BUILTIN_LOC,
-              [Self, new GenericClawType("Right", BUILTIN_LOC, [])], 
-              new GenericClawType("Output", BUILTIN_LOC, [])
+              [["self", Self], ["right", new GenericClawType("Right", BUILTIN_LOC, [])]], 
+              new GenericClawType("Output", BUILTIN_LOC, []),
+              null
             )
           ]
       ]));
       AddInterface.specificImplementations.push({
         functions: [
-          new FunctionClawType(functionName, [], BUILTIN_LOC, [Self, takes], returns)
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", Self], ["right", takes]], returns, null)
         ],
         generics: [],
         inputs: [takes, returns],
@@ -617,14 +686,15 @@ export class Typechecker {
               functionName,
               [], 
               BUILTIN_LOC,
-              [target], 
-              new GenericClawType("Output", BUILTIN_LOC, [])
+              [["self", target]], 
+              new GenericClawType("Output", BUILTIN_LOC, []),
+              null
             )
           ]
       ]));
       AddInterface.specificImplementations.push({
         functions: [
-          new FunctionClawType(functionName, [], BUILTIN_LOC, [target], returns)
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", target]], returns, null)
         ],
         generics: [],
         inputs: [returns],
@@ -657,8 +727,8 @@ export class Typechecker {
       "Runtime",
       [],
       new Map([
-        ["to_scratch_value", new FunctionClawType("to_scratch_value", [], BUILTIN_LOC, [Self], string())],
-        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num())]
+        ["to_scratch_value", new FunctionClawType("to_scratch_value", [], BUILTIN_LOC, [["self", Self]], string(), null)],
+        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
       ])
     );
     this.ti.interfaces.set("Runtime", RuntimeInterface);
@@ -678,7 +748,7 @@ export class Typechecker {
         if (e instanceof Error) throw e;
         else if (Array.isArray(e)) {
           returnVals = returnVals.concat(e);
-        }
+        } else throw e;
       }
     }
     this.scope.pop();
@@ -721,78 +791,7 @@ export class Typechecker {
         return node;
       }
       case NodeKind.FunctionDefinitionNode: {
-        const ta = this.resolveTypeGenerics(node.typeArgs);
-        this.ti.types.push();
-        for (const t of ta) this.ti.types.set(t.name, t);
-        this.gcm.push();
-        for (const t of ta) this.gcm.set(t, t);
-
-        const args = [];
-        for (const arg of node.args) {
-          const v = this.resolveTypeNode(arg[1], this.gcm);
-          args.push(v);
-        }
-
-
-        const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
-        const fn = new FunctionClawType(node.name, ta, node, args, returnValue);
-        this.scope.set(fn.name, fn);
-        for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg);
-        for (const arg of args) {
-          if (arg instanceof VariableClawType && arg.base instanceof GenericClawType) {
-            const base = arg.base;
-            for (const bound of base.bounds) {
-              const map = (v: ClawType) => {
-                if (v instanceof GenericClawType) {
-                  if (v.name === "Self") {
-                    return arg.base;
-                  }
-                  const v2 = new OfClawType(v.loc, bound, [], v, arg.base);
-                  return v2;
-                }
-                return v;
-              };
-              const inputs = bound.generics.map(map);
-              bound.specificImplementations.stack();
-              bound.specificImplementations.push({
-                functions: bound.functions.values().map((v) => {
-                  // add(self: Self, other: Right) Output
-                  //  convert
-                  // add(self: T, other: (Add.Right of T)) (Add.Output of T)
-                  const V = new FunctionClawType(v.name, v.generics, v.loc, v.args.map(a => map(a)), map(v.output))
-                  return V;
-                }).toArray(),
-                generics: [],
-                inputs: inputs,
-                target: arg.base
-              });
-              // this.gcm.set(base, base);
-            }
-          }
-        }
-        
-        const types = this.typecheckForReturn([node.nodes])[1];
-        if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
-          this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
-        }
-        for (const type of types) {
-          if (!type.value.eq(returnValue)) {
-            this.errorAt(type.value.loc, `Mismatching return types, expected: ${returnValue.toDisplay()}, got: ${type.value.toDisplay()}`);
-            this.errorNoteAt(returnValue.loc, `Definition here`);
-          }
-        }
-        for (const arg of args) {
-          if (arg instanceof VariableClawType && arg.base instanceof GenericClawType) {
-            const base = arg.base;
-            for (const bound of base.bounds) {
-              bound.specificImplementations.take();
-            }
-          }
-        }
-
-        this.gcm.pop();
-        this.ti.types.pop();
-        return node;
+        return this.typecheckFunction(node);
       }
 
       case NodeKind.BlockNode: {
@@ -916,9 +915,9 @@ export class Typechecker {
           const retType = this.resolveTypeNode(def.returnType, this.gcm);
           const args = [];
           for (const [_n, arg] of def.args) {
-            args.push(this.resolveTypeNode(arg, this.gcm));
+            args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType));
+          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, [def.nodes]));
           this.ti.types.pop();
         }
         this.ti.types.pop();
@@ -942,9 +941,9 @@ export class Typechecker {
           const retType = this.resolveTypeNode(def.returnType, this.gcm);
           const args = [];
           for (const [_n, arg] of def.args) {
-            args.push(this.resolveTypeNode(arg, this.gcm));
+            args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType));
+          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, [def.nodes]));
           this.ti.types.pop();
         }
         this.ti.baseImplementations.push({
@@ -982,9 +981,9 @@ export class Typechecker {
           const retType = this.resolveTypeNode(def.returnType, this.gcm);
           const args = [];
           for (const [_n, arg] of def.args) {
-            args.push(this.resolveTypeNode(arg, this.gcm));
+            args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          const v = new FunctionClawType(def.name, ta, def, args, retType)
+          const v = new FunctionClawType(def.name, ta, def, args, retType, [def.nodes])
           const errorStack: string[] = [];
           
           this.gcm.push()
@@ -1031,11 +1030,11 @@ export class Typechecker {
     const type = this.resolveTypeGenericSingle(typenode.intType);
     if (int === undefined) {
       this.errorAt(typenode, `No interface called ${typenode.int}`);
-      Deno.exit(1);
+      throw new TypecheckerError();
     }
     if (!int.generics.some(a => a.eq(type))) {
       this.errorAt(typenode.intType, `${int.toDisplay()} does not have a generic ${type.toDisplay()}`);
-      Deno.exit(1);
+      throw new TypecheckerError();
     }
     const base = this.resolveTypeNode(typenode.baseType, gcm);
     return new OfClawType(typenode, int, inputs, type, base);
@@ -1100,7 +1099,7 @@ export class Typechecker {
   resolveTypeGenericSingle(ta: TypeNode) {
     if (ta.type === NodeKind.OfTypeNode) {
       this.errorAt(ta, `Generic cannot be Of type`);
-      Deno.exit(1);
+      throw new TypecheckerError();
     }
     const bounds = [];
     for (const bound of ta.bounds) {
@@ -1116,12 +1115,12 @@ export class Typechecker {
   resolveInterface(tn: TypeNode): [ClawInterface, ClawType[]] {
     if (tn.type === NodeKind.OfTypeNode) {
       this.errorAt(tn, `Interfaces are in format Foo<bar, baz>`);
-      Deno.exit(1);
+      throw new TypecheckerError();
     }
     const int = this.ti.getInterfaceFromName(tn.name);
     if (int === undefined) {
       this.errorAt(tn, `No interface called ${tn.name}`);
-      Deno.exit(1);
+      throw new TypecheckerError();
     }
     const tas = [];
     for (const t of tn.typeArguments) {
@@ -1129,6 +1128,81 @@ export class Typechecker {
       tas.push(v);
     }
     return [int, tas];
+  }
+
+  typecheckFunction(node: FunctionDefinitionNode) {
+    const ta = this.resolveTypeGenerics(node.typeArgs);
+    this.ti.types.push();
+    for (const t of ta) this.ti.types.set(t.name, t);
+    this.gcm.push();
+    for (const t of ta) this.gcm.set(t, t);
+
+    const args = [];
+    for (const arg of node.args) {
+      const v = this.resolveTypeNode(arg[1], this.gcm);
+      args.push([arg[0], v] as [string, ClawType]);
+    }
+
+
+    const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
+    const fn = new FunctionClawType(node.name, ta, node, args, returnValue, [node.nodes]);
+    this.scope.set(fn.name, fn);
+    for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg[1]);
+    for (const [_n, arg] of args) {
+      if (arg instanceof VariableClawType && arg.base instanceof GenericClawType) {
+        const base = arg.base;
+        for (const bound of base.bounds) {
+          const map = (v: ClawType) => {
+            if (v instanceof GenericClawType) {
+              if (v.name === "Self") {
+                return arg.base;
+              }
+              const v2 = new OfClawType(v.loc, bound, [], v, arg.base);
+              return v2;
+            }
+            return v;
+          };
+          const inputs = bound.generics.map(map);
+          bound.specificImplementations.stack();
+          bound.specificImplementations.push({
+            functions: bound.functions.values().map((v) => {
+              // add(self: Self, other: Right) Output
+              //  convert
+              // add(self: T, other: (Add.Right of T)) (Add.Output of T)
+              const V = new FunctionClawType(v.name, v.generics, v.loc, arrzip(v.args.map(a => a[0]), v.args.map(a => map(a[1]))), map(v.output), null)
+              return V;
+            }).toArray(),
+            generics: [],
+            inputs: inputs,
+            target: arg.base
+          });
+          // this.gcm.set(base, base);
+        }
+      }
+    }
+    
+    const types = this.typecheckForReturn([node.nodes])[1];
+    if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
+      this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
+    }
+    for (const type of types) {
+      if (!type.value.eq(returnValue)) {
+        this.errorAt(type.value.loc, `Mismatching return types, expected: ${returnValue.toDisplay()}, got: ${type.value.toDisplay()}`);
+        this.errorNoteAt(returnValue.loc, `Definition here`);
+      }
+    }
+    for (const arg of args) {
+      if (arg instanceof VariableClawType && arg.base instanceof GenericClawType) {
+        const base = arg.base;
+        for (const bound of base.bounds) {
+          bound.specificImplementations.take();
+        }
+      }
+    }
+
+    this.gcm.pop();
+    this.ti.types.pop();
+    return node;
   }
 
   evaluateTypeFromValue(node: Node): ClawType {
@@ -1143,7 +1217,7 @@ export class Typechecker {
         const val = this.scope.get(node.name);
         if (val === undefined) {
           this.errorAt(node, `No variable called ${node.name}`);
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         return val;
       }
@@ -1151,7 +1225,7 @@ export class Typechecker {
         const type = this.resolveTypeNode(node.baseType, this.gcm) as VariableClawType;
         if (!(type.base instanceof StructureClawType)) {
           this.errorAt(node.baseType, `Structure literal base type is not a struct`);
-          return Deno.exit(1);
+          throw new TypecheckerError();
         }
         
         const base = type.base;
@@ -1186,7 +1260,7 @@ export class Typechecker {
         if (!(fn instanceof FunctionClawType)) {
           this.errorAt(node, `Callee is not a function`);
           logger.error(`received: ${fn.toDisplay()}`);
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         const generics: ClawType[] = [];
         if (node.typeArguments !== null) {
@@ -1204,7 +1278,7 @@ export class Typechecker {
           logger.error(
             `Expected ${fn.generics.length}, instead received ${generics.length}`,
           );
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         for (const [actual, generic] of arrzip(generics, fn.generics)) {
           if (!(generic instanceof GenericClawType)) throw new Error("should be unreachable");
@@ -1220,17 +1294,17 @@ export class Typechecker {
           logger.error(
             `Expected ${fn.args.length}, instead received ${args.length}`,
           );
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         this.gcm.push();
         for (const [key, value] of arrzip(fn.generics, generics)) {
           this.gcm.set(key as GenericClawType, value);
         }
         const errorStack: string[] = [];
-        const mapped = this.ti.substituteRaw(fn.args, this.gcm, errorStack);
+        const mapped = this.ti.substituteRaw(fn.args.map(a => a[1]), this.gcm, errorStack);
         if (mapped.some(a => a.eq(new BuiltinClawType("ERROR", [], BUILTIN_LOC)))) {
           this.errorAt(node, `Failed to substitute generics: ${errorStack.join("\n")}`);
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
 
         for (const [key, value] of arrzip(mapped, args)) {
@@ -1242,6 +1316,25 @@ export class Typechecker {
           }
         }
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack);
+
+        if (fn.body !== null) {
+          const oldScope = this.scope;
+          this.scope = new ChainMap();
+          this.scope.push();
+          for (const [k, v] of arrzip(fn.args.map(a => a[0]), mapped)) {
+            this.scope.set(k, v);
+          }
+          try {
+            this.typecheckForReturn(fn.body);
+          } catch (e) {
+            if (e instanceof TypecheckerError) {
+              this.errorNoteAt(node, `Error arrised from this call`)
+            }
+          }
+          
+          this.scope = oldScope;
+          
+        } 
         this.gcm.pop();
         return out;
       }
@@ -1255,14 +1348,14 @@ export class Typechecker {
         const itf = this.ti.getInterfaceFromName(itfName);
         if (itf === undefined) {
           this.errorAt(node, `Internal error, no trait for builtin binary operation`);
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         const leftType = this.evaluateTypeFromValue(node.value);
         const impls = this.ti.getTypeInterfaceImplementations(leftType, itf, [ANY_TYPE(BUILTIN_LOC)], this.gcm);
         if (!impls.length) {
           this.errorAt(node, `No implementation for operator ${itfName}<...> for ${leftType.toDisplay()}`);
           logger.error(`Implement ${itfName}<...> for ${leftType.toDisplay()} to let it use operators`) ;
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         const sortedImpls = impls.map(v => {
           const GENERICS = v.spec.generics.length;
@@ -1299,15 +1392,16 @@ export class Typechecker {
         const itf = this.ti.getInterfaceFromName(itfName);
         if (itf === undefined) {
           this.errorAt(node, `Internal error, no trait for builtin binary operation`);
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         const leftType = this.evaluateTypeFromValue(node.left);
         const rightType = this.evaluateTypeFromValue(node.right);
         const impls = this.ti.getTypeInterfaceImplementations(leftType, itf, [rightType, ANY_TYPE(BUILTIN_LOC)], this.gcm);
         if (!impls.length) {
+          
           this.errorAt(node, `No implementation for operator ${itfName}<${rightType.toDisplay()}> for ${leftType.toDisplay()}`);
           logger.error(`Implement ${itfName}<${rightType.toDisplay()}, ...> for ${leftType.toDisplay()} to let it use operators`) ;
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
         const sortedImpls = impls.map(v => {
           const GENERICS = v.spec.generics.length;
@@ -1332,7 +1426,7 @@ export class Typechecker {
         logger.error(
           `Unimplemented node in evaluateTypeFromValue: ${NodeKind[node.type]}`,
         );
-        Deno.exit(1);
+        throw new TypecheckerError();
         break;
       case NodeKind.Grouping:
         return this.evaluateTypeFromValue(node.value);
@@ -1357,7 +1451,7 @@ export class Typechecker {
       case NodeKind.ForRuntimeNode:
       case NodeKind.ReturnNode:
         logger.error(`${NodeKind[node.type]} cannot be used as value`);
-        Deno.exit(1);
+        throw new TypecheckerError();
         break;
     }
   }
@@ -1408,7 +1502,7 @@ export class Typechecker {
           return v;
         } else {
           this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
-          Deno.exit(1);
+          throw new TypecheckerError();
         }
       }
     } else if (base instanceof ReferenceClawType) {
@@ -1419,13 +1513,13 @@ export class Typechecker {
       // todo
     } else if (base instanceof FunctionClawType) {
       this.errorAt(base.loc, "Cannot get the member of a function");
-      Deno.exit(1);
+      throw new TypecheckerError();
     } else if (base instanceof BuiltinClawType) {
       // 
     }
 
     this.errorAt(baseValue.loc, `Unimplemented`);
-    Deno.exit(1);
+    throw new TypecheckerError();
     return baseValue;
   }
 

@@ -18,6 +18,11 @@ impl Add<int, int> for Foo<int> {
         return 10
     }
 }
+impl Add<Foo<int>, int> for Foo<int> {
+    fn add(self: Self<int>, other: Foo<int>) int {
+        return 10
+    }
+}
 
 impl<T> Foo<T> {
     fn bar() void {
