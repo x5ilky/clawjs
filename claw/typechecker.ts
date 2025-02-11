@@ -672,6 +672,8 @@ export class Typechecker {
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
     this.ti.types.set("bool", new BuiltinClawType("bool", [], BUILTIN_LOC));
     this.ti.types.set("void", new BuiltinClawType("void", [], BUILTIN_LOC));
+    this.ti.types.set("label", new BuiltinClawType("label", [], BUILTIN_LOC));
+    this.ti.types.set("JsObject", new BuiltinClawType("JsObject", [], BUILTIN_LOC));
     this.ti.types.set("int!", new BuiltinClawType("int!", [], BUILTIN_LOC));
     this.ti.types.set(
       "string!",
