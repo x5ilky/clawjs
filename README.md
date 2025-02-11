@@ -5,10 +5,10 @@
 | Goal                  | Completed? |
 | --------------------- | ---------- |
 | IR -> sb3             | ☑          |
-| Language Design       | ☐          |
+| Language Design       | ☑          |
 | Lexer                 | ☑          |
 | Parser                | ☑          |
-| Typechecker           | ☐          |
+| Typechecker           | ☑          |
 | Transpiler            | ☐          |
 | Full standard library | ☐          |
 
