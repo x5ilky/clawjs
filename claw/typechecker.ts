@@ -666,7 +666,6 @@ export class Typechecker {
 
   addBuiltinTypes() {
     const num = () => this.ti.getTypeFromName("int")!;;
-    const string = () => this.ti.getTypeFromName("string")!;;
     const bool = () => this.ti.getTypeFromName("bool")!;;
     this.ti.types.set("int", new BuiltinClawType("int", [], BUILTIN_LOC));
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
@@ -761,7 +760,7 @@ export class Typechecker {
       "Runtime",
       [],
       new Map([
-        ["to_scratch_value", new FunctionClawType("to_scratch_value", [], BUILTIN_LOC, [["self", Self]], string(), null)],
+        ["to_scratch_value", new FunctionClawType("to_scratch_value", [], BUILTIN_LOC, [["self", Self]], this.ti.getTypeFromName("JsObject")!, null)],
         ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
       ])
     );
@@ -960,11 +959,14 @@ export class Typechecker {
       }
 
       case NodeKind.ImplBaseNode: {
+        this.gcm.push();
         const tas = this.resolveTypeGenerics(node.generics);
         this.ti.types.push();
         for (const ta of tas) this.ti.types.set(ta.name, ta);
         const tt = this.resolveTypeNode(node.targetType, this.gcm);
         this.ti.types.pop();
+        this.gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), tt);
+
         const map = new Map<string, FunctionClawType>();
         for (const def of node.defs) {
           this.ti.types.push();
@@ -985,6 +987,7 @@ export class Typechecker {
           inputs: tt.generics,
           functions: map.values().toArray()
         });
+        this.gcm.pop();
         return node;
       }
 
@@ -1459,11 +1462,24 @@ export class Typechecker {
         this.scope.pop();
         return this.ti.getTypeFromName("label")!;
       } 
-      case NodeKind.MethodOfNode:
-        logger.error(
-          `Unimplemented node in evaluateTypeFromValue: ${NodeKind[node.type]}`,
-        );
-        throw new TypecheckerError();
+      case NodeKind.MethodOfNode: {
+        const baseValue = this.evaluateTypeFromValue(node.base);
+        const child = this.getTypeChild(baseValue, node.extension);
+        if (!(child instanceof FunctionClawType)) {
+          this.errorAt(node.base, `${baseValue.toDisplay()}.${node.extension} is not a function type`);
+          throw new TypecheckerError();
+        }
+        const base = child.args[0];
+        if (base === undefined) {
+          this.errorAt(child.loc, `${child.toDisplay()} does not have self type`);
+          throw new TypecheckerError();
+        }
+        if (!base[1].eq(baseValue)) {
+          this.errorAt(base[1].loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
+          throw new TypecheckerError();
+        }
+        return new FunctionClawType(child.name, child.generics, child.loc, child.args.slice(1), child.output, child.body);
+      }
       case NodeKind.Grouping:
         return this.evaluateTypeFromValue(node.value);
       case NodeKind.NormalTypeNode:

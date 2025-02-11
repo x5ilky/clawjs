@@ -8,10 +8,14 @@ impl Test<int> {
     fn bar() void {
         
     }
+
+    fn kaff(self: Self<int>, test: int) void {
+
+    }
 }
 
 t := Test<int>::{
     value: 10
 }
 
-t.bar()
+t:kaff(13)
