@@ -731,7 +731,14 @@ export class Typechecker {
       ]));
       AddInterface.specificImplementations.push({
         functions: [
-          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", target]], returns, null)
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", target]], returns, [
+            {
+              ...BUILTIN_LOC,
+              type: NodeKind.IntrinsicNode,
+              string: `${interfaceName}-${target.toDisplay()}-${returns.toDisplay()}`
+            }
+          ])
+
         ],
         generics: [],
         inputs: [returns],
