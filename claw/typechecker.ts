@@ -194,7 +194,7 @@ export class TypeIndex {
       return new VariableClawType(
         type.name,
         generics,
-        BUILTIN_LOC,
+        type.loc,
         this.substituteRawSingle(type.base, mappings, errorStack, careAboutGenerics),
       );
     } else if (type instanceof StructureClawType) {
