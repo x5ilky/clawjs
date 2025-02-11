@@ -10,6 +10,7 @@ impl Test<int> {
     }
 
     fn kaff(self: Self<int>, test: int) void {
+        self.bar()
         return self.value + test
     }
 }
@@ -18,4 +19,4 @@ t := Test<int>::{
     value: 10
 }
 
-t.kaff(t, "10")
+t.kaff(t, 10)

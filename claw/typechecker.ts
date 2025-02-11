@@ -700,7 +700,13 @@ export class Typechecker {
       ]));
       AddInterface.specificImplementations.push({
         functions: [
-          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", Self], ["right", takes]], returns, null)
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", Self], ["right", takes]], returns, [
+            {
+              ...BUILTIN_LOC,
+              type: NodeKind.IntrinsicNode,
+              string: `${interfaceName}-int-${takes.toDisplay()}-${returns.toDisplay()}`
+            }
+          ])
         ],
         generics: [],
         inputs: [takes, returns],
@@ -836,7 +842,10 @@ export class Typechecker {
         }
 
         this.scope.pop();
-        return node;
+        return {
+          ...node,
+          nodes: _nodes
+        };
       }
       case NodeKind.ReturnNode: {
         throw [new TCReturnValue(this.evaluateTypeFromValue(node.value))];
@@ -853,6 +862,7 @@ export class Typechecker {
           throw body;
         }
         return node;
+          ;
       }
       case NodeKind.IfElseRuntimeNode:
       case NodeKind.IfElseNode: {
@@ -879,7 +889,14 @@ export class Typechecker {
         if (body.length) {
           throw body;
         }
-        return node;
+        return {
+          ...node,
+          body: {
+            ...node,
+            type: NodeKind.BlockNode,
+            nodes: _nodes
+          },
+        }
       }
       case NodeKind.ForRuntimeNode: 
       case NodeKind.ForNode: {
@@ -1372,9 +1389,10 @@ export class Typechecker {
           }
           
           this.scope = oldScope;
-          
+          return out;
         } 
         this.gcm.pop();
+        node.target = this.implementations.size
         this.implementations.set(this.implementations.size, fn.body!);
         return out;
       }
@@ -1495,6 +1513,9 @@ export class Typechecker {
       }
       case NodeKind.Grouping:
         return this.evaluateTypeFromValue(node.value);
+      case NodeKind.IntrinsicNode:
+        return ANY_TYPE(node);
+        
       case NodeKind.NormalTypeNode:
       case NodeKind.OfTypeNode:
       case NodeKind.FunctionDefinitionNode:

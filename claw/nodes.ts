@@ -33,6 +33,7 @@ export type BaseNode =
   | InterfaceNode
   | ImplBaseNode
   | ImplTraitNode
+  | IntrinsicNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -73,6 +74,8 @@ export enum NodeKind {
     InterfaceNode,
     ImplBaseNode,
     ImplTraitNode,
+
+    IntrinsicNode
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -106,7 +109,7 @@ export type CallNode = {
     readonly callee: Node,
     readonly typeArguments: TypeNode[] | null,
     readonly arguments: Node[],
-    readonly target?: number
+    target?: number
 } & Loc;
 export type AssignmentNode = {
     readonly type: NodeKind.AssignmentNode,
@@ -278,4 +281,8 @@ export type ImplTraitNode = {
     readonly defs: FunctionDefinitionNode[],
     readonly targetType: TypeNode,
     readonly generics: TypeNode[],
+} & Loc;
+export type IntrinsicNode = {
+    readonly type: NodeKind.IntrinsicNode,
+    readonly string: string
 } & Loc;
