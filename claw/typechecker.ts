@@ -1450,9 +1450,14 @@ export class Typechecker {
         const child = this.getTypeChild(baseValue, node.extension);
         return child;
       }
+      case NodeKind.LabelNode: {
+        this.scope.push()
+        this.scope.set("$scope", this.ti.getTypeFromName("label")!);
+        this.typecheck(node.nodes);
+        this.scope.pop();
+        return this.ti.getTypeFromName("label")!;
+      } 
       case NodeKind.MethodOfNode:
-      case NodeKind.BlockNode:
-      case NodeKind.LabelNode:
         logger.error(
           `Unimplemented node in evaluateTypeFromValue: ${NodeKind[node.type]}`,
         );
@@ -1462,6 +1467,7 @@ export class Typechecker {
       case NodeKind.NormalTypeNode:
       case NodeKind.OfTypeNode:
       case NodeKind.FunctionDefinitionNode:
+      case NodeKind.BlockNode:
       case NodeKind.StructDefinitionNode:
       case NodeKind.DataStructDefinitionNode:
       case NodeKind.InterfaceNode:
