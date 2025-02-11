@@ -105,7 +105,8 @@ export type CallNode = {
     readonly type: NodeKind.CallNode,
     readonly callee: Node,
     readonly typeArguments: TypeNode[] | null,
-    readonly arguments: Node[]
+    readonly arguments: Node[],
+    readonly target?: number
 } & Loc;
 export type AssignmentNode = {
     readonly type: NodeKind.AssignmentNode,

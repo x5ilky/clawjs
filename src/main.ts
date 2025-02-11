@@ -2,7 +2,7 @@ import { Lexer } from "../claw/lexer.ts";
 import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
 import { SourceMap } from "../claw/sourcemap.ts";
-import { Typechecker } from "../claw/typechecker.ts";
+import { Typechecker, TypecheckerError } from "../claw/typechecker.ts";
 import { Logger, LogLevel, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 
@@ -123,7 +123,13 @@ async function dev(cmd: skap.SkapInfer<typeof devShape>) {
     }
 
     const tc = new Typechecker(smap);
-    tc.typecheck(parsed)
+    try {
+      tc.typecheck(parsed)
+    } catch (e) {
+      if (e instanceof TypecheckerError) {
+        logger.error("Error in typechecking")
+      }
+    }
   }
 }
 

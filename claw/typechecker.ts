@@ -200,13 +200,9 @@ export class TypeIndex {
     } else if (type instanceof StructureClawType) {
       return new StructureClawType(
         type.name,
-        type.generics,
+        type.generics, 
         BUILTIN_LOC,
-        new Map(
-          type.members.entries().map(([k, v]) =>
-            [k, this.substituteRawSingle(v, mappings, errorStack, careAboutGenerics)] as const
-          ),
-        ),
+        type.members,
       );
     } else if (type instanceof FunctionClawType) {
       return new FunctionClawType(
@@ -593,7 +589,7 @@ export class OfClawType extends BaseClawType {
     return `(${this.int.name}${g}.${this.intType.toDisplay()} of ${this.base.toDisplay()})`
   }
 }
-type ClawType =
+export type ClawType =
   | FunctionClawType
   | StructureClawType
   | VariableClawType
@@ -653,6 +649,7 @@ export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
   scope: ChainMap<string, ClawType>;
+  implementations: Map<number, Node[]>;
 
   constructor(public sourcemap: SourceMap) {
     this.ti = new TypeIndex(new ChainMap(), new Map());
@@ -662,6 +659,7 @@ export class Typechecker {
     this.scope.push();
     this.addBuiltinTypes();
     this.sourcemap.set("<builtin>", "")
+    this.implementations = new Map();
   }
 
   addBuiltinTypes() {
@@ -820,8 +818,10 @@ export class Typechecker {
       }
       case NodeKind.CallNode: {
         this.evaluateTypeFromValue(node);
-
-        return node;
+        return {
+          ...node,
+          target: this.implementations.size - 1
+        };
       }
       case NodeKind.FunctionDefinitionNode: {
         return this.typecheckFunction(node);
@@ -1303,6 +1303,9 @@ export class Typechecker {
           }
         }
         const args: ClawType[] = [];
+        if (node.callee.type === NodeKind.MethodOfNode) {
+          args.push(this.evaluateTypeFromValue(node.callee.base))
+        }
         for (const a of node.arguments) {
           args.push(this.evaluateTypeFromValue(a));
         }
@@ -1322,6 +1325,7 @@ export class Typechecker {
             };
           }
         }
+
         if (fn.args.length !== args.length) {
           this.errorAt(node, `Mismatched argument count`);
           this.errorNoteAt(fn.loc, "Definition here");
@@ -1335,12 +1339,12 @@ export class Typechecker {
           this.gcm.set(key as GenericClawType, value);
         }
         const errorStack: string[] = [];
-        const mapped = this.ti.substituteRaw(fn.args.map(a => a[1]), this.gcm, errorStack);
+        const mapped = this.ti.substituteRaw(fn.args.map(a => a[1]), this.gcm, errorStack, false);
         if (mapped.some(a => a.eq(new BuiltinClawType("ERROR", [], BUILTIN_LOC)))) {
           this.errorAt(node, `Failed to substitute generics: ${errorStack.join("\n")}`);
           throw new TypecheckerError();
         }
-
+        
         for (const [key, value] of arrzip(mapped, args)) {
           if (!key.eq(value)) {
             this.errorAt(value.loc, `Mismatched argument type`);
@@ -1349,7 +1353,8 @@ export class Typechecker {
             logger.error(`received: ${value.toDisplay()}`);
           }
         }
-        const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack);
+
+        const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
 
         if (fn.body !== null) {
           const oldScope = this.scope;
@@ -1370,6 +1375,7 @@ export class Typechecker {
           
         } 
         this.gcm.pop();
+        this.implementations.set(this.implementations.size, fn.body!);
         return out;
       }
       case NodeKind.UnaryOperation: {
@@ -1476,7 +1482,16 @@ export class Typechecker {
           this.errorAt(base[1].loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
           throw new TypecheckerError();
         }
-        return new FunctionClawType(child.name, child.generics, child.loc, child.args.slice(1), child.output, child.body);
+        return new FunctionClawType(
+          child.name, 
+          child.generics, 
+          child.loc, 
+          child.args, 
+          child.output, 
+          [
+            ...child.body!
+          ]
+        );
       }
       case NodeKind.Grouping:
         return this.evaluateTypeFromValue(node.value);
@@ -1539,50 +1554,59 @@ export class Typechecker {
       return f;
     }
   }
-  getTypeChild(baseValue: ClawType, extension: string): ClawType {
-    const base = this.getValueBase(baseValue);
-
+  getTypeChild(base: ClawType, extension: string): ClawType {
     if (base instanceof StructureClawType) {
       const member = base.members.get(extension);
       if (member !== undefined) return member;
       else {
-        const methods = this.getMethodsOfChild(baseValue, this.ti.interfaces.values().toArray());
+        const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
         if (methods.has(extension)) {
           const v = methods.get(extension)![0];
           return v;
         } else {
-          this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
+          this.errorAt(base.loc, `${base.toDisplay()} has no method/variable ${extension}`);
           throw new TypecheckerError();
         }
       }
     } else if (base instanceof ReferenceClawType) {
       return this.getTypeChild(base.base, extension);
     } else if (base instanceof VariableClawType) {
-      return this.getTypeChild(base.base, extension);
+      this.gcm.push();
+
+      if (base.base instanceof StructureClawType) {
+        for (const [k, v] of arrzip(base.base.generics, base.generics)) {
+          this.gcm.set(k as GenericClawType, v);
+        }
+      }
+      const errorStack: string[] = []
+      const b = this.getTypeChild(base.base, extension);
+      const v = this.ti.substituteRawSingle(b, this.gcm, errorStack);
+      this.gcm.pop();
+      return v;
     } else if (base instanceof GenericClawType) {
-      const methods = this.getMethodsOfChild(baseValue, this.ti.interfaces.values().toArray());
+      const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
       if (methods.has(extension)) {
         const v = methods.get(extension)![0];
         return v;
       } else {
-        this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
+        this.errorAt(base.loc, `${base.toDisplay()} has no method/variable ${extension}`);
         throw new TypecheckerError();
       }
     } else if (base instanceof FunctionClawType) {
       this.errorAt(base.loc, "Cannot get the member of a function");
       throw new TypecheckerError();
     } else if (base instanceof BuiltinClawType) {
-      const methods = this.getMethodsOfChild(baseValue, this.ti.interfaces.values().toArray());
+      const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
       if (methods.has(extension)) {
         const v = methods.get(extension)![0];
         return v;
       } else {
-        this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
+        this.errorAt(base.loc, `${base.toDisplay()} has no method/variable ${extension}`);
         throw new TypecheckerError();
       }
     }
 
-    this.errorAt(baseValue.loc, `Unimplemented`);
+    this.errorAt(base.loc, `Unimplemented`);
     throw new TypecheckerError();
   }
 
