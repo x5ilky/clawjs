@@ -1242,8 +1242,6 @@ export class Typechecker {
   }
 
   evaluateTypeFromValue(node: Node): ClawType {
-    // todo(x5ilky): finish this function
-
     switch (node.type) {
       case NodeKind.NumberNode:
         return this.ti.getTypeFromName("int")!.withLoc(node);
@@ -1562,12 +1560,26 @@ export class Typechecker {
     } else if (base instanceof VariableClawType) {
       return this.getTypeChild(base.base, extension);
     } else if (base instanceof GenericClawType) {
-      // todo
+      const methods = this.getMethodsOfChild(baseValue, this.ti.interfaces.values().toArray());
+      if (methods.has(extension)) {
+        const v = methods.get(extension)![0];
+        return v;
+      } else {
+        this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
+        throw new TypecheckerError();
+      }
     } else if (base instanceof FunctionClawType) {
       this.errorAt(base.loc, "Cannot get the member of a function");
       throw new TypecheckerError();
     } else if (base instanceof BuiltinClawType) {
-      // 
+      const methods = this.getMethodsOfChild(baseValue, this.ti.interfaces.values().toArray());
+      if (methods.has(extension)) {
+        const v = methods.get(extension)![0];
+        return v;
+      } else {
+        this.errorAt(baseValue.loc, `${baseValue.toDisplay()} has no method/variable ${extension}`);
+        throw new TypecheckerError();
+      }
     }
 
     this.errorAt(baseValue.loc, `Unimplemented`);
