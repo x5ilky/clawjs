@@ -189,7 +189,8 @@ export enum UnaryOperationType {
 export type UnaryOperation = {
     readonly type: NodeKind.UnaryOperation,
     readonly oper: UnaryOperationType,
-    readonly value: Node
+    readonly value: Node,
+    target?: number
 } & Loc;
 export enum BinaryOperationType {
     Add,
@@ -213,7 +214,8 @@ export type BinaryOperation = {
     readonly type: NodeKind.BinaryOperation
     readonly oper: BinaryOperationType,
     readonly left: Node,
-    readonly right: Node
+    readonly right: Node,
+    target?: number
 } & Loc;
 export type Grouping = {
     readonly type: NodeKind.Grouping,

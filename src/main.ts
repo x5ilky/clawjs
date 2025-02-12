@@ -1,3 +1,4 @@
+import { Flattener } from "../claw/flattener.ts";
 import { Lexer } from "../claw/lexer.ts";
 import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
@@ -53,6 +54,9 @@ export const shape = skap.command({
   subc: skap.subcommand({
     ir: irShape,
     dev: devShape,
+    run: skap.command({
+      inputFile: skap.string("-i").required()
+    })
   }).required()
 })
 
@@ -73,6 +77,31 @@ async function main() {
     await ir(cmd)
   } else if (cmd.subc.selected === "dev") {
     await dev(cmd.subc.commands.dev!)
+  } else if (cmd.subc.selected === "run") {
+    const { inputFile } = cmd.subc.commands.run!;
+    const smap = new SourceMap();
+    smap.set(inputFile, await Deno.readTextFile(inputFile));
+    const lexer = new Lexer(inputFile, smap);
+    const tokens = lexer.lex();
+    const parser = new Parser(tokens, smap);
+    const parsed = parser.parse();
+    if (parsed instanceof Error) {
+      logger.error("Failed to parse file");
+      Deno.exit(1);
+    }
+
+    const tc = new Typechecker(smap);
+    try {
+      tc.typecheck(parsed)
+    } catch (e) {
+      if (e instanceof TypecheckerError) {
+        logger.error("Error in typechecking")
+        Deno.exit(1);
+      }
+    }
+
+    const flattener = new Flattener(smap, tc.implementations);
+    console.log(flattener.convertAll(parsed));
   }
 }
 async function dev(cmd: skap.SkapInfer<typeof devShape>) {

@@ -1,7 +1,7 @@
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { BinaryOperationType, FunctionDefinitionNode, Node, NormalTypeNode } from "./nodes.ts";
+import { BaseNode, BinaryOperationType, FunctionDefinitionNode, Node, NormalTypeNode } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -484,7 +484,7 @@ export class FunctionClawType extends BaseClawType {
     loc: { fp: string; start: number; end: number },
     public args: [string, ClawType][],
     public output: ClawType,
-    public body: Node[] | null
+    public body: { args: string[], nodes: Node[] } | null
   ) {
     super(name, generics, loc);
   }
@@ -649,7 +649,7 @@ export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
   scope: ChainMap<string, ClawType>;
-  implementations: Map<number, Node[]>;
+  implementations: Map<number, { args: string[], nodes: Node[] }>;
 
   constructor(public sourcemap: SourceMap) {
     this.ti = new TypeIndex(new ChainMap(), new Map());
@@ -700,13 +700,16 @@ export class Typechecker {
       ]));
       AddInterface.specificImplementations.push({
         functions: [
-          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", Self], ["right", takes]], returns, [
-            {
-              ...BUILTIN_LOC,
-              type: NodeKind.IntrinsicNode,
-              string: `${interfaceName}-int-${takes.toDisplay()}-${returns.toDisplay()}`
-            }
-          ])
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", Self], ["right", takes]], returns, {
+            args: ["self", "other"],
+            nodes: [
+              {
+                ...BUILTIN_LOC,
+                type: NodeKind.IntrinsicNode,
+                string: `${interfaceName}-int-${takes.toDisplay()}-${returns.toDisplay()}`
+              }
+            ]
+          })
         ],
         generics: [],
         inputs: [takes, returns],
@@ -731,13 +734,14 @@ export class Typechecker {
       ]));
       AddInterface.specificImplementations.push({
         functions: [
-          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", target]], returns, [
-            {
+          new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", target]], returns, { 
+            args: ["self"],
+            nodes: [{
               ...BUILTIN_LOC,
               type: NodeKind.IntrinsicNode,
               string: `${interfaceName}-${target.toDisplay()}-${returns.toDisplay()}`
-            }
-          ])
+            }]
+           })
 
         ],
         generics: [],
@@ -973,7 +977,7 @@ export class Typechecker {
           for (const [_n, arg] of def.args) {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, [def.nodes]));
+          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) }));
           this.ti.types.pop();
         }
         this.ti.types.pop();
@@ -1002,7 +1006,7 @@ export class Typechecker {
           for (const [_n, arg] of def.args) {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, [def.nodes]));
+          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) }));
           this.ti.types.pop();
         }
         this.ti.baseImplementations.push({
@@ -1043,7 +1047,7 @@ export class Typechecker {
           for (const [_n, arg] of def.args) {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          const v = new FunctionClawType(def.name, ta, def, args, retType, [def.nodes])
+          const v = new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) })
           const errorStack: string[] = [];
           
           this.gcm.push()
@@ -1197,7 +1201,7 @@ export class Typechecker {
     this.gcm.push();
     for (const t of ta) this.gcm.set(t, t);
 
-    const args = [];
+    const args: [string, ClawType][] = [];
     for (const arg of node.args) {
       const v = this.resolveTypeNode(arg[1], this.gcm);
       args.push([arg[0], v] as [string, ClawType]);
@@ -1205,7 +1209,7 @@ export class Typechecker {
 
 
     const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
-    const fn = new FunctionClawType(node.name, ta, node, args, returnValue, [node.nodes]);
+    const fn = new FunctionClawType(node.name, ta, node, args, returnValue, { nodes: [node.nodes], args: args.map(a => a[0]) });
     this.scope.set(fn.name, fn);
     for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg[1]);
     for (const [_n, arg] of args) {
@@ -1388,7 +1392,7 @@ export class Typechecker {
             this.scope.set(k, v);
           }
           try {
-            this.typecheckForReturn(fn.body);
+            this.typecheckForReturn(fn.body.nodes);
           } catch (e) {
             if (e instanceof TypecheckerError) {
               this.errorNoteAt(node, `Error arrised from this call`)
@@ -1431,6 +1435,8 @@ export class Typechecker {
           this.warnAt(node, `TODO: sort implementations by specifity better, defaulting to first implementation`);
         }
         const [[impl]] = sortedImpls.toSorted((a, b) => a[1] - b[1]);
+        node.target = this.implementations.size;
+        this.implementations.set(this.implementations.size, impl.spec.functions[0].body!);
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
       }
@@ -1476,6 +1482,9 @@ export class Typechecker {
           this.warnAt(node, `TODO: sort implementations by specifity better, defaulting to first implementation`);
         }
         const [[impl]] = sortedImpls.toSorted((a, b) => a[1] - b[1]);
+        node.target = this.implementations.size;
+        this.implementations.set(this.implementations.size, impl.spec.functions[0].body!);
+        
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
       }
@@ -1513,9 +1522,7 @@ export class Typechecker {
           child.loc, 
           child.args, 
           child.output, 
-          [
-            ...child.body!
-          ]
+          child.body!
         );
       }
       case NodeKind.Grouping:
@@ -1547,33 +1554,6 @@ export class Typechecker {
         logger.error(`${NodeKind[node.type]} cannot be used as value`);
         throw new TypecheckerError();
     }
-  }
-
-  errorAt(
-    location: { start: number; end: number; fp: string },
-    message: string,
-  ) {
-    const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
-    const [col, row] = sh.getColRow(location.start);
-    logger.error(message);
-    logger.error(`At ${location.fp}:${col + 1}:${row}:`);
-    const lines = sh.getRawLines(location.start, location.end);
-
-    for (const line of lines) {
-      let out = "";
-      let pad = "";
-      for (const [char, index] of line) {
-        if (location.start <= index && index < location.end) {
-          out += Ansi.yellow + char + Ansi.reset;
-          pad += "^";
-        } else {
-          pad += " ";
-          out += Ansi.gray + char + Ansi.reset;
-        }
-      }
-      logger.error(out);
-      logger.error(pad);
-    } 
   }
 
   getValueBase(f: ClawType) {
@@ -1660,6 +1640,32 @@ export class Typechecker {
     return out;
   }
 
+  errorAt(
+    location: { start: number; end: number; fp: string },
+    message: string,
+  ) {
+    const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
+    const [col, row] = sh.getColRow(location.start);
+    logger.error(message);
+    logger.error(`At ${location.fp}:${col + 1}:${row}:`);
+    const lines = sh.getRawLines(location.start, location.end);
+
+    for (const line of lines) {
+      let out = "";
+      let pad = "";
+      for (const [char, index] of line) {
+        if (location.start <= index && index < location.end) {
+          out += Ansi.yellow + char + Ansi.reset;
+          pad += "^";
+        } else {
+          pad += " ";
+          out += Ansi.gray + char + Ansi.reset;
+        }
+      }
+      logger.error(out);
+      logger.error(pad);
+    } 
+  }
   warnAt(
     location: { start: number; end: number; fp: string },
     message: string,
