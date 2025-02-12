@@ -1,1 +1,7 @@
-i : int = 1 + 2
+fn test(a: int, b: int) int {
+    return a + b - 3
+}
+
+i := 3
+
+j := test(i, 3)

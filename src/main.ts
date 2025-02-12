@@ -101,7 +101,7 @@ async function main() {
     }
 
     const flattener = new Flattener(smap, tc.implementations);
-    console.log(flattener.convertAll(parsed));
+    console.log(flattener.convertAll(parsed).map((a, i) => [i, a]));
   }
 }
 async function dev(cmd: skap.SkapInfer<typeof devShape>) {

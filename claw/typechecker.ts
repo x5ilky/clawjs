@@ -1,7 +1,7 @@
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { BaseNode, BinaryOperationType, FunctionDefinitionNode, Node, NormalTypeNode } from "./nodes.ts";
+import { BinaryOperationType, FunctionDefinitionNode, Node, NormalTypeNode } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -649,7 +649,7 @@ export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
   scope: ChainMap<string, ClawType>;
-  implementations: Map<number, { args: string[], nodes: Node[] }>;
+  implementations: Map<string, { args: string[], nodes: Node[] }>;
 
   constructor(public sourcemap: SourceMap) {
     this.ti = new TypeIndex(new ChainMap(), new Map());
@@ -835,10 +835,7 @@ export class Typechecker {
       }
       case NodeKind.CallNode: {
         this.evaluateTypeFromValue(node);
-        return {
-          ...node,
-          target: this.implementations.size - 1
-        };
+        return node;
       }
       case NodeKind.FunctionDefinitionNode: {
         return this.typecheckFunction(node);
@@ -1383,7 +1380,9 @@ export class Typechecker {
         }
 
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
-
+        node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+        this.implementations.set(node.target, fn.body!);
+        
         if (fn.body !== null) {
           const oldScope = this.scope;
           this.scope = new ChainMap();
@@ -1403,8 +1402,6 @@ export class Typechecker {
           return out;
         } 
         this.gcm.pop();
-        node.target = this.implementations.size
-        this.implementations.set(this.implementations.size, fn.body!);
         return out;
       }
       case NodeKind.UnaryOperation: {
@@ -1435,8 +1432,9 @@ export class Typechecker {
           this.warnAt(node, `TODO: sort implementations by specifity better, defaulting to first implementation`);
         }
         const [[impl]] = sortedImpls.toSorted((a, b) => a[1] - b[1]);
-        node.target = this.implementations.size;
-        this.implementations.set(this.implementations.size, impl.spec.functions[0].body!);
+        const fn = impl.spec.functions[0]!;
+        node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+        this.implementations.set(node.target, fn.body!);
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
       }
@@ -1482,8 +1480,9 @@ export class Typechecker {
           this.warnAt(node, `TODO: sort implementations by specifity better, defaulting to first implementation`);
         }
         const [[impl]] = sortedImpls.toSorted((a, b) => a[1] - b[1]);
-        node.target = this.implementations.size;
-        this.implementations.set(this.implementations.size, impl.spec.functions[0].body!);
+        const fn = impl.spec.functions[0]!;
+        node.target = `${fn.name}-${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+        this.implementations.set(node.target, fn.body!);
         
         const returnValue = impl.spec.functions[0].output;
         return returnValue;

@@ -109,7 +109,7 @@ export type CallNode = {
     readonly callee: Node,
     readonly typeArguments: TypeNode[] | null,
     readonly arguments: Node[],
-    target?: number
+    target?: string
 } & Loc;
 export type AssignmentNode = {
     readonly type: NodeKind.AssignmentNode,
@@ -190,7 +190,7 @@ export type UnaryOperation = {
     readonly type: NodeKind.UnaryOperation,
     readonly oper: UnaryOperationType,
     readonly value: Node,
-    target?: number
+    target?: string
 } & Loc;
 export enum BinaryOperationType {
     Add,
@@ -215,7 +215,7 @@ export type BinaryOperation = {
     readonly oper: BinaryOperationType,
     readonly left: Node,
     readonly right: Node,
-    target?: number
+    target?: string
 } & Loc;
 export type Grouping = {
     readonly type: NodeKind.Grouping,
