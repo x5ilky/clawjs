@@ -1,16 +1,15 @@
-struct A {
-    value: int
-}
-impl A {
-    fn test() void {
-        return 3
-    }
-    fn lok(self: Self) void {
-        return self.value
-    }
+
+struct label {
+    objects: array<JsObject>
 }
 
-a := A::{ 
-    value: 10
+fn test(l: label) void {
+
 }
-j := a:lok
+fn print(v: label) void {
+
+}
+
+test(!{
+    print($scope)
+})

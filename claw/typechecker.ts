@@ -1,7 +1,7 @@
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { BinaryOperationType, FunctionDefinitionNode, Node, NormalTypeNode } from "./nodes.ts";
+import { BinaryOperationType, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -669,8 +669,9 @@ export class Typechecker {
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
     this.ti.types.set("bool", new BuiltinClawType("bool", [], BUILTIN_LOC));
     this.ti.types.set("void", new BuiltinClawType("void", [], BUILTIN_LOC));
-    this.ti.types.set("label", new BuiltinClawType("label", [], BUILTIN_LOC));
     this.ti.types.set("JsObject", new BuiltinClawType("JsObject", [], BUILTIN_LOC));
+    this.ti.types.set("array", new BuiltinClawType("array", [new GenericClawType("T", BUILTIN_LOC, [])], BUILTIN_LOC));
+    this.ti.types.set("label", new BuiltinClawType("label", [], BUILTIN_LOC));
     this.ti.types.set("int!", new BuiltinClawType("int!", [], BUILTIN_LOC));
     this.ti.types.set(
       "string!",
@@ -1314,7 +1315,11 @@ export class Typechecker {
         return type;
       }
       case NodeKind.CallNode: {
-        const fn = this.evaluateTypeFromValue(node.callee)
+        let fn;
+        if (node.callee.type === NodeKind.MethodOfNode)
+          fn = this.evaluateMethodOf(node.callee); 
+        else
+          fn = this.evaluateTypeFromValue(node.callee);
 
         if (!(fn instanceof FunctionClawType)) {
           this.errorAt(node, `Callee is not a function`);
@@ -1505,32 +1510,8 @@ export class Typechecker {
         return this.ti.getTypeFromName("label")!;
       } 
       case NodeKind.MethodOfNode: {
-        const baseValue = this.evaluateTypeFromValue(node.base);
-        const child = this.getTypeChild(baseValue, node.extension);
-        if (!(child instanceof FunctionClawType)) {
-          this.errorAt(node.base, `${baseValue.toDisplay()}.${node.extension} is not a function type`);
-          throw new TypecheckerError();
-        }
-        const base = child.args[0];
-        if (base === undefined) {
-          this.errorAt(child.loc, `${child.toDisplay()} does not have self type`);
-          throw new TypecheckerError();
-        }
-        if (!base[1].eq(baseValue)) {
-          this.errorAt(base[1].loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
-          throw new TypecheckerError();
-        }
-        const fn = child;
-        node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-        this.implementations.set(node.target, fn.body!);
-        return new FunctionClawType(
-          child.name, 
-          child.generics, 
-          child.loc, 
-          child.args, 
-          child.output, 
-          child.body!
-        );
+        this.errorAt(node, `Cannot use method as a value`)
+        throw new TypecheckerError();
       }
       case NodeKind.Grouping:
         return this.evaluateTypeFromValue(node.value);
@@ -1561,6 +1542,34 @@ export class Typechecker {
         logger.error(`${NodeKind[node.type]} cannot be used as value`);
         throw new TypecheckerError();
     }
+  }
+  evaluateMethodOf(node: MethodOfNode) {
+    const baseValue = this.evaluateTypeFromValue(node.base);
+    const child = this.getTypeChild(baseValue, node.extension);
+    if (!(child instanceof FunctionClawType)) {
+      this.errorAt(node.base, `${baseValue.toDisplay()}.${node.extension} is not a function type`);
+      throw new TypecheckerError();
+    }
+    const base = child.args[0];
+    if (base === undefined) {
+      this.errorAt(child.loc, `${child.toDisplay()} does not have self type`);
+      throw new TypecheckerError();
+    }
+    if (!base[1].eq(baseValue)) {
+      this.errorAt(base[1].loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
+      throw new TypecheckerError();
+    }
+    const fn = child;
+    node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+    this.implementations.set(node.target, fn.body!);
+    return new FunctionClawType(
+      child.name, 
+      child.generics, 
+      child.loc, 
+      child.args, 
+      child.output, 
+      child.body!
+    );
   }
 
   getValueBase(f: ClawType) {

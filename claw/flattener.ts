@@ -338,31 +338,34 @@ export class Flattener {
         
       case NodeKind.MethodOfNode: {
         // nah
-        const j = {
-          type: "JumpInstr",
-          ip: -1
-        } satisfies IR;
-        this.push(j);
-        const name = this.reserve();
-        const loc = this.insertImplementation(node.target!);
-        const name2 = this.reserve();
-        this.push({
-          type: "LetInstr",
-          name: name2
-        });
-        throw new Error("TODO");
-
-
-        return {variableName: name};
+        throw new Error("unreachable")
       }
         /* falls through */
-      case NodeKind.Grouping:
-      case NodeKind.NormalTypeNode:
-      case NodeKind.OfTypeNode:
-      case NodeKind.LabelNode:
-        this.errorAt(node, `Unimplemented value type: ${NodeKind[node.type]}`);
-        Deno.exit(1);
-        break;
+      case NodeKind.Grouping: {
+        return this.convertValue(node.value);
+      }
+      case NodeKind.LabelNode: {
+        this.push({
+          type: "PushScope"
+        });
+        this.scope.push();
+        this.scopes[this.scopes.length-1]++;
+        const scopeName = `$scope-${this.reserve()}`;
+        this.scope.set(`$scope`, scopeName);
+        this.push({
+          type: "LetInstr",
+          name: scopeName
+        });
+        this.convertScope(node.nodes);
+        this.scopes[this.scopes.length-1]--;
+        this.scope.pop();
+        this.push({
+          type: "PopScope"
+        });
+        return {
+          variableName: scopeName
+        }
+      } break;
       case NodeKind.AssignmentNode:
       case NodeKind.DeclarationNode:
       case NodeKind.ConstDeclarationNode:
@@ -383,6 +386,8 @@ export class Flattener {
       case NodeKind.ImplBaseNode:
       case NodeKind.ImplTraitNode:
       case NodeKind.IntrinsicNode:
+      case NodeKind.NormalTypeNode:
+      case NodeKind.OfTypeNode:
         this.errorAt(
           node,
           `Cannot be a value, probably bug in the typechecker`,
@@ -437,8 +442,17 @@ export class Flattener {
             type: "RetInstr"
           }) 
         } break
-      case NodeKind.CallNode:
-      case NodeKind.AssignmentNode:
+      case NodeKind.CallNode: {
+        this.convertValue(node);
+      } break;
+      case NodeKind.AssignmentNode: {
+        const name = this.convertValue(node.assignee);
+        this.push({
+          type: "SetInstr",
+          target: name.variableName,
+          value: this.convertValue(node.value).variableName
+        })
+      } break;
       case NodeKind.ConstDeclarationNode:
       case NodeKind.IfNode:
       case NodeKind.IfElseNode:
