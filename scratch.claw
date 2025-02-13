@@ -1,7 +1,13 @@
-fn test(a: int, b: int) int {
-    return a + b - 3
+struct A {
+    value: int
+}
+impl A {
+    fn test() void {
+        return 3
+    }
 }
 
-i := 3
-
-j := test(i, 3)
+a := A::{ 
+    value: 10
+}
+j := a.test

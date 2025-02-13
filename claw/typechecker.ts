@@ -1490,6 +1490,11 @@ export class Typechecker {
       case NodeKind.ChildOfNode: {
         const baseValue = this.evaluateTypeFromValue(node.base);
         const child = this.getTypeChild(baseValue, node.extension);
+        if (child instanceof FunctionClawType) {
+          const fn = child;
+          node.target = `${fn.name}-${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+          this.implementations.set(node.target, fn.body!);
+        }
         return child;
       }
       case NodeKind.LabelNode: {

@@ -97,7 +97,8 @@ export type StructLiteralNode = {
 export type ChildOfNode = {
     readonly type: NodeKind.ChildOfNode,
     readonly base: Node,
-    readonly extension: string
+    readonly extension: string,
+    target?: string
 } & Loc;
 export type MethodOfNode = {
     readonly type: NodeKind.MethodOfNode,

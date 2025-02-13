@@ -1,3 +1,4 @@
+import { ChildProcess } from "node:child_process";
 import { Ansi } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ChainMap } from "./chainmap.ts";
@@ -50,17 +51,28 @@ type PopScope = {
   type: "PopScope";
 };
 type RetInstr = {
-  type: "RetInstr";
+  type: "RetInstr"; // should return and also pop scope
 };
 type CallInstr = {
   type: "CallInstr";
   location: number;
   args: string[];
 };
+type CallValueInstr = {
+  type: "CallValueInstr";
+  value: string;
+  args: string[];
+};
 type IntrinsicInstr = {
   type: "IntrinsicInstr";
   name: string;
 };
+type GetChildOfInstr = {
+  type: "GetChildOfInstr",
+  target: string;
+  value: string;
+  child: string;
+}
 
 type IR =
   | LetInstr
@@ -75,7 +87,9 @@ type IR =
   | PopScope
   | RetInstr
   | CallInstr
-  | IntrinsicInstr;
+  | IntrinsicInstr
+  | GetChildOfInstr;
+
 const RET_VAR_NAME = "ret";
 
 export class Flattener {
@@ -83,6 +97,7 @@ export class Flattener {
   output: IR[];
   scope: ChainMap<string, string>;
   implementations: Map<string, { nodes: Node[]; args: string[] }>;
+  scopes: number[];
   implMap: Map<string, number>;
 
   constructor(
@@ -90,6 +105,7 @@ export class Flattener {
     implementations: Flattener["implementations"],
   ) {
     this.counter = 0;
+    this.scopes = [0];
     this.output = [];
     this.scope = new ChainMap();
     this.implementations = implementations;
@@ -98,6 +114,9 @@ export class Flattener {
   }
 
   push(...ir: IR[]) {
+    if (ir[0].type === "PopScope") {
+      console.log(new Error().stack)
+    }
     this.output.push(...ir);
   }
 
@@ -119,13 +138,9 @@ export class Flattener {
   }
   convertScope(nodes: Node[]) {
     this.scope.push();
-    this.push({
-      type: "PushScope",
-    });
+    this.scopes[this.scopes.length-1]++;
     for (const node of nodes) this.convertStatement(node);
-    this.push({
-      type: "PopScope",
-    });
+    this.scopes[this.scopes.length-1]--;
     this.scope.pop();
   }
   insertImplementation(id: string): number {
@@ -138,6 +153,7 @@ export class Flattener {
     this.push({
       type: "PushScope",
     });
+    this.scopes.push(0);
     for (let i = 0; i < impl.args.length; i++) {
       const arg = `$arg-${impl.args[i]}`;
       this.push({
@@ -151,11 +167,12 @@ export class Flattener {
       this.scope.set(impl.args[i], arg)
     }
     for (const node of impl.nodes) this.convertStatement(node);
-    this.push({
-      type: "RetInstr",
-    });
+    this.scopes.pop();
     this.push({
       type: "PopScope",
+    });
+    this.push({
+      type: "RetInstr",
     });
     this.scope.pop();
     return idd;
@@ -285,7 +302,45 @@ export class Flattener {
             variableName: name
         }
       }
-      case NodeKind.ChildOfNode:
+      case NodeKind.ChildOfNode: {
+        if (node.target !== undefined) {
+          const jump = {
+            type: "JumpInstr",
+            ip: -1
+          } satisfies IR;
+          this.push(jump);
+          const ip = this.insertImplementation(node.target);
+          const name = this.reserve();
+          jump.ip = this.output.length;
+          this.push({
+            type: "TempInstr",
+            name
+          }, {
+            type: "SetNumberInstr",
+            target: name,
+            value: ip
+          });
+          return {
+            variableName: name
+          }
+          break;
+        } else {
+          const name = this.reserve();
+          this.push({
+            type: "TempInstr",
+            name
+          }, {
+            type: "GetChildOfInstr",
+            target: name,
+            value: this.convertValue(node.base).variableName,
+            child: node.extension
+          });
+          return {
+            variableName: name
+          }
+        }
+      }
+        
       case NodeKind.MethodOfNode:
       case NodeKind.Grouping:
       case NodeKind.NormalTypeNode:
@@ -354,11 +409,18 @@ export class Flattener {
         } break;
       case NodeKind.ReturnNode:
         {
+          for (let i = 0; i < this.scopes[this.scopes.length-1]; i++) {
             this.push({
-                type: "SetInstr",
-                target: RET_VAR_NAME,
-                value: this.convertValue(node.value).variableName
-            }) 
+              type: "PopScope"
+            })
+          }
+          this.push({
+              type: "SetInstr",
+              target: RET_VAR_NAME,
+              value: this.convertValue(node.value).variableName
+          }, {
+            type: "RetInstr"
+          }) 
         } break
       case NodeKind.CallNode:
       case NodeKind.AssignmentNode:
