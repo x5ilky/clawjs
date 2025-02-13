@@ -5,9 +5,12 @@ impl A {
     fn test() void {
         return 3
     }
+    fn lok(self: Self) void {
+        return self.value
+    }
 }
 
 a := A::{ 
     value: 10
 }
-j := a.test
+j := a:lok

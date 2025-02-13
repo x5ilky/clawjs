@@ -103,7 +103,8 @@ export type ChildOfNode = {
 export type MethodOfNode = {
     readonly type: NodeKind.MethodOfNode,
     readonly base: Node,
-    readonly extension: string
+    readonly extension: string,
+    target?: string
 } & Loc;
 export type CallNode = {
     readonly type: NodeKind.CallNode,

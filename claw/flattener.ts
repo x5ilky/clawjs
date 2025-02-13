@@ -1,4 +1,3 @@
-import { ChildProcess } from "node:child_process";
 import { Ansi } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ChainMap } from "./chainmap.ts";
@@ -114,9 +113,6 @@ export class Flattener {
   }
 
   push(...ir: IR[]) {
-    if (ir[0].type === "PopScope") {
-      console.log(new Error().stack)
-    }
     this.output.push(...ir);
   }
 
@@ -323,7 +319,6 @@ export class Flattener {
           return {
             variableName: name
           }
-          break;
         } else {
           const name = this.reserve();
           this.push({
@@ -341,7 +336,26 @@ export class Flattener {
         }
       }
         
-      case NodeKind.MethodOfNode:
+      case NodeKind.MethodOfNode: {
+        // nah
+        const j = {
+          type: "JumpInstr",
+          ip: -1
+        } satisfies IR;
+        this.push(j);
+        const name = this.reserve();
+        const loc = this.insertImplementation(node.target!);
+        const name2 = this.reserve();
+        this.push({
+          type: "LetInstr",
+          name: name2
+        });
+        throw new Error("TODO");
+
+
+        return {variableName: name};
+      }
+        /* falls through */
       case NodeKind.Grouping:
       case NodeKind.NormalTypeNode:
       case NodeKind.OfTypeNode:
@@ -409,16 +423,17 @@ export class Flattener {
         } break;
       case NodeKind.ReturnNode:
         {
+          this.push({
+            type: "SetInstr",
+            target: RET_VAR_NAME,
+            value: this.convertValue(node.value).variableName
+          })
           for (let i = 0; i < this.scopes[this.scopes.length-1]; i++) {
             this.push({
               type: "PopScope"
             })
           }
           this.push({
-              type: "SetInstr",
-              target: RET_VAR_NAME,
-              value: this.convertValue(node.value).variableName
-          }, {
             type: "RetInstr"
           }) 
         } break

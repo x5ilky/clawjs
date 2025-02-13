@@ -201,14 +201,14 @@ export class TypeIndex {
       return new StructureClawType(
         type.name,
         type.generics, 
-        BUILTIN_LOC,
+        type.loc,
         type.members,
       );
     } else if (type instanceof FunctionClawType) {
       return new FunctionClawType(
         type.name,
         type.generics,
-        BUILTIN_LOC,
+        type.loc,
         arrzip(type.args.map(a => a[0]), this.substituteRaw(type.args.map(a => a[1]), mappings, errorStack, careAboutGenerics)),
         this.substituteRawSingle(type.output, mappings, errorStack, careAboutGenerics),
         type.body
@@ -217,7 +217,7 @@ export class TypeIndex {
       return new BuiltinClawType(type.name, [], BUILTIN_LOC);
     } else if (type instanceof ReferenceClawType) {
       return new ReferenceClawType(
-        BUILTIN_LOC,
+        type.loc,
         this.substituteRawSingle(type.base, mappings, errorStack, careAboutGenerics),
       );
     } else if (type instanceof OfClawType) {
@@ -1520,6 +1520,9 @@ export class Typechecker {
           this.errorAt(base[1].loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
           throw new TypecheckerError();
         }
+        const fn = child;
+        node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+        this.implementations.set(node.target, fn.body!);
         return new FunctionClawType(
           child.name, 
           child.generics, 
