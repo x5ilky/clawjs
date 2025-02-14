@@ -922,7 +922,7 @@ export class Typechecker {
         }
         return node;
       };
-      
+      case NodeKind.IntrinsicNode: return node; 
       case NodeKind.Grouping:
         return this.typecheckSingle(node.value);
       case NodeKind.StructDefinitionNode: {

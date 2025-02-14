@@ -2,4 +2,5 @@ i := 10 + 20
 
 while i > 10 {
     k := 30 
+    $intrinsic "test"
 }

@@ -1138,9 +1138,18 @@ export class Parser {
           }),
         });
       });
+      const intrinsicRule = ezp.instantiateRule("intrinsic statement", ezp => {
+        const s = ezp.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
+        const v = ezp.expect(a => a.type === "StringLiteral");
+        return cn(s, v, {
+          type: NodeKind.IntrinsicNode,
+          string: v.value
+        })
+      })
 
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        intrinsicRule,
         returnRule,
         controlFlowRule,
         dataRule,

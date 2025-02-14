@@ -527,6 +527,7 @@ export class Flattener {
         })
         k.ip = this.output.length;
       } break;
+
       case NodeKind.ForNode:
       case NodeKind.IfRuntimeNode:
       case NodeKind.IfElseRuntimeNode:
