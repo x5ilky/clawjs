@@ -462,7 +462,20 @@ export class Flattener {
           value: this.convertValue(node.value).variableName
         })
       } break;
-      case NodeKind.ConstDeclarationNode:
+      case NodeKind.ConstDeclarationNode: {
+        const name = node.name + `$` + this.reserve();
+        this.push({
+          type: "LetInstr",
+          name: name,
+        });
+        const valueS = this.convertValue(node.value);
+        this.push({
+          type: "SetInstr",
+          target: name,
+          value: valueS.variableName,
+        });
+        this.scope.set(node.name, name);
+      } break;
       case NodeKind.IfNode:
       case NodeKind.IfElseNode:
       case NodeKind.WhileNode:
