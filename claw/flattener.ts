@@ -67,10 +67,11 @@ type CallValueInstr = {
   value: string;
   args: string[];
 };
-type IntrinsicInstr = {
+export type IntrinsicInstr = {
   type: "IntrinsicInstr";
   name: string;
   args: string[];
+  target: string;
 };
 type GetChildOfInstr = {
   type: "GetChildOfInstr",
@@ -220,9 +221,14 @@ export class Flattener {
           location: -1,
           args: [left.variableName],
         } satisfies IR;
-        this.push(d);
+        const j = {
+          type: "JumpInstr",
+          ip: -1
+        } satisfies JumpInstr
+        this.push(d, j);
         const a = this.insertImplementation(node.target!);
         d.location = a;
+        j.ip = this.output.length;
         const name = this.reserve();
         this.push({
           type: "TempInstr",
@@ -243,10 +249,15 @@ export class Flattener {
           location: -1,
           args: [left.variableName, right.variableName],
         } satisfies IR;
-        this.push(d);
+        const j = {
+          type: "JumpInstr",
+          ip: -1
+        } satisfies JumpInstr
+        this.push(d, j);
         const a = this.insertImplementation(node.target!);
         d.location = a;
         const name = this.reserve();
+        j.ip = this.output.length;
         this.push({
           type: "TempInstr",
           name,
@@ -387,6 +398,39 @@ export class Flattener {
           variableName: scopeName
         }
       }
+      case NodeKind.IntrinsicNode: {
+        const name = this.reserve();
+        if (node.string.startsWith("$ibop")) {
+          this.push({
+            type: "IntrinsicInstr",
+            name: node.string,
+            args: [this.scope.get("self")!, this.scope.get("other")!],
+            target: name
+          });
+        } else if (node.string.startsWith("$iuop")) {
+          this.push({
+            type: "IntrinsicInstr",
+            name: node.string,
+            args: [this.scope.get("self")!],
+            target: name
+          });
+        } else if (node.string.startsWith("$1args")) {
+          this.push({
+            type: "IntrinsicInstr",
+            name: node.string,
+            args: [this.scope.get("$1")!],
+            target: name
+          });
+        } else {
+          this.push({
+            type: "IntrinsicInstr",
+            name: node.string,
+            args: [],
+            target: name
+          });
+        }
+        return { variableName: name };
+      } break;
       case NodeKind.AssignmentNode:
       case NodeKind.DeclarationNode:
       case NodeKind.ConstDeclarationNode:
@@ -406,7 +450,6 @@ export class Flattener {
       case NodeKind.InterfaceNode:
       case NodeKind.ImplBaseNode:
       case NodeKind.ImplTraitNode:
-      case NodeKind.IntrinsicNode:
       case NodeKind.NormalTypeNode:
       case NodeKind.OfTypeNode:
         this.errorAt(
@@ -436,25 +479,7 @@ export class Flattener {
         break;
       case NodeKind.IntrinsicNode:
         {
-          if (node.string.startsWith("$ibop")) {
-            this.push({
-              type: "IntrinsicInstr",
-              name: node.string,
-              args: [this.scope.get("self")!, this.scope.get("other")!]
-            });
-          } else if (node.string.startsWith("$iuop")) {
-            this.push({
-              type: "IntrinsicInstr",
-              name: node.string,
-              args: [this.scope.get("self")!]
-            });
-          } else {
-            this.push({
-              type: "IntrinsicInstr",
-              name: node.string,
-              args: []
-            });
-          }
+          this.convertValue(node);
         }
         break;
 

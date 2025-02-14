@@ -1,6 +1,7 @@
-fn test() void {
-    $intrinsic "print"
+i := 10 + 20
+
+fn print_($1: string) void {
+    $intrinsic "$1args-print"
 }
 
-test()
-test()
+print_("test")

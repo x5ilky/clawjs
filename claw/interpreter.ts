@@ -1,5 +1,5 @@
 import { ChainMap } from "./chainmap.ts";
-import { IR } from "./flattener.ts";
+import { IntrinsicInstr, IR } from "./flattener.ts";
 
 type ClawValue = 
     | {
@@ -36,8 +36,15 @@ export class Interpreter {
 
     interpret(ir: IR[]) {
         while (this.ip < ir.length) {
-            console.log(this.ip, ir[this.ip])
-            this.interpretOne(ir[this.ip]);
+            if (true) {
+                console.log(this.ip, ir.slice(this.ip, this.ip+3))
+                console.log(this.callStack)
+                this.interpretOne(ir[this.ip]);
+                console.log(this.ip)
+                prompt("")
+            } else {
+                this.interpretOne(ir[this.ip])
+            }
         }
     }
 
@@ -107,7 +114,8 @@ export class Interpreter {
             case "PushScope": this.scope.push(); this.ip++; break;
             case "PopScope": this.scope.pop(); this.ip++; break
             case "RetInstr": {
-                this.ip = this.scope.pop()!;
+                this.ip = this.callStack.pop()!;
+                this.ip++;
             } break;
             case "CallInstr": {
                 for (let i = 0; i < ir.args.length; i++) {
@@ -126,7 +134,7 @@ export class Interpreter {
                 }
             } break;
             case "IntrinsicInstr": {
-                console.log(ir.name);
+                this.doIntrinsic(ir);
                 this.ip++;
             } break;
             case "GetChildOfInstr": {
@@ -141,5 +149,51 @@ export class Interpreter {
                 this.ip++;
             } break;
         }
+    }
+    doIntrinsic(int: IntrinsicInstr) {
+        const v = this.evalIntrinsic(int);
+        if (v !== undefined) {
+            this.setValue(int.target, v);
+        }
+    }
+    evalIntrinsic(int: IntrinsicInstr): ClawValue | undefined {
+        switch (int.name) {
+            case "$ibop-Add-int-int": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value + r.value
+                };
+            } break;
+            case "$ibop-Sub-int-int": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value - r.value
+                };
+            } break;
+            case "$ibop-Mul-int-int": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value * r.value
+                };
+            } break;
+            case "$ibop-Div-int-int": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value / r.value
+                };
+            } break;
+            default: {
+                throw new Error(`Unknown intrinsic: ${int.name}`)
+            } break;
+        }
+        return undefined;
     }
 }

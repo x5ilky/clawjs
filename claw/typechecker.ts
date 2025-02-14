@@ -705,9 +705,13 @@ export class Typechecker {
             args: ["self", "other"],
             nodes: [
               {
-                ...BUILTIN_LOC,
-                type: NodeKind.IntrinsicNode,
-                string: `$ibop-${interfaceName}-int-${takes.toDisplay()}-${returns.toDisplay()}`
+                ...BUILTIN_LOC, 
+                type: NodeKind.ReturnNode, 
+                value: {
+                  ...BUILTIN_LOC,
+                  type: NodeKind.IntrinsicNode,
+                  string: `$ibop-${interfaceName}-${takes.toDisplay()}-${returns.toDisplay()}`
+                }
               }
             ]
           })
@@ -737,11 +741,17 @@ export class Typechecker {
         functions: [
           new FunctionClawType(functionName, [], BUILTIN_LOC, [["self", target]], returns, { 
             args: ["self"],
-            nodes: [{
-              ...BUILTIN_LOC,
-              type: NodeKind.IntrinsicNode,
-              string: `$iuop-${interfaceName}-${target.toDisplay()}-${returns.toDisplay()}`
-            }]
+            nodes: [
+              {
+                ...BUILTIN_LOC, 
+                type: NodeKind.ReturnNode, 
+                value: {
+                  ...BUILTIN_LOC,
+                  type: NodeKind.IntrinsicNode,
+                  string: `$iuop-${interfaceName}-${target.toDisplay()}-${returns.toDisplay()}`
+                }
+              }
+            ]
            })
 
         ],
