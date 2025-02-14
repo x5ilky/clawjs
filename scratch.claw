@@ -1,15 +1,5 @@
+i := 10 + 20
 
-struct label {
-    objects: array<JsObject>
+while i > 10 {
+    k := 30 
 }
-
-fn test(l: label) void {
-
-}
-fn print(v: label) void {
-
-}
-
-test(!{
-    print($scope)
-})

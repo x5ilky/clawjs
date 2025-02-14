@@ -42,6 +42,11 @@ type JumpInstr = {
   type: "JumpInstr";
   ip: number;
 };
+type JumpIfFalseInstr = {
+  type: "JumpIfFalseInstr";
+  ip: number;
+  value: string;
+};
 
 type PushScope = {
   type: "PushScope";
@@ -86,6 +91,7 @@ type IR =
   | SetStructInstr
   | SetArgInstr
   | JumpInstr
+  | JumpIfFalseInstr
   | PushScope
   | PopScope
   | RetInstr
@@ -476,9 +482,51 @@ export class Flattener {
         });
         this.scope.set(node.name, name);
       } break;
-      case NodeKind.IfNode:
-      case NodeKind.IfElseNode:
-      case NodeKind.WhileNode:
+      case NodeKind.IfNode: {
+        const value = this.convertValue(node.predicate);
+        const k = {
+          type: "JumpIfFalseInstr",
+          ip: -1,
+          value: value.variableName
+        } satisfies IR;
+        this.push(k);
+        this.convertScope([node.body]);
+        k.ip = this.output.length
+      } break;
+      case NodeKind.IfElseNode: {
+        const value = this.convertValue(node.predicate);
+        const k = {
+          type: "JumpIfFalseInstr",
+          ip: -1,
+          value: value.variableName
+        } satisfies IR;
+        this.push(k);
+        this.convertScope([node.body]);
+        k.ip = this.output.length
+        const k2 = {
+          type: "JumpInstr",
+          ip: -1,
+        } satisfies IR;
+        this.push(k2);
+        this.convertScope([node.elseBody]);
+        k2.ip = this.output.length;
+      } break
+      case NodeKind.WhileNode: {
+        const i = this.output.length;
+        const value = this.convertValue(node.predicate);
+        const k = {
+          type: "JumpIfFalseInstr",
+          ip: -1,
+          value: value.variableName
+        } satisfies IR;
+        this.push(k);
+        this.convertScope([node.body]);
+        this.push({
+          type: "JumpInstr",
+          ip: i
+        })
+        k.ip = this.output.length;
+      } break;
       case NodeKind.ForNode:
       case NodeKind.IfRuntimeNode:
       case NodeKind.IfElseRuntimeNode:
