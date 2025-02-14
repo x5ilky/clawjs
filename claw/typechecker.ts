@@ -707,7 +707,7 @@ export class Typechecker {
               {
                 ...BUILTIN_LOC,
                 type: NodeKind.IntrinsicNode,
-                string: `${interfaceName}-int-${takes.toDisplay()}-${returns.toDisplay()}`
+                string: `$ibop-${interfaceName}-int-${takes.toDisplay()}-${returns.toDisplay()}`
               }
             ]
           })
@@ -740,7 +740,7 @@ export class Typechecker {
             nodes: [{
               ...BUILTIN_LOC,
               type: NodeKind.IntrinsicNode,
-              string: `${interfaceName}-${target.toDisplay()}-${returns.toDisplay()}`
+              string: `$iuop-${interfaceName}-${target.toDisplay()}-${returns.toDisplay()}`
             }]
            })
 

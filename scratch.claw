@@ -1,6 +1,5 @@
 i := 10 + 20
 
-while i > 10 {
-    k := 30 
+for i := 0; i < 8; i += 1 {
     $intrinsic "test"
 }

@@ -70,6 +70,7 @@ type CallValueInstr = {
 type IntrinsicInstr = {
   type: "IntrinsicInstr";
   name: string;
+  args: string[];
 };
 type GetChildOfInstr = {
   type: "GetChildOfInstr",
@@ -163,7 +164,7 @@ export class Flattener {
     });
     this.scopes.push(0);
     for (let i = 0; i < impl.args.length; i++) {
-      const arg = `$arg-${impl.args[i]}`;
+      const arg = `$arg-${impl.args[i]}-${this.reserve()}`;
       this.push({
         type: "LetInstr",
         name: arg,
@@ -430,10 +431,25 @@ export class Flattener {
         break;
       case NodeKind.IntrinsicNode:
         {
-          this.push({
-            type: "IntrinsicInstr",
-            name: node.string,
-          });
+          if (node.string.startsWith("$ibop")) {
+            this.push({
+              type: "IntrinsicInstr",
+              name: node.string,
+              args: [this.scope.get("self")!, this.scope.get("other")!]
+            });
+          } else if (node.string.startsWith("$iuop")) {
+            this.push({
+              type: "IntrinsicInstr",
+              name: node.string,
+              args: [this.scope.get("self")!]
+            });
+          } else {
+            this.push({
+              type: "IntrinsicInstr",
+              name: node.string,
+              args: []
+            });
+          }
         }
         break;
 
@@ -528,7 +544,23 @@ export class Flattener {
         k.ip = this.output.length;
       } break;
 
-      case NodeKind.ForNode:
+      case NodeKind.ForNode: {
+        this.convertStatement(node.initialiser);
+        const i = this.output.length;
+        const value = this.convertValue(node.predicate);
+        const k = {
+          type: "JumpIfFalseInstr",
+          ip: -1,
+          value: value.variableName
+        } satisfies IR;
+        this.push(k);
+        this.convertScope([node.body, node.post]);
+        this.push({
+          type: "JumpInstr",
+          ip: i
+        })
+        k.ip = this.output.length;
+      } break;
       case NodeKind.IfRuntimeNode:
       case NodeKind.IfElseRuntimeNode:
       case NodeKind.WhileRuntimeNode:
