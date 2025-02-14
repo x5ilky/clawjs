@@ -36,7 +36,8 @@ export class Interpreter {
 
     interpret(ir: IR[]) {
         while (this.ip < ir.length) {
-            if (true) {
+            const DEBUG_FLAG = false;
+            if (DEBUG_FLAG) {
                 console.log(this.ip, ir.slice(this.ip, this.ip+3))
                 console.log(this.callStack)
                 this.interpretOne(ir[this.ip]);
@@ -156,7 +157,7 @@ export class Interpreter {
             this.setValue(int.target, v);
         }
     }
-    evalIntrinsic(int: IntrinsicInstr): ClawValue | undefined {
+    evalIntrinsicOperator(int: IntrinsicInstr): ClawValue | undefined {
         switch (int.name) {
             case "$ibop-Add-int-int": {
                 const [left, right] = int.args;
@@ -190,10 +191,29 @@ export class Interpreter {
                     value: l.value / r.value
                 };
             } break;
+        }
+    }
+    evalIntrinsic(int: IntrinsicInstr): ClawValue | undefined {
+        if (int.name.startsWith("$ibop")) return this.evalIntrinsicOperator(int);
+        if (int.name.startsWith("$iuop")) return this.evalIntrinsicOperator(int);
+        switch (int.name) {
+            case "$1args-print": {
+                const [vi] = int.args;
+                const value = this.getValue(vi);
+                if (value.type === "number") {
+                    console.log(`${value.value}`); 
+                    return undefined;
+                } else if (value.type === "string") {
+                    console.log(`${value.value}`);
+                    return undefined;
+                } else if (value.type === "boolean") {
+                    console.log(`${value.value ? "true" : "false"}`)
+                }
+                return undefined;
+            }
             default: {
                 throw new Error(`Unknown intrinsic: ${int.name}`)
-            } break;
+            }
         }
-        return undefined;
     }
 }

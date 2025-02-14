@@ -430,7 +430,7 @@ export class Flattener {
           });
         }
         return { variableName: name };
-      } break;
+      }
       case NodeKind.AssignmentNode:
       case NodeKind.DeclarationNode:
       case NodeKind.ConstDeclarationNode:

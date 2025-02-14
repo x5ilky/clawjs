@@ -4,4 +4,4 @@ fn print_($1: string) void {
     $intrinsic "$1args-print"
 }
 
-print_("test")
+print_("Hello, world!")
