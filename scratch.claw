@@ -1,5 +1,6 @@
-i := 10 + 20
-
-for i := 0; i < 8; i += 1 {
-    $intrinsic "test"
+fn test() void {
+    $intrinsic "print"
 }
+
+test()
+test()

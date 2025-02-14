@@ -1,4 +1,5 @@
 import { Flattener } from "../claw/flattener.ts";
+import { Interpreter } from "../claw/interpreter.ts";
 import { Lexer } from "../claw/lexer.ts";
 import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
@@ -101,7 +102,9 @@ async function main() {
     }
 
     const flattener = new Flattener(smap, tc.implementations);
-    console.log(flattener.convertAll(parsed).map((a, i) => [i, a]));
+    const ir = flattener.convertAll(parsed);
+    const interpreter = new Interpreter();
+    interpreter.interpret(ir);
   }
 }
 async function dev(cmd: skap.SkapInfer<typeof devShape>) {

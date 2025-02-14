@@ -83,7 +83,7 @@ type CreateLabelInstr = {
   target: string;
 }
 
-type IR =
+export type IR =
   | LetInstr
   | TempInstr
   | SetInstr
@@ -293,12 +293,17 @@ export class Flattener {
             args,
             location: -1
         } satisfies CallInstr
-        this.push(k);
+        const j = {
+          type: "JumpInstr",
+          ip: -1
+        } satisfies JumpInstr
+        this.push(k, j);
         if (node.target !== undefined) {
-            k.location = this.insertImplementation(node.target)
+          k.location = this.insertImplementation(node.target)
         } else {
-            this.errorAt(node, `Target is undefined, this shouldn't really be possible, this is a bug in the typechecker`);
+          this.errorAt(node, `Target is undefined, this shouldn't really be possible, this is a bug in the typechecker`);
         }
+        j.ip = this.output.length;
         this.push({
             type: "TempInstr",
             name
