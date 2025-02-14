@@ -72,6 +72,10 @@ type GetChildOfInstr = {
   value: string;
   child: string;
 }
+type CreateLabelInstr = {
+  type: "CreateLabelInstr";
+  target: string;
+}
 
 type IR =
   | LetInstr
@@ -86,8 +90,10 @@ type IR =
   | PopScope
   | RetInstr
   | CallInstr
+  | CallValueInstr
   | IntrinsicInstr
-  | GetChildOfInstr;
+  | GetChildOfInstr
+  | CreateLabelInstr;
 
 const RET_VAR_NAME = "ret";
 
@@ -355,6 +361,9 @@ export class Flattener {
         this.push({
           type: "LetInstr",
           name: scopeName
+        }, {
+          type: "CreateLabelInstr",
+          target: scopeName
         });
         this.convertScope(node.nodes);
         this.scopes[this.scopes.length-1]--;
@@ -365,7 +374,7 @@ export class Flattener {
         return {
           variableName: scopeName
         }
-      } break;
+      }
       case NodeKind.AssignmentNode:
       case NodeKind.DeclarationNode:
       case NodeKind.ConstDeclarationNode:
