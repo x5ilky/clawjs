@@ -1,10 +1,11 @@
+import * as path from "@std/path"
 import { Flattener } from "../claw/flattener.ts";
 import { Interpreter } from "../claw/interpreter.ts";
 import { Lexer } from "../claw/lexer.ts";
 import { NodeKind } from "../claw/nodes.ts";
 import { Parser } from "../claw/parser.ts";
 import { SourceMap } from "../claw/sourcemap.ts";
-import { Typechecker, TypecheckerError } from "../claw/typechecker.ts";
+import { ClawConfig, Typechecker, TypecheckerError } from "../claw/typechecker.ts";
 import { Logger, LogLevel, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 
@@ -92,9 +93,11 @@ async function main() {
       Deno.exit(1);
     }
 
-    const tc = new Typechecker(smap);
+    const config = new ClawConfig();
+    config.stdlibPath = path.join(import.meta.dirname!, "..", "lib", "std")
+    const tc = new Typechecker(smap, config);
     try {
-      tc.typecheck(parsed)
+      tc.typecheckFile(parsed)
     } catch (e) {
       if (e instanceof TypecheckerError) {
         logger.error("Error in typechecking")
@@ -158,9 +161,10 @@ async function dev(cmd: skap.SkapInfer<typeof devShape>) {
       Deno.exit(1);
     }
 
-    const tc = new Typechecker(smap);
+    const config = new ClawConfig();
+    const tc = new Typechecker(smap, config);
     try {
-      tc.typecheck(parsed)
+      tc.typecheckFile(parsed)
     } catch (e) {
       if (e instanceof TypecheckerError) {
         logger.error("Error in typechecking")

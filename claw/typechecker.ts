@@ -1,3 +1,4 @@
+import * as path from "jsr:@std/path";
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
@@ -6,8 +7,9 @@ import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 import { TypeNode } from "./nodes.ts";
-import { Loc } from "./lexer.ts";
+import { Lexer, Loc } from "./lexer.ts";
 import { UnaryOperationType } from "./nodes.ts";
+import { Parser } from "./parser.ts";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
 
@@ -692,16 +694,27 @@ export class TCReturnValue {
   }
 }
 
+export class ClawConfig {
+  stdlibPath: string;
+  constructor() {
+    this.stdlibPath = "";
+  }
+}
+
 export class Typechecker {
   ti: TypeIndex;
   gcm: GenericChainMap;
   scope: ChainMap<string, ClawType>;
   implementations: Map<string, { args: string[], nodes: Node[] }>;
+  imported: {
+    interface: Map<string, string[]>
+  };
 
-  constructor(public sourcemap: SourceMap) {
+  constructor(public sourcemap: SourceMap, public config: ClawConfig) {
     this.ti = new TypeIndex(new ChainMap(), new Map());
     this.gcm = new GenericChainMap();
     this.gcm.push();
+    this.imported = { interface: new Map() };
     this.scope = new ChainMap();
     this.scope.push();
     this.addBuiltinTypes();
@@ -709,6 +722,9 @@ export class Typechecker {
     this.implementations = new Map();
   }
 
+  addBuiltinTypesToImports() {
+
+  }
   addBuiltinTypes() {
     const num = () => this.ti.getTypeFromName("int")!;;
     const bool = () => this.ti.getTypeFromName("bool")!;;
@@ -840,6 +856,14 @@ export class Typechecker {
     this.ti.interfaces.set("Runtime", RuntimeInterface);
   }
 
+  typecheckFile(nodes: Node[]): Node[] {
+    if (nodes.length) {
+      this.imported.interface.set(nodes[0].fp, []);
+      const n = this.typecheckForReturn(nodes)[0];
+      return n;
+    }
+    return [];
+  }
   typecheck(nodes: Node[]): Node[] {
     return this.typecheckForReturn(nodes)[0];
   }
@@ -1037,7 +1061,9 @@ export class Typechecker {
           this.ti.types.pop();
         }
         this.ti.types.pop();
-        this.ti.interfaces.set(name, new ClawInterface(name, ta, map))
+        const int = new ClawInterface(name, ta, map);
+        this.ti.interfaces.set(name, int)
+        this.imported.interface.get(node.fp)!.push(name)
 
         return node;
       }
@@ -1136,6 +1162,35 @@ export class Typechecker {
         });
         return node;
       }
+      case NodeKind.ImportNode: {
+        if (node.string.startsWith(".")) {
+          // relative file
+          
+        } else if (node.string.startsWith("intrinsic")) {
+          if (node.string === "intrinsic.ops") {
+            this.addBuiltinTypesToImports();
+          }
+        } else {
+          const PATH_MAP = {
+            "std": "std.claw",
+          };
+          const mapped = PATH_MAP?.[node.string as keyof typeof PATH_MAP];
+          if (mapped === undefined) {
+            this.errorAt(node, `Unknown std lib: ${node.string}`);
+            throw new TypecheckerError()
+          }
+          this.importFileAt(mapped);
+        }
+        
+        return node;
+      }
+
+      case NodeKind.ExportNode: {
+        this.typecheckSingle(node.sub);
+        this.scope.__inner[0].set(node.sub.name, this.scope.get(node.sub.name)!);
+        return node;
+      }
+
       default:
         this.errorAt(node, `${NodeKind[node.type]} is not a valid statement`);
         return node;
@@ -1289,7 +1344,7 @@ export class Typechecker {
               // add(self: Self, other: Right) Output
               //  convert
               // add(self: T, other: (Add.Right of T)) (Add.Output of T)
-              const V = new FunctionClawType(v.name, v.generics, v.loc, arrzip(v.args.map(a => a[0]), v.args.map(a => map(a[1]))), map(v.output), null)
+              const V = new FunctionClawType(v.name, v.generics, v.loc, v.args.map(([k, v]) => [k, map(v)]), map(v.output), null)
               return V;
             }).toArray(),
             generics: [],
@@ -1300,7 +1355,6 @@ export class Typechecker {
         }
       }
     }
-    
     const types = this.typecheckForReturn([node.nodes])[1];
     if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
       this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
@@ -1378,7 +1432,6 @@ export class Typechecker {
           fn = this.evaluateMethodOf(node.callee); 
         else
           fn = this.evaluateTypeFromValue(node.callee);
-        
 
         if (!(fn instanceof FunctionClawType)) {
           this.errorAt(node, `Callee is not a function`);
@@ -1454,9 +1507,6 @@ export class Typechecker {
         }
 
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
-        node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-        this.implementations.set(node.target, fn.body!);
-        
         if (fn.body !== null) {
           const oldScope = this.scope;
           this.scope = new ChainMap();
@@ -1469,10 +1519,14 @@ export class Typechecker {
           } catch (e) {
             if (e instanceof TypecheckerError) {
               this.errorNoteAt(node, `Error arrised from this call`)
+              throw new TypecheckerError()
             }
           }
           
           this.scope = oldScope;
+          node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+          this.implementations.set(node.target, fn.body!);
+
           return out;
         } 
         this.gcm.pop();
@@ -1563,7 +1617,7 @@ export class Typechecker {
       }
       case NodeKind.ChildOfNode: {
         const baseValue = this.evaluateTypeFromValue(node.base);
-        const child = this.getTypeChild(baseValue, node.extension);
+        const child = this.getTypeChild(node.base, baseValue, node.extension);
         if (child instanceof FunctionClawType) {
           const fn = child;
           node.target = `${fn.name}-${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
@@ -1587,6 +1641,8 @@ export class Typechecker {
       case NodeKind.IntrinsicNode:
         return ANY_TYPE(node);
         
+      case NodeKind.ImportNode:
+      case NodeKind.ExportNode:
       case NodeKind.NormalTypeNode:
       case NodeKind.OfTypeNode:
       case NodeKind.FunctionDefinitionNode:
@@ -1613,8 +1669,9 @@ export class Typechecker {
     }
   }
   evaluateMethodOf(node: MethodOfNode) {
+
     const baseValue = this.evaluateTypeFromValue(node.base);
-    const child = this.getTypeChild(baseValue, node.extension);
+    const child = this.getTypeChild(node.base, baseValue, node.extension);
     if (!(child instanceof FunctionClawType)) {
       this.errorAt(node.base, `${baseValue.toDisplay()}.${node.extension} is not a function type`);
       throw new TypecheckerError();
@@ -1647,12 +1704,13 @@ export class Typechecker {
       return f;
     }
   }
-  getTypeChild(base: ClawType, extension: string): ClawType {
+  getTypeChild(loc: Loc, base: ClawType, extension: string): ClawType {
     if (base instanceof StructureClawType) {
       const member = base.members.get(extension);
       if (member !== undefined) return member;
       else {
-        const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
+        const methods = this.getMethodsOfChild(base, this.getFileInterfaces(loc.fp));
+        // const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
         if (methods.has(extension)) {
           const v = methods.get(extension)![0];
           return v;
@@ -1662,7 +1720,7 @@ export class Typechecker {
         }
       }
     } else if (base instanceof ReferenceClawType) {
-      return this.getTypeChild(base.base, extension);
+      return this.getTypeChild(loc, base.base, extension);
     } else if (base instanceof VariableClawType) {
       this.gcm.push();
 
@@ -1673,7 +1731,7 @@ export class Typechecker {
       }
       this.gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), base);
       const errorStack: string[] = []
-      const b = this.getTypeChild(base.base, extension);
+      const b = this.getTypeChild(loc, base.base, extension);
       const v = this.ti.substituteRawSingle(b, this.gcm, errorStack);
       this.gcm.pop();
       return v;
@@ -1690,7 +1748,9 @@ export class Typechecker {
       this.errorAt(base.loc, "Cannot get the member of a function");
       throw new TypecheckerError();
     } else if (base instanceof BuiltinClawType) {
-      const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
+      // const methods = this.getMethodsOfChild(base, this.ti.interfaces.values().toArray());
+      // todo: make this work better
+      const methods = this.getMethodsOfChild(base, this.getFileInterfaces(loc.fp));
       if (methods.has(extension)) {
         const v = methods.get(extension)![0];
         return v;
@@ -1725,6 +1785,34 @@ export class Typechecker {
     this.gcm.pop();
 
     return out;
+  }
+
+  importFileAt(fp: string) {
+    const STD_FIND_PATH = this.config.stdlibPath;
+    const p = path.join(STD_FIND_PATH, fp);
+    try {
+      const f = Deno.readTextFileSync(p);
+      this.sourcemap.set(p, f);
+      const lexer = new Lexer(p, this.sourcemap);
+      const tokens = lexer.lex();
+      const parser = new Parser(tokens, this.sourcemap);
+      const parsed = parser.parse();
+      if (parsed instanceof Error) {
+        throw new TypecheckerError();
+      }
+      this.typecheckFile(parsed);
+
+    } catch (e) {
+      if (e instanceof Error) {
+        logger.error(`Failed to open file ${fp}:`);
+        logger.error(`${e.message}`);
+        logger.error(`${e.stack}`);
+      } 
+    }
+  }
+
+  getFileInterfaces(fp: string): ClawInterface[] {
+    return this.imported.interface.get(fp)!.map(a => this.ti.getInterfaceFromName(a)!);
   }
 
   errorAt(

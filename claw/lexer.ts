@@ -84,6 +84,8 @@ const KEYWORD = [
   "impl",
   "return",
   "of",
+  "import",
+  "export",
   "$intrinsic"
 ] as const;
 const SYMBOLS = <readonly string[]> S;

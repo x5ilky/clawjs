@@ -1,3 +1,5 @@
+import "std"
+
 interface Display {
     fn _print(self: Self) void
 }
@@ -11,10 +13,10 @@ impl Display for int {
         $intrinsic "$1args-print"
     }
 }
-fn print<T + Display>(a: T) void {
+export fn print<T + Display>(a: T) void {
     a:_print()
 }
 
 for i := 0; i < 10; i += 1 {
-    print("Hello, world!");
+    print("hello, world!")
 }

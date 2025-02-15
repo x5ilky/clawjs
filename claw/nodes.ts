@@ -34,6 +34,8 @@ export type BaseNode =
   | ImplBaseNode
   | ImplTraitNode
   | IntrinsicNode
+  | ImportNode
+  | ExportNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -75,7 +77,9 @@ export enum NodeKind {
     ImplBaseNode,
     ImplTraitNode,
 
-    IntrinsicNode
+    IntrinsicNode,
+    ImportNode,
+    ExportNode
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -289,4 +293,14 @@ export type ImplTraitNode = {
 export type IntrinsicNode = {
     readonly type: NodeKind.IntrinsicNode,
     readonly string: string
+} & Loc;
+
+export type ImportNode = {
+    readonly type: NodeKind.ImportNode,
+    readonly string: string
+} & Loc;
+
+export type ExportNode = {
+    readonly type: NodeKind.ExportNode,
+    readonly sub: FunctionDefinitionNode | StructDefinitionNode | DataStructDefinitionNode | DeclarationNode | ConstDeclarationNode
 } & Loc;

@@ -4,6 +4,7 @@ import { ClawToken, ClawTokenType, Loc } from "./lexer.ts";
 import {
   BaseNode,
   BinaryOperationType,
+  ExportNode,
   FunctionDefinitionNode,
   Node,
   NodeKind,
@@ -1145,6 +1146,29 @@ export class Parser {
           type: NodeKind.IntrinsicNode,
           string: v.value
         })
+      });
+      const importRule = ezp.instantiateRule("import rule", ezp => {
+        const i = ezp.expect(a => a.type === "Keyword" && a.value === "import");
+        const s = ezp.expect(a => a.type === "StringLiteral");
+        return cn(i, s, {
+          type: NodeKind.ImportNode,
+          string: s.value
+        })
+      });
+      const exportRule = ezp.instantiateRule("export rule", ezp => {
+        const i = ezp.expect(a => a.type === "Keyword" && a.value === "export");
+        const t = ezp.getFirstThatWorksOrTerm(
+          `expected definition`,
+          functionRule,
+          structRule,
+          dataRule,
+          declRule,
+          constRule
+        );
+        return cn(i, t, {
+          type: NodeKind.ExportNode,
+          sub: t as ExportNode["sub"]
+        })
       })
 
       const semicolon = ezp.instantiateRule("semicolon", ezp => {
@@ -1157,6 +1181,8 @@ export class Parser {
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
         semicolon,
+        importRule,
+        exportRule,
         intrinsicRule,
         returnRule,
         controlFlowRule,

@@ -4,6 +4,7 @@
     "jsr:@std/assert@1": "1.0.8",
     "jsr:@std/internal@^1.0.5": "1.0.5",
     "jsr:@std/path@*": "1.0.8",
+    "jsr:@std/path@^1.0.8": "1.0.8",
     "npm:@types/crypto-js@*": "4.2.2",
     "npm:@types/node-wav@*": "0.0.3",
     "npm:@types/node@*": "22.5.4",
@@ -98,6 +99,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
+      "jsr:@std/path@^1.0.8",
       "npm:jsmediatags@^3.9.7"
     ]
   }

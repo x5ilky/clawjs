@@ -156,7 +156,11 @@ export class Flattener {
   insertImplementation(id: string): number {
     if (this.implMap.has(id)) return this.implMap.get(id)!;
 
-    const impl = this.implementations.get(id)!;
+    const impl = this.implementations.get(id);
+    if (impl === undefined || impl === null) {
+      console.log(this.implementations.keys())
+      throw new Error(`no implementation: "${id}", this is internal bug`)
+    }
     const idd = this.output.length;
     this.implMap.set(id, idd);
     this.scope.push();
@@ -434,6 +438,9 @@ export class Flattener {
         }
         return { variableName: name };
       }
+
+      case NodeKind.ImportNode:
+      case NodeKind.ExportNode:
       case NodeKind.AssignmentNode:
       case NodeKind.DeclarationNode:
       case NodeKind.ConstDeclarationNode:
