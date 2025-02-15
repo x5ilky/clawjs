@@ -1,5 +1,4 @@
 import { Loc } from "./lexer.ts";
-
 export type Node = BaseNode;
 export type BaseNode = 
   | NumberNode
@@ -36,6 +35,7 @@ export type BaseNode =
   | IntrinsicNode
   | ImportNode
   | ExportNode
+  | UseInterfaceNode
 ;
 export enum NodeKind {
     NumberNode,
@@ -79,7 +79,8 @@ export enum NodeKind {
 
     IntrinsicNode,
     ImportNode,
-    ExportNode
+    ExportNode,
+    UseInterfaceNode
 }
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
@@ -303,4 +304,9 @@ export type ImportNode = {
 export type ExportNode = {
     readonly type: NodeKind.ExportNode,
     readonly sub: FunctionDefinitionNode | StructDefinitionNode | DataStructDefinitionNode | DeclarationNode | ConstDeclarationNode
+} & Loc;
+
+export type UseInterfaceNode = {
+    readonly type: NodeKind.UseInterfaceNode,
+    readonly interfaceName: string
 } & Loc;

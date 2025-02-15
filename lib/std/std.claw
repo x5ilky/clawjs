@@ -1,3 +1,20 @@
 export fn test() void {
 
 }
+
+interface Display {
+    fn display(self: Self) void
+}
+impl Display for string {
+    fn display($1: string) void {
+        $intrinsic "$1args-print"
+    }
+}
+impl Display for int {
+    fn display($1: int) void {
+        $intrinsic "$1args-print"
+    }
+}
+export fn print<T + Display>(a: T) void {
+    a:display()
+}

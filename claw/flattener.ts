@@ -439,6 +439,7 @@ export class Flattener {
         return { variableName: name };
       }
 
+      case NodeKind.UseInterfaceNode:
       case NodeKind.ImportNode:
       case NodeKind.ExportNode:
       case NodeKind.AssignmentNode:
@@ -613,6 +614,9 @@ export class Flattener {
       case NodeKind.InterfaceNode:
       case NodeKind.ImplBaseNode:
       case NodeKind.ImplTraitNode:
+      case NodeKind.ImportNode:
+      case NodeKind.ExportNode:
+      case NodeKind.UseInterfaceNode:
         // skip
         break;
 

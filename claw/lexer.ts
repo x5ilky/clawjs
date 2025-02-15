@@ -85,6 +85,7 @@ const KEYWORD = [
   "return",
   "of",
   "import",
+  "useinterface",
   "export",
   "$intrinsic"
 ] as const;

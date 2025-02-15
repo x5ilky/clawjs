@@ -1169,6 +1169,14 @@ export class Parser {
           type: NodeKind.ExportNode,
           sub: t as ExportNode["sub"]
         })
+      });
+      const useInterfaceRule = ezp.instantiateRule("use interface rule", ezp => {
+        const k = ezp.expect(a => a.type === "Keyword" && a.value === "useinterface");
+        const name = ezp.expectOrTerm("expected interface name", a => a.type === "Identifier");
+        return cn(k, name, {
+          type: NodeKind.UseInterfaceNode,
+          interfaceName: name.name
+        });
       })
 
       const semicolon = ezp.instantiateRule("semicolon", ezp => {
@@ -1181,6 +1189,7 @@ export class Parser {
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
         semicolon,
+        useInterfaceRule,
         importRule,
         exportRule,
         intrinsicRule,

@@ -1,22 +1,6 @@
 import "std"
-
-interface Display {
-    fn _print(self: Self) void
-}
-impl Display for string {
-    fn _print($1: string) void {
-        $intrinsic "$1args-print"
-    }
-}
-impl Display for int {
-    fn _print($1: int) void {
-        $intrinsic "$1args-print"
-    }
-}
-export fn print<T + Display>(a: T) void {
-    a:_print()
-}
+useinterface Display
 
 for i := 0; i < 10; i += 1 {
-    print("hello, world!")
+    print("hello, world\n")
 }

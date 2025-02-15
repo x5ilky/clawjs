@@ -21,6 +21,15 @@ type ClawValue =
     | {
         type: "void"
     };
+
+function printSync(input: string | Uint8Array, to = Deno.stdout) {
+    let bytesWritten = 0
+    const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input
+    while (bytesWritten < bytes.length) {
+        bytesWritten += to.writeSync(bytes.subarray(bytesWritten))
+    }
+}
+
 export class Interpreter {
     ip: number;
     variables: Map<string, ClawValue>;
@@ -236,13 +245,13 @@ export class Interpreter {
                 const [vi] = int.args;
                 const value = this.getValue(vi);
                 if (value.type === "number") {
-                    console.log(`${value.value}`); 
+                    printSync(`${value.value}`); 
                     return undefined;
                 } else if (value.type === "string") {
-                    console.log(`${value.value}`);
+                    printSync(`${value.value}`);
                     return undefined;
                 } else if (value.type === "boolean") {
-                    console.log(`${value.value ? "true" : "false"}`)
+                    printSync(`${value.value ? "true" : "false"}`)
                 }
                 return undefined;
             }

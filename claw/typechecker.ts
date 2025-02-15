@@ -1191,6 +1191,16 @@ export class Typechecker {
         return node;
       }
 
+      case NodeKind.UseInterfaceNode: {
+        const int = this.ti.getInterfaceFromName(node.interfaceName);
+        if (int === undefined) {
+          this.errorAt(node, `No interface called ${node.interfaceName}`);
+          throw new TypecheckerError();
+        }
+        this.imported.interface.get(node.fp)!.push(node.interfaceName);
+        return node;
+      }
+
       default:
         this.errorAt(node, `${NodeKind[node.type]} is not a valid statement`);
         return node;
@@ -1641,6 +1651,7 @@ export class Typechecker {
       case NodeKind.IntrinsicNode:
         return ANY_TYPE(node);
         
+      case NodeKind.UseInterfaceNode:
       case NodeKind.ImportNode:
       case NodeKind.ExportNode:
       case NodeKind.NormalTypeNode:

@@ -21,7 +21,7 @@
 20: {"type":"SetInstr","target":"@6","value":"ret"}
 21: {"type":"JumpIfFalseInstr","ip":61,"value":"@6"}
 22: {"type":"TempInstr","name":"@8"}
-23: {"type":"SetStringInstr","target":"@8","value":"hello, world!"}
+23: {"type":"SetStringInstr","target":"@8","value":"hello, world\n"}
 24: {"type":"CallInstr","args":["@8"],"location":26}
 25: {"type":"JumpInstr","ip":41}
 26: {"type":"PushScope"}
