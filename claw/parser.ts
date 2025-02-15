@@ -1147,8 +1147,16 @@ export class Parser {
         })
       })
 
+      const semicolon = ezp.instantiateRule("semicolon", ezp => {
+        const loc = ezp.expect(a => a.type === "Symbol" && a.value === ";");
+        return cn(loc, loc, {
+          type: NodeKind.BlockNode,
+          nodes: []
+        })
+      })
       return ezp.getFirstThatWorksOrTerm(
         "expected statement",
+        semicolon,
         intrinsicRule,
         returnRule,
         controlFlowRule,

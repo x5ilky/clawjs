@@ -296,8 +296,11 @@ export class Flattener {
         const name = this.reserve();
 
         const args = [];
+        if (node.callee.type === NodeKind.MethodOfNode) {
+          args.push(this.convertValue(node.callee.base).variableName)
+        }
         for (const j of node.arguments) {
-            args.push(this.convertValue(j).variableName);
+          args.push(this.convertValue(j).variableName);
         }
         const k = {
             type: "CallInstr",

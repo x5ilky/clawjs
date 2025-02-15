@@ -39,7 +39,7 @@ export class Interpreter {
             const DEBUG_FLAG = false;
             if (DEBUG_FLAG) {
                 console.log(this.ip, ir.slice(this.ip, this.ip+3))
-                console.log(this.callStack)
+                console.log(this.callStack, this.variables)
                 this.interpretOne(ir[this.ip]);
                 console.log(this.ip)
                 prompt("")
@@ -191,6 +191,41 @@ export class Interpreter {
                     value: l.value / r.value
                 };
             } break;
+            case "$ibop-Lt-int-bool": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "boolean",
+                    value: l.value < r.value
+                };
+            } break;
+            case "$ibop-Gt-int-bool": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "boolean",
+                    value: l.value > r.value
+                };
+            } break;
+            case "$ibop-Lte-int-bool": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "boolean",
+                    value: l.value <= r.value
+                };
+            } break;
+            case "$ibop-Gte-int-bool": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "boolean",
+                    value: l.value >= r.value
+                };
+            } break;
+            default: {
+                throw new Error(`Unknown operation ${int.name}`)
+            }
         }
     }
     evalIntrinsic(int: IntrinsicInstr): ClawValue | undefined {

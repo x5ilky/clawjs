@@ -22,6 +22,15 @@ export class ChainMap<K, V> {
     set(k: K, v: V) {
         this.__inner[this.__inner.length-1].set(k, v);
     }
+
+    flatten(): Map<K, V> {
+        const out = new Map();
+        for (const layer of this.__inner.toReversed()) {
+            for (const [k, v] of layer)
+                if (!out.has(k)) out.set(k, v);
+        }
+        return out;
+    }
 }
 export class ChainArray<V> {
     layers: V[][]
@@ -75,6 +84,13 @@ export class ChainCustomMap<K, V> {
             layer.splice(index, 1, [k, v])
         else 
             layer.push([k, v])
+    }
+    has(k: K) {
+        for (const layer of this.#inner.toReversed()) {
+            const v = layer.find(([K, _]) => this.equality(k, K));
+            if (v !== undefined) return true;
+        }
+        return false
     }
 
     flatten(): [K, V][] {

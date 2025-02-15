@@ -56,8 +56,9 @@ export const shape = skap.command({
     ir: irShape,
     dev: devShape,
     run: skap.command({
-      inputFile: skap.string("-i").required()
-    })
+      inputFile: skap.string("-i").required(),
+      dumpBc: skap.boolean("-Ddumpbc").description("dump flattened bytecode")
+    }),
   }).required()
 })
 
@@ -79,7 +80,7 @@ async function main() {
   } else if (cmd.subc.selected === "dev") {
     await dev(cmd.subc.commands.dev!)
   } else if (cmd.subc.selected === "run") {
-    const { inputFile } = cmd.subc.commands.run!;
+    const { inputFile, dumpBc } = cmd.subc.commands.run!;
     const smap = new SourceMap();
     smap.set(inputFile, await Deno.readTextFile(inputFile));
     const lexer = new Lexer(inputFile, smap);
@@ -103,6 +104,9 @@ async function main() {
 
     const flattener = new Flattener(smap, tc.implementations);
     const ir = flattener.convertAll(parsed);
+    if (dumpBc) {
+      Deno.writeTextFileSync("clawjs-bc-debug-dump.txt", ir.map((a, i) => `${i}: ` + JSON.stringify(a)).join("\n"))
+    }
     const interpreter = new Interpreter();
     interpreter.interpret(ir);
   }
