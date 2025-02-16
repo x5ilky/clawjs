@@ -229,6 +229,7 @@ export class Parser {
         })
         return ezp.getFirstThatWorksOrTerm(
           "Expected a value",
+          intrinsicRule,
           structOrDataRule,
           groupingRule,
           variableRule,
@@ -1005,6 +1006,14 @@ export class Parser {
         value
       })
     })
+    const intrinsicRule = this.ezp.instantiateRule("intrinsic statement", ezp => {
+      const s = ezp.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
+      const v = ezp.expect(a => a.type === "StringLiteral");
+      return cn(s, v, {
+        type: NodeKind.IntrinsicNode,
+        string: v.value
+      })
+    });
     const statementRule = this.ezp.addRule("statement", (ezp) => {
       const declRule = ezp.instantiateRule("declaration", (ezp) => {
         const name = ezp.expect((token) =>
@@ -1138,14 +1147,6 @@ export class Parser {
             right: value,
           }),
         });
-      });
-      const intrinsicRule = ezp.instantiateRule("intrinsic statement", ezp => {
-        const s = ezp.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
-        const v = ezp.expect(a => a.type === "StringLiteral");
-        return cn(s, v, {
-          type: NodeKind.IntrinsicNode,
-          string: v.value
-        })
       });
       const importRule = ezp.instantiateRule("import rule", ezp => {
         const i = ezp.expect(a => a.type === "Keyword" && a.value === "import");

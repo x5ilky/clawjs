@@ -1,9 +1,11 @@
+
+import "intrin"
 struct Value {
-    inner: $js_object
+    inner: JsObject
 }
-fn operator_add(left: &any!+Value, right: &any!+Value) Value {
+fn operator_add<T + Runtime, U + Runtime>(left: U, right: U) Value {
     js_object := $.create_js_object()
-    js_object.set("key", "BinaryOperator")
+    js_object:set("key", "BinaryOperator")
     js_object.set("oper", "Add")
     js_object.set("left", left.__to_value())
     js_object.set("right", right.__to_value())

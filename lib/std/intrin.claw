@@ -1,0 +1,20 @@
+interface ValidJson {
+
+}
+
+
+impl JsObject {
+    fn set<T>(self: Self, key: string, value: T) void {
+
+    }
+}
+
+struct IntrinsicBinding {
+}
+
+impl IntrinsicBinding {
+    fn create_js_object() JsObject {
+        return $intrinsic "$arg0-create_js_object"
+    }
+}
+export $ := IntrinsicBinding::{}

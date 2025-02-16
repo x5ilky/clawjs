@@ -1173,6 +1173,8 @@ export class Typechecker {
         } else {
           const PATH_MAP = {
             "std": "std.claw",
+            "binding": "binding.claw",
+            "intrin": "intrin.claw"
           };
           const mapped = PATH_MAP?.[node.string as keyof typeof PATH_MAP];
           if (mapped === undefined) {
