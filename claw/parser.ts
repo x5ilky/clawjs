@@ -227,6 +227,13 @@ export class Parser {
             members
           })
         })
+        const booleanRule = ezp.addRule("boolean", ezp => {
+          const b = ezp.expect(a => a.type === "BooleanLiteral");
+          return cn(b, b, {
+            type: NodeKind.BooleanNode,
+            value: b.value
+          })
+        })
         return ezp.getFirstThatWorksOrTerm(
           "Expected a value",
           intrinsicRule,
@@ -235,6 +242,7 @@ export class Parser {
           variableRule,
           numberRule,
           stringRule,
+          booleanRule,
           blockRule,
           labelRule,
         );
@@ -321,7 +329,7 @@ export class Parser {
                   ezp.consume();
                   continue;
                 }
-                throw new EZPError("Expected comma or right angle bracket");
+                throw new EZPError("Expected commas or right angle bracket")
               }
               const _St = ezp.expect(a => a.type === "Symbol" && a.value === "(")
               parseFunctionArguments(_St, typeArgs, ezp);
@@ -698,10 +706,7 @@ export class Parser {
               ezp.consume();
               continue;
             }
-            this.errorAt(
-              ezp.consume(),
-              "Expected commas or right angle bracket",
-            );
+            throw new EZPError( "Expected commas or right angle bracket",)
           }
         }
         return generics;
@@ -1153,7 +1158,8 @@ export class Parser {
         const s = ezp.expect(a => a.type === "StringLiteral");
         return cn(i, s, {
           type: NodeKind.ImportNode,
-          string: s.value
+          string: s.value,
+          nodes: []
         })
       });
       const exportRule = ezp.instantiateRule("export rule", ezp => {

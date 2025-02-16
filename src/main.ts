@@ -9,6 +9,7 @@ import { ClawConfig, Typechecker, TypecheckerError } from "../claw/typechecker.t
 import { Logger, LogLevel, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 import { Convertor } from "../ir/convertor.ts";
+import { IlNode } from "../ir/types.ts";
 
 export const logger = new Logger({
   prefixTags: [{
@@ -58,9 +59,10 @@ export const shape = skap.command({
     ir: irShape,
     dev: devShape,
     run: skap.command({
-      inputFile: skap.string("-i").required(),
-      dumpBc: skap.boolean("-Ddumpbc").description("dump flattened bytecode")
-    }),
+      inputFile: skap.string("-i").required().description("input file path"),
+      dumpBc: skap.boolean("-Ddumpbc").description("dump flattened bytecode"),
+      time: skap.boolean("-T").description("time the steps")
+    }).description("run a file"),
   }).required()
 })
 
@@ -82,9 +84,10 @@ async function main() {
   } else if (cmd.subc.selected === "dev") {
     await dev(cmd.subc.commands.dev!)
   } else if (cmd.subc.selected === "run") {
-    const { inputFile, dumpBc } = cmd.subc.commands.run!;
+    const { inputFile, dumpBc, time } = cmd.subc.commands.run!;
     const smap = new SourceMap();
     smap.set(inputFile, await Deno.readTextFile(inputFile));
+    const beforeParse = performance.now();
     const lexer = new Lexer(inputFile, smap);
     const tokens = lexer.lex();
     const parser = new Parser(tokens, smap);
@@ -93,9 +96,12 @@ async function main() {
       logger.error("Failed to parse file");
       Deno.exit(1);
     }
+    const afterParse = performance.now();
+    if (time) logger.info(`took ${afterParse - beforeParse}ms to parse`)
 
     const config = new ClawConfig();
     config.stdlibPath = path.join(import.meta.dirname!, "..", "lib", "std")
+    config.skipDeepCheck = true;
     const tc = new Typechecker(smap, config);
     try {
       tc.typecheckFile(parsed)
@@ -105,15 +111,27 @@ async function main() {
         Deno.exit(1);
       }
     }
+    const afterTypecheck = performance.now();
+    if (time) logger.info(`took ${afterTypecheck-afterParse}ms to typecheck`);
 
     const flattener = new Flattener(smap, tc.implementations);
     const ir = flattener.convertAll(parsed);
+
+    const afterFlatten = performance.now();
+    if (time) logger.info(`took ${afterFlatten - afterTypecheck}ms to flatten`);
     if (dumpBc) {
       Deno.writeTextFileSync("clawjs-bc-debug-dump.txt", ir.map((a, i) => `${i}: ` + JSON.stringify(a)).join("\n"))
     }
     const interpreter = new Interpreter();
     interpreter.interpret(ir);
-    const convertor = new Convertor(interpreter.labels, "", logger);
+    const afterInterpret = performance.now();
+
+    if (time) logger.info(`took ${afterInterpret - afterFlatten}ms to interpret`);
+
+    const convertor = new Convertor(interpreter.labels.entries().toArray().map(a => ({
+      type: "Label",
+      value: a
+    } satisfies IlNode)), "", logger);
     console.log(convertor.create());
   }
 }

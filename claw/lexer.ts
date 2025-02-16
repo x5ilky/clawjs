@@ -10,6 +10,7 @@ export type Loc = {
 export type ClawTokenBase =
   | { type: "StringLiteral"; value: string }
   | { type: "NumericLiteral"; value: number }
+  | { type: "BooleanLiteral"; value: boolean }
   | { type: "Identifier"; name: string }
   | {
     type: "Keyword";
@@ -143,7 +144,19 @@ export class Lexer {
         if (this.peek() === "!") {
           buf += this.eat();
         }
-        if (KEYWORD.includes(buf as (typeof KEYWORD)[number])) {
+        if (buf === "false") {
+          this.pushToken({
+            type: "BooleanLiteral",
+            value: false
+          })
+        }
+        else if (buf === "true") {
+          this.pushToken({
+            type: "BooleanLiteral",
+            value: true
+          })
+        }
+        else if (KEYWORD.includes(buf as (typeof KEYWORD)[number])) {
           this.pushToken({
             type: "Keyword",
             value: buf as (typeof KEYWORD)[number],

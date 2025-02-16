@@ -28,6 +28,11 @@ type SetStringInstr = {
   target: string;
   value: string;
 };
+type SetBooleanInstr = {
+  type: "SetBooleanInstr";
+  target: string;
+  value: boolean;
+};
 type SetStructInstr = {
   type: "SetStructInstr";
   target: string;
@@ -90,6 +95,7 @@ export type IR =
   | SetInstr
   | SetNumberInstr
   | SetStringInstr
+  | SetBooleanInstr
   | SetStructInstr
   | SetArgInstr
   | JumpInstr
@@ -212,6 +218,18 @@ export class Flattener {
           name: n,
         }, {
           type: "SetStringInstr",
+          target: n,
+          value: node.value,
+        });
+        return { variableName: n };
+      }
+      case NodeKind.BooleanNode: {
+        const n = this.reserve();
+        this.push({
+          type: "TempInstr",
+          name: n,
+        }, {
+          type: "SetBooleanInstr",
           target: n,
           value: node.value,
         });

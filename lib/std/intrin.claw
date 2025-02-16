@@ -1,7 +1,4 @@
-interface ValidJson {
-
-}
-
+import "option"
 
 impl JsObject {
     fn set<T>(self: Self, key: string, value: T) void {
@@ -21,11 +18,60 @@ impl IntrinsicBinding {
         return $intrinsic "$0args-js_object_create"
     }
 
-    fn add_label($1: label) void {
-        $intrinsic "$1args-add_label"
+    fn set_label($1: label) void {
+        $intrinsic "$1args-set_label"
+    }
+    fn create_stat_label() label {
+        return $intrinsic "$0args-create_stat_label"
     }
 }
 export $ := IntrinsicBinding::{}
-export stat_label := !{}
+export stat_label := $.create_stat_label()
 
-$.add_label(stat_label)
+$.set_label(stat_label)
+
+impl<T> array<T> {
+    fn push(self: Self<T>, value: T) T {
+        return self:__push(value)
+    }
+    fn __push($1: Self<T>, $2: T) T {
+        return $intrinsic "$2args-array_push"
+    }
+    fn pop(self: Self<T>) Option<T> {
+        if self:len() > 0 {
+            return make_some<T>(self:pop_unsafe())
+        }
+        return make_none<T>()
+    }
+    fn pop_unsafe(self: Self<T>) T {
+        return self:__pop()
+    }
+    fn __pop($1: Self<T>) T {
+        return $intrinsic "$1args-array_pop"
+    }
+    fn get(self: Self<T>, index: int) T {
+        return self:__get(index)
+    }
+    fn __get($1: Self<T>, $2: int) T {
+        return $intrinsic "$2args-array_get"
+    }
+    fn set(self: Self<T>, index: int, value: T) T {
+        return self:__set(index, value)
+    }
+    fn __set($1: Self<T>, $2: int, $3: T) T {
+        return $intrinsic "$3args-array_set"
+    }
+    fn len(self: Self<T>) int {
+        return self:__len()
+    }
+    fn __len($1: Self<T>) int {
+        return $intrinsic "$1args-array_len"
+    }
+}
+
+fn __array_new<T>() array<T> {
+    return $intrinsic "$0args-array_new"
+}
+export fn array_new<T>() array<T> {
+    return __array_new<T>()
+}

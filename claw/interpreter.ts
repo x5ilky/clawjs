@@ -31,6 +31,10 @@ type ClawValue =
         type: "label",
         name: string,
         blocks: IlNode[]
+    }
+    | {
+        type: "array",
+        values: ClawValue[]
     };
 // deno-lint-ignore no-explicit-any
 function ClawValueToObject(v: ClawValue): any {
@@ -42,6 +46,7 @@ function ClawValueToObject(v: ClawValue): any {
         case "void": return void 0;
         case "jsobject": return v.value
         case "label": return v
+        case "array": return v.values.map(a => ClawValueToObject(a))
     }
 }
 // deno-lint-ignore no-explicit-any
@@ -50,6 +55,7 @@ function ObjectToClawValue(v: any): ClawValue {
     if (typeof v === "number") return { type: "number", value: v };
     if (typeof v === "boolean") return { type: "boolean", value: v };
     if (typeof v === "object") return { type: "jsobject", value: new Map(Object.entries(v).map(([k, v]) => [k, ObjectToClawValue(v)])) };
+    if (Array.isArray(v)) return { type: "array", values: v.map(ObjectToClawValue) };
     return {type: "void"}
 }
 
@@ -67,7 +73,7 @@ export class Interpreter {
     scope: ChainMap<string, ClawValue>;
     callStack: number[];
     counter: number;
-    labels: IlNode[];
+    labels: Map<string, IlNode[]>;
 
     constructor() {
         this.ip = 0;
@@ -75,7 +81,7 @@ export class Interpreter {
         this.scope = new ChainMap();
         this.callStack = [];
         this.counter = 0;
-        this.labels = [];
+        this.labels = new Map();
     }
 
     reserve(): string {
@@ -135,6 +141,13 @@ export class Interpreter {
             case "SetStringInstr": {
                 this.setValue(ir.target, {
                     type: "string",
+                    value: ir.value
+                });
+                this.ip++;
+            } break;
+            case "SetBooleanInstr": {
+                this.setValue(ir.target, {
+                    type: "boolean",
                     value: ir.value
                 });
                 this.ip++;
@@ -211,6 +224,14 @@ export class Interpreter {
     }
     evalIntrinsicOperator(int: IntrinsicInstr): ClawValue | undefined {
         switch (int.name) {
+            case "$iuop-Not-bool-bool": {
+                const [left] = int.args;
+                const [l] = [this.getValue(left)];
+                if (l.type === "boolean") return {
+                    type: "boolean",
+                    value: !l.value
+                };
+            } break;
             case "$ibop-Add-int-int": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
@@ -317,6 +338,71 @@ export class Interpreter {
                 return {
                     type: "void"
                 }
+            }
+            case "$1args-set_label": {
+                const label = this.getValue(int.args[0]);
+                if (label.type !== "label") throw new Error(`label not label`);
+                this.labels.set(label.name, label.blocks);
+                return {
+                    type: "void"
+                }
+            }
+            case "$0args-create_stat_label": {
+                return {
+                    type: "label",
+                    name: "stat",
+                    blocks: []
+                }
+            }
+
+            case "$0args-array_new": {
+                return {
+                    type: "array",
+                    values: []
+                }
+            }
+            case "$2args-array_push": {
+                const [targetId, valueId] = int.args;
+                const a = this.getValue(targetId);
+                if (a.type !== "array") throw new Error("array is not array");
+                const v = this.getValue(valueId);
+                a.values.push(v);
+                return {
+                    type: "void"
+                }
+            }
+            case "$1args-array_len": {
+                const [targetId] = int.args;
+                const a = this.getValue(targetId);
+                if (a.type !== "array") throw new Error("array is not array");
+                return {
+                    type: "number",
+                    value: a.values.length
+                }
+            }
+            case "$2args-array_get": {
+                const [targetId, indexId] = int.args;
+                const a = this.getValue(targetId);
+                if (a.type !== "array") throw new Error("array is not array");
+                const b = this.getValue(indexId);
+                if (b.type !== "number") throw new Error("array index is not number");
+                return a.values[b.value];
+            }
+            case "$3args-array_set": {
+                const [targetId, indexId, valueId] = int.args;
+                const a = this.getValue(targetId);
+                if (a.type !== "array") throw new Error("array is not array");
+                const b = this.getValue(indexId);
+                if (b.type !== "number") throw new Error("array index is not number");
+                const v = this.getValue(valueId);
+                return a.values[b.value] = v;
+            }
+            case "$1args-array_pop": {
+                const [targetId] = int.args;
+                const a = this.getValue(targetId);
+                if (a.type !== "array") throw new Error("array is not array");
+                const v = a.values.pop();
+                return v!;
             }
             default: {
                 throw new Error(`Unknown intrinsic: ${int.name}`)

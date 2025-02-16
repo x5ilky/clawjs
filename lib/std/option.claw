@@ -1,0 +1,38 @@
+fn cast<T>(v: any) T {
+    return v
+}
+fn void() void {
+
+}
+
+struct Option<T> {
+    some: bool,
+    value: T
+}
+
+impl<T> Option<T> {
+    fn unwrap(self: Self<T>) T {
+        return self.value
+    }
+
+    fn is_some(self: Self<T>) bool {
+        return self.some
+    }
+    fn is_none(self: Self<T>) bool {
+        return !self.some
+    }
+}
+
+export fn make_some<T>(value: T) Option<T> {
+    return Option<T>::{
+        some: true,
+        value: value
+    }
+}
+
+export fn make_none<T>() Option<T> {
+    return Option<T>::{
+        some: false,
+        value: cast<T>(void())
+    }
+}

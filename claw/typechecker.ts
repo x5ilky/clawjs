@@ -460,9 +460,11 @@ export class BaseClawType {
   }
 
   eq(other: ClawType, stop: boolean = false): boolean {
+    if (this instanceof BuiltinClawType && this.name === "ERROR") return false;
+    // if (other instanceof BuiltinClawType && other.name === "ERROR") return false;
     if (this instanceof VariableClawType && this.base instanceof VariableClawType) return this.base.eq(other) || other.eq(this.base);
     if (other instanceof VariableClawType && other.base instanceof VariableClawType) return other.base.eq(this) || this.eq(other.base);
-    if (this instanceof BuiltinClawType && this.name === "any") return true;
+    if (this instanceof BuiltinClawType && this.name === "any") return !(other instanceof BuiltinClawType && other.name === "ERROR");
     if (this instanceof GenericClawType && other instanceof GenericClawType) {
       return (
         this.name === other.name
@@ -698,8 +700,10 @@ export class TCReturnValue {
 
 export class ClawConfig {
   stdlibPath: string;
+  skipDeepCheck: boolean
   constructor() {
     this.stdlibPath = "";
+    this.skipDeepCheck = false;
   }
 }
 
@@ -1086,8 +1090,8 @@ export class Typechecker {
         const tas = this.resolveTypeGenerics(node.generics);
         this.ti.types.push();
         for (const ta of tas) this.ti.types.set(ta.name, ta);
+        for (const ta of tas) this.gcm.set(ta, ta);
         const tt = this.resolveTypeNode(node.targetType, this.gcm);
-        this.ti.types.pop();
         this.gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), tt);
 
         const map = new Map<string, FunctionClawType>();
@@ -1117,6 +1121,9 @@ export class Typechecker {
           for (const [k, v] of f.args) {
             this.scope.set(k, v); 
           }
+          for (const k of f.generics) {
+            this.ti.types.set(k.name, k);
+          }
           const [_n, returnVals] = this.typecheckForReturn([def.nodes]);
           for (const retVal of returnVals) {
             if (!retVal.value.eq(f.output)) {
@@ -1127,6 +1134,7 @@ export class Typechecker {
           }
           this.scope.pop();
         }
+        this.ti.types.pop();
         this.gcm.pop();
         return node;
       }
@@ -1204,13 +1212,16 @@ export class Typechecker {
           const PATH_MAP = {
             "std": "std.claw",
             "binding": "binding.claw",
-            "intrin": "intrin.claw"
+            "intrin": "intrin.claw",
+            "sprite": "sprite.claw",
+            "option": "option.claw",
           };
           const mapped = PATH_MAP?.[node.string as keyof typeof PATH_MAP];
           if (mapped === undefined) {
             this.errorAt(node, `Unknown std lib: ${node.string}`);
             throw new TypecheckerError()
           }
+          if (this.imported.interface.has(mapped)) return node;
           node.nodes = this.importFileAt(mapped);
         }
         
@@ -1427,6 +1438,8 @@ export class Typechecker {
         return this.ti.getTypeFromName("int")!.withLoc(node);
       case NodeKind.StringNode:
         return this.ti.getTypeFromName("string")!.withLoc(node);
+      case NodeKind.BooleanNode:
+        return this.ti.getTypeFromName("bool")!.withLoc(node);
       case NodeKind.VariableNode: {
         const val = this.scope.get(node.name);
         if (val === undefined) {
@@ -1499,6 +1512,12 @@ export class Typechecker {
             throw new TypecheckerError()
           }
 
+          for (const gen of fn.generics) {
+            if (!mapping.has(gen as GenericClawType)) {
+              this.errorAt(node, `Failed to automatically resolve generics, please manually specify them`);
+              throw new TypecheckerError()
+            }
+          }
           const sub = this.ti.substituteRaw(fn.generics, mapping, errorStack);
           generics = sub;
         }
@@ -1724,7 +1743,7 @@ export class Typechecker {
       throw new TypecheckerError();
     }
     if (!base[1].eq(baseValue)) {
-      this.errorAt(base[1].loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
+      this.errorAt(baseValue.loc, `${baseValue.toDisplay()} != ${base[1].toDisplay()}`);
       throw new TypecheckerError();
     }
     const fn = child;

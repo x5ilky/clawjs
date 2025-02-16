@@ -3,6 +3,7 @@ export type Node = BaseNode;
 export type BaseNode = 
   | NumberNode
   | StringNode
+  | BooleanNode
   | VariableNode
   | StructLiteralNode
   | ChildOfNode
@@ -40,6 +41,7 @@ export type BaseNode =
 export enum NodeKind {
     NumberNode,
     StringNode,
+    BooleanNode,
     VariableNode,
     StructLiteralNode,
     ChildOfNode,
@@ -89,6 +91,10 @@ export type NumberNode = {
 export type StringNode = {
     readonly type: NodeKind.StringNode,
     readonly value: string
+} & Loc;
+export type BooleanNode = {
+    readonly type: NodeKind.BooleanNode,
+    readonly value: boolean
 } & Loc;
 export type VariableNode = {
     readonly type: NodeKind.VariableNode,

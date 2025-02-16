@@ -1,19 +1,5 @@
 import "std"
 import "binding"
-useinterface Display
+import "option"
 
-for i := 0; i < 10; i += 1 {
-    print("hello, world\n")
-}
-fn run(l: label) void {
-
-}
-
-fn test() void {
-    print($scope)
-}
-
-run(!{
-    print("\n")
-    print("hello, world\n")
-})
+arr := array_new<int>()
