@@ -1543,8 +1543,6 @@ export class Typechecker {
 
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
         if (fn.body !== null) {
-          const oldScope = this.scope;
-          this.scope = new ChainMap();
           this.scope.push();
           for (const [k, v] of arrzip(fn.args.map(a => a[0]), mapped)) {
             this.scope.set(k, v);
@@ -1557,8 +1555,8 @@ export class Typechecker {
               throw new TypecheckerError()
             }
           }
+          this.scope.pop()
           
-          this.scope = oldScope;
           node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
           this.implementations.set(node.target, fn.body!);
 

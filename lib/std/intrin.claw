@@ -5,7 +5,7 @@ interface ValidJson {
 
 impl JsObject {
     fn set<T>(self: Self, key: string, value: T) void {
-
+        $intrinsic "$arg3-jsobject0-set"
     }
 }
 

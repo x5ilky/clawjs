@@ -1,15 +1,13 @@
-
 import "intrin"
-struct Value {
-    inner: JsObject
-}
-fn operator_add<T + Runtime, U + Runtime>(left: U, right: U) Value {
-    js_object := $.create_js_object()
-    js_object:set("key", "BinaryOperator")
-    js_object:set("oper", "Add")
-    js_object:set("left", left:to_scratch_value())
-    js_object:set("right", right:to_scratch_value())
-    return Value::{
-        inner: js_object
+
+impl Runtime for int {
+    fn sizeof() int {
+        return 1
+    }
+    
+    fn to_scratch_value(self: Self) JsObject {
+        obj := $.create_js_object()
+
+        return obj
     }
 }
