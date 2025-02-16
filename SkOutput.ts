@@ -357,7 +357,8 @@ export class EZP<TokenType, NodeType> {
 // (S)il(k) (Ar)ray Tools
 
 export function arrzip<T, U>(a: T[], n: U[]): [T, U][] {
-    const max = Math.max(a.length, n.length);
+    // if (a.length !== n.length) throw new Error(`mismatched array lengths: ${a.toString()}, ${n}`)
+    const max = Math.min(a.length, n.length);
     const out: [T, U][] = [];
     for (let i = 0; i < max; i++) {
         out.push([a?.[i], n?.[i]])

@@ -19,11 +19,11 @@ export class TypecheckerError {
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
   constructor() {
-    super((a, b) => a.eq(b));
+    super((a, b) => a.name === b.name && arrzip(a.bounds, b.bounds).every(([a, b]) => a.eq(b)));
   }
 
   override toString() {
-    return `{\n${this.flatten().map(([k, v]) => `\t${k.toDisplay()} => ${v.toDisplay()}`)}\n}`
+    return `{\n${this.flatten().map(([k, v]) => `\t${k.toDisplay()} => ${v.toDisplay()}\n`)}}`
   }
 }
 
@@ -418,7 +418,7 @@ export class TypeIndex {
   }
   tryFindGenericMulti(arg: ClawType[], got: ClawType[], gcm: GenericChainMap, m?: GenericChainMap): GenericChainMap | undefined {
     for (const [d, v] of arrzip(arg, got)) {
-      this.tryFindGenericSingle(d, v, gcm, m);
+      m = this.tryFindGenericSingle(d, v, gcm, m);
     }
     return m;
   }
@@ -464,7 +464,9 @@ export class BaseClawType {
     if (other instanceof VariableClawType && other.base instanceof VariableClawType) return other.base.eq(this) || this.eq(other.base);
     if (this instanceof BuiltinClawType && this.name === "any") return true;
     if (this instanceof GenericClawType && other instanceof GenericClawType) {
-      return this.name === other.name;
+      return (
+        this.name === other.name
+      );
     }
     if (this instanceof FunctionClawType && other instanceof FunctionClawType) {
       return (
@@ -1474,11 +1476,15 @@ export class Typechecker {
           }
         } else {
           const errorStack: string[] = [];
-          const mapping = this.ti.tryFindGeneric(fn.args, args, this.gcm);
+          const fnargs = node.callee.type === NodeKind.MethodOfNode ? fn.args.slice(1) : fn.args
+          console.log(fnargs.length, args.length)
+          const mapping = this.ti.tryFindGeneric(fnargs, args, this.gcm);
           if (mapping === undefined) {
             this.errorAt(node, `Failed to automatically resolve generics, please manually specify them`);
             throw new TypecheckerError()
           }
+          console.log(fn.toDisplay(), mapping.toString())
+
           const sub = this.ti.substituteRaw(args, mapping, errorStack);
           generics = sub;
         }
