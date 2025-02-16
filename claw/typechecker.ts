@@ -1100,14 +1100,6 @@ export class Typechecker {
           for (const [_n, arg] of def.args) {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
-          const [_n, returnVals] = this.typecheckForReturn([def.nodes]);
-          for (const retVal of returnVals) {
-            if (!retVal.value.eq(retType)) {
-              this.errorAt(retVal.value.loc, `Mismatched return types, expected: ${retType.toDisplay()}, got: ${retVal.value.toDisplay()}`);
-              this.errorNoteAt(retType.loc, `Return type specified here:`);
-              throw new TypecheckerError();
-            }
-          }
           
           map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) }));
           this.ti.types.pop();
@@ -1118,6 +1110,22 @@ export class Typechecker {
           inputs: tt.generics,
           functions: map.values().toArray()
         });
+        for (const def of node.defs) {
+          const f = map.get(def.name)!;
+          this.scope.push();
+          for (const [k, v] of f.args) {
+            this.scope.set(k, v); 
+          }
+          const [_n, returnVals] = this.typecheckForReturn([def.nodes]);
+          for (const retVal of returnVals) {
+            if (!retVal.value.eq(f.output)) {
+              this.errorAt(retVal.value.loc, `Mismatched return types, expected: ${f.output.toDisplay()}, got: ${retVal.value.toDisplay()}`);
+              this.errorNoteAt(f.output.loc, `Return type specified here:`);
+              throw new TypecheckerError();
+            }
+          }
+          this.scope.pop();
+        }
         this.gcm.pop();
         return node;
       }
