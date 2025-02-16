@@ -423,7 +423,7 @@ export class TypeIndex {
     return m;
   }
   tryFindGenericSingle(arg: ClawType, got: ClawType, gcm: GenericChainMap, m?: GenericChainMap): GenericChainMap | undefined {
-    if (arg instanceof GenericClawType && !gcm.has(arg)) {
+    if (arg instanceof GenericClawType) {
       m?.set(arg, got);
     } else if (arg instanceof VariableClawType) {
       if (got instanceof VariableClawType) {
@@ -851,7 +851,14 @@ export class Typechecker {
       "Runtime",
       [],
       new Map([
-        ["to_scratch_value", new FunctionClawType("to_scratch_value", [], BUILTIN_LOC, [["self", Self]], this.ti.getTypeFromName("JsObject")!, null)],
+        ["to_scratch_value", 
+            new FunctionClawType(
+                "to_scratch_value", 
+                [], 
+                BUILTIN_LOC, 
+                [["self", Self]], 
+                this.ti.getTypeFromName("JsObject")!, 
+                null)],
         ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
       ])
     );
@@ -860,7 +867,7 @@ export class Typechecker {
 
   typecheckFile(nodes: Node[]): Node[] {
     if (nodes.length) {
-      this.imported.interface.set(nodes[0].fp, []);
+      this.imported.interface.set(nodes[0].fp, ["Runtime"]);
       const n = this.typecheckForReturn(nodes)[0];
       return n;
     }
@@ -1477,15 +1484,13 @@ export class Typechecker {
         } else {
           const errorStack: string[] = [];
           const fnargs = node.callee.type === NodeKind.MethodOfNode ? fn.args.slice(1) : fn.args
-          console.log(fnargs.length, args.length)
           const mapping = this.ti.tryFindGeneric(fnargs, args, this.gcm);
           if (mapping === undefined) {
             this.errorAt(node, `Failed to automatically resolve generics, please manually specify them`);
             throw new TypecheckerError()
           }
-          console.log(fn.toDisplay(), mapping.toString())
 
-          const sub = this.ti.substituteRaw(args, mapping, errorStack);
+          const sub = this.ti.substituteRaw(fn.generics, mapping, errorStack);
           generics = sub;
         }
         if (node.callee.type === NodeKind.MethodOfNode) {
@@ -1763,6 +1768,11 @@ export class Typechecker {
       this.gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), base);
       const errorStack: string[] = []
       const b = this.getTypeChild(loc, base.base, extension);
+      if (b instanceof FunctionClawType) {
+        for (const k of b.generics) {
+          this.gcm.set(k as GenericClawType, k);
+        }
+      }
       const v = this.ti.substituteRawSingle(b, this.gcm, errorStack);
       this.gcm.pop();
       return v;

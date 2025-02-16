@@ -6,9 +6,9 @@ struct Value {
 fn operator_add<T + Runtime, U + Runtime>(left: U, right: U) Value {
     js_object := $.create_js_object()
     js_object:set("key", "BinaryOperator")
-    js_object.set("oper", "Add")
-    js_object.set("left", left.__to_value())
-    js_object.set("right", right.__to_value())
+    js_object:set("oper", "Add")
+    js_object:set("left", left:to_scratch_value())
+    js_object:set("right", right:to_scratch_value())
     return Value::{
         inner: js_object
     }
