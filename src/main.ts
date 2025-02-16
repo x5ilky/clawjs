@@ -10,6 +10,7 @@ import { Logger, LogLevel, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
 import { Convertor } from "../ir/convertor.ts";
 import { IlNode } from "../ir/types.ts";
+import { IR } from "../claw/flattener.ts";
 
 export const logger = new Logger({
   prefixTags: [{
@@ -51,7 +52,10 @@ const devShape = skap.command({
     }).description("parse an input file into ast"),
     check: skap.command({
       inputFile:     skap.string("-i").required().description("The source file"),
-    }).description("check a singular file for type errors")
+    }).description("check a singular file for type errors"),
+    interpretFromBcDump: skap.command({
+      inputFile:     skap.string("-i").required().description("The debug-dump.txt")
+    })
   }).required()
 })
 export const shape = skap.command({
@@ -193,6 +197,18 @@ async function dev(cmd: skap.SkapInfer<typeof devShape>) {
         logger.error("Error in typechecking")
       }
     }
+  } else if (cmd.subc.selected === "interpretFromBcDump") {
+    const { inputFile } = cmd.subc.commands.interpretFromBcDump!;
+    const f = Deno.readTextFileSync(inputFile);
+    const fl = f.split("\n")
+    const o: IR[] = [];
+    for (const l of fl) {
+      const v = l.slice(l.split("{", 1).length + 2);
+      const p: IR = JSON.parse(v);
+      if (p.type === "SetStructInstr") p.values = new Map(Object.entries(p.values))
+    }
+    const interpreter = new Interpreter();
+    interpreter.interpret(o);
   }
 }
 
