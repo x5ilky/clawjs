@@ -102,6 +102,7 @@ async function main() {
     const config = new ClawConfig();
     config.stdlibPath = path.join(import.meta.dirname!, "..", "lib", "std")
     config.skipDeepCheck = true;
+    console.profile("test")
     const tc = new Typechecker(smap, config);
     try {
       tc.typecheckFile(parsed)
@@ -111,6 +112,7 @@ async function main() {
         Deno.exit(1);
       }
     }
+    console.profileEnd("test")
     const afterTypecheck = performance.now();
     if (time) logger.info(`took ${afterTypecheck-afterParse}ms to typecheck`);
 
