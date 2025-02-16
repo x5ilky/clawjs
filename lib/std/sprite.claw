@@ -1,3 +1,4 @@
+import "costume"
 struct Sprite {
     id: string,
     name: string,

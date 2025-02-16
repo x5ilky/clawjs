@@ -1,0 +1,20 @@
+struct Costume {
+// | { type: "AddSprCostume"; id: string; name: string; format: FileFormat; file: string; anchorX: number; anchorY: number }
+    id: string,
+    name: string,
+    format: string,
+    file: string,
+    anchor_x: number,
+    anchor_y: number,
+}
+
+export fn make_costume(id: string, format: string, file: string) Costume {
+    return Costume::{
+        id: id,
+        name: id,
+        format: format,
+        file: file,
+        anchor_x: 0,
+        anchor_y: 0
+    }
+}

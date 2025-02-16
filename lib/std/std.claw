@@ -14,8 +14,8 @@ impl Display for string {
         $intrinsic "$1args-print"
     }
 }
-impl Display for int {
-    fn display($1: int) void {
+impl Display for number {
+    fn display($1: number) void {
         $intrinsic "$1args-print"
     }
 }

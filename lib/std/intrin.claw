@@ -52,22 +52,22 @@ impl<T> array<T> {
     fn __pop($1: Self<T>) T {
         return $intrinsic "$1args-array_pop"
     }
-    fn get(self: Self<T>, index: int) T {
+    fn get(self: Self<T>, index: number) T {
         return self:__get(index)
     }
-    fn __get($1: Self<T>, $2: int) T {
+    fn __get($1: Self<T>, $2: number) T {
         return $intrinsic "$2args-array_get"
     }
-    fn set(self: Self<T>, index: int, value: T) T {
+    fn set(self: Self<T>, index: number, value: T) T {
         return self:__set(index, value)
     }
-    fn __set($1: Self<T>, $2: int, $3: T) T {
+    fn __set($1: Self<T>, $2: number, $3: T) T {
         return $intrinsic "$3args-array_set"
     }
-    fn len(self: Self<T>) int {
+    fn len(self: Self<T>) number {
         return self:__len()
     }
-    fn __len($1: Self<T>) int {
+    fn __len($1: Self<T>) number {
         return $intrinsic "$1args-array_len"
     }
 }

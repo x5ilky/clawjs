@@ -733,9 +733,9 @@ export class Typechecker {
 
   }
   addBuiltinTypes() {
-    const num = () => this.ti.getTypeFromName("int")!;;
+    const num = () => this.ti.getTypeFromName("number")!;;
     const bool = () => this.ti.getTypeFromName("bool")!;;
-    this.ti.types.set("int", new BuiltinClawType("int", [], BUILTIN_LOC));
+    this.ti.types.set("number", new BuiltinClawType("number", [], BUILTIN_LOC));
     this.ti.types.set("string", new BuiltinClawType("string", [], BUILTIN_LOC));
     this.ti.types.set("bool", new BuiltinClawType("bool", [], BUILTIN_LOC));
     this.ti.types.set("void", new BuiltinClawType("void", [], BUILTIN_LOC));
@@ -1215,6 +1215,7 @@ export class Typechecker {
             "intrin": "intrin.claw",
             "sprite": "sprite.claw",
             "option": "option.claw",
+            "costume": "costume.claw",
           };
           const mapped = PATH_MAP?.[node.string as keyof typeof PATH_MAP];
           if (mapped === undefined) {
@@ -1435,7 +1436,7 @@ export class Typechecker {
   evaluateTypeFromValue(node: Node): ClawType {
     switch (node.type) {
       case NodeKind.NumberNode:
-        return this.ti.getTypeFromName("int")!.withLoc(node);
+        return this.ti.getTypeFromName("number")!.withLoc(node);
       case NodeKind.StringNode:
         return this.ti.getTypeFromName("string")!.withLoc(node);
       case NodeKind.BooleanNode:
