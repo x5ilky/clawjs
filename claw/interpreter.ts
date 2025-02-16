@@ -354,7 +354,17 @@ export class Interpreter {
                     blocks: []
                 }
             }
-
+            case "$2args-label_push_object": {
+                const [labelId, objectId] = int.args;
+                const label = this.getValue(labelId);
+                if (label.type !== "label") throw new Error(`label not label`);
+                const object = this.getValue(objectId);
+                if (object.type !== "jsobject") throw new Error(`object not object`);
+                label.blocks.push(object.value)
+                return {
+                    type: "void"
+                }
+            }
             case "$0args-array_new": {
                 return {
                     type: "array",

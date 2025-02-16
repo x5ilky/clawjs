@@ -645,6 +645,7 @@ export class Flattener {
       } break;
       case NodeKind.ExportNode: {
         this.convertStatement(node.sub);
+        this.scope.__inner[0].set(node.sub.name, this.scope.get(node.sub.name)!)
       } break
       case NodeKind.FunctionDefinitionNode:
       case NodeKind.StructDefinitionNode:

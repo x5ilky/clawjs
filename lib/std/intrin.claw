@@ -24,6 +24,9 @@ impl IntrinsicBinding {
     fn create_stat_label() label {
         return $intrinsic "$0args-create_stat_label"
     }
+    fn label_push_object($1: label, $2: JsObject) void {
+        $intrinsic "$2args-label_push_object"
+    }
 }
 export $ := IntrinsicBinding::{}
 export stat_label := $.create_stat_label()

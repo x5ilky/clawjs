@@ -1,4 +1,24 @@
 struct Sprite {
+    id: string,
     name: string,
-    
+    is_stage: bool
+}
+
+fn sprite_jsobject(name: string, is_stage: bool) JsObject {
+    js := $.create_js_object()
+    // | { type: "CreateSpr"; id: string; name: string; isStage: boolean }
+    js:set("type", "CreateSpr")
+    js:set("id", name)
+    js:set("name", name)
+    js:set("isStage", is_stage)
+    return js
+}
+export fn make_sprite(name: string, is_stage: bool) Sprite {
+    v := Sprite::{
+        id: name,
+        name: name,
+        is_stage: is_stage,
+    }
+    $.label_push_object(stat_label, sprite_jsobject(name, is_stage))
+    return v
 }

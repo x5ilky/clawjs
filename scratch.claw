@@ -1,5 +1,4 @@
 import "std"
-import "binding"
-import "option"
+import "sprite"
 
-arr := array_new<int>()
+cat := make_sprite("Cat", false)

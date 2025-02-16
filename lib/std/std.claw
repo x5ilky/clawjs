@@ -1,3 +1,7 @@
+import "intrin"
+import "binding"
+import "sprite"
+
 export fn test() void {
 
 }
@@ -28,3 +32,8 @@ impl Display for label {
 export fn print<T + Display>(a: T) void {
     a:display()
 }
+export fn print_raw<T>($1: T) void {
+    $intrinsic "$1args-print"
+}
+
+export stage := make_sprite("Stage", true)
