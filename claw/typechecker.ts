@@ -720,6 +720,7 @@ export class Typechecker {
     this.scope = new ChainMap();
     this.scope.push();
     this.addBuiltinTypes();
+    this.scope.set("$scope", this.ti.getTypeFromName("label")!);
     this.sourcemap.set("<builtin>", "")
     this.implementations = new Map();
   }
@@ -1210,7 +1211,7 @@ export class Typechecker {
             this.errorAt(node, `Unknown std lib: ${node.string}`);
             throw new TypecheckerError()
           }
-          this.importFileAt(mapped);
+          node.nodes = this.importFileAt(mapped);
         }
         
         return node;
@@ -1668,7 +1669,6 @@ export class Typechecker {
       }
       case NodeKind.LabelNode: {
         this.scope.push()
-        this.scope.set("$scope", this.ti.getTypeFromName("label")!);
         this.typecheck(node.nodes);
         this.scope.pop();
         return this.ti.getTypeFromName("label")!;
@@ -1834,7 +1834,7 @@ export class Typechecker {
     return out;
   }
 
-  importFileAt(fp: string) {
+  importFileAt(fp: string): Node[] {
     const STD_FIND_PATH = this.config.stdlibPath;
     const p = path.join(STD_FIND_PATH, fp);
     try {
@@ -1848,13 +1848,16 @@ export class Typechecker {
         throw new TypecheckerError();
       }
       this.typecheckFile(parsed);
+      return parsed;
 
     } catch (e) {
       if (e instanceof Error) {
         logger.error(`Failed to open file ${fp}:`);
         logger.error(`${e.message}`);
         logger.error(`${e.stack}`);
+        throw new TypecheckerError();
       } 
+      throw e;
     }
   }
 

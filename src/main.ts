@@ -8,6 +8,7 @@ import { SourceMap } from "../claw/sourcemap.ts";
 import { ClawConfig, Typechecker, TypecheckerError } from "../claw/typechecker.ts";
 import { Logger, LogLevel, skap } from "../SkOutput.ts";
 import { irBuild } from "./ir.ts";
+import { Convertor } from "../ir/convertor.ts";
 
 export const logger = new Logger({
   prefixTags: [{
@@ -112,6 +113,8 @@ async function main() {
     }
     const interpreter = new Interpreter();
     interpreter.interpret(ir);
+    const convertor = new Convertor(interpreter.labels, "", logger);
+    console.log(convertor.create());
   }
 }
 async function dev(cmd: skap.SkapInfer<typeof devShape>) {

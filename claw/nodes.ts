@@ -299,6 +299,7 @@ export type IntrinsicNode = {
 export type ImportNode = {
     readonly type: NodeKind.ImportNode,
     readonly string: string
+    nodes: Node[]
 } & Loc;
 
 export type ExportNode = {

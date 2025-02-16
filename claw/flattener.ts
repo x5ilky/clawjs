@@ -158,7 +158,6 @@ export class Flattener {
 
     const impl = this.implementations.get(id);
     if (impl === undefined || impl === null) {
-      console.log(this.implementations.keys())
       throw new Error(`no implementation: "${id}", this is internal bug`)
     }
     const idd = this.output.length;
@@ -306,6 +305,7 @@ export class Flattener {
         for (const j of node.arguments) {
           args.push(this.convertValue(j).variableName);
         }
+        
         const k = {
             type: "CallInstr",
             args,
@@ -426,6 +426,20 @@ export class Flattener {
             type: "IntrinsicInstr",
             name: node.string,
             args: [this.scope.get("$1")!],
+            target: name
+          });
+        } else if (node.string.startsWith("$2args")) {
+          this.push({
+            type: "IntrinsicInstr",
+            name: node.string,
+            args: [this.scope.get("$1")!, this.scope.get("$2")!],
+            target: name
+          });
+        } else if (node.string.startsWith("$3args")) {
+          this.push({
+            type: "IntrinsicInstr",
+            name: node.string,
+            args: [this.scope.get("$1")!, this.scope.get("$2")!, this.scope.get("$3")!],
             target: name
           });
         } else {
@@ -608,14 +622,18 @@ export class Flattener {
       case NodeKind.ForRuntimeNode:
         this.errorAt(node, `Unimplemented node: ${NodeKind[node.type]}`);
         break;
+      case NodeKind.ImportNode: {
+        this.convertAll(node.nodes);
+      } break;
+      case NodeKind.ExportNode: {
+        this.convertStatement(node.sub);
+      } break
       case NodeKind.FunctionDefinitionNode:
       case NodeKind.StructDefinitionNode:
       case NodeKind.DataStructDefinitionNode:
       case NodeKind.InterfaceNode:
       case NodeKind.ImplBaseNode:
       case NodeKind.ImplTraitNode:
-      case NodeKind.ImportNode:
-      case NodeKind.ExportNode:
       case NodeKind.UseInterfaceNode:
         // skip
         break;

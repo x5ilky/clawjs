@@ -15,6 +15,16 @@ impl Display for int {
         $intrinsic "$1args-print"
     }
 }
+impl Display for JsObject {
+    fn display($1: JsObject) void {
+        $intrinsic "$1args-print"
+    }
+}
+impl Display for label {
+    fn display($1: label) void {
+        $intrinsic "$1args-print"
+    }
+}
 export fn print<T + Display>(a: T) void {
     a:display()
 }

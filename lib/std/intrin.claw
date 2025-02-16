@@ -5,7 +5,11 @@ interface ValidJson {
 
 impl JsObject {
     fn set<T>(self: Self, key: string, value: T) void {
-        $intrinsic "$arg3-jsobject0-set"
+        self:set_internal(key, value)
+    }
+
+    fn set_internal<T>($1: Self, $2: string, $3: T) void {
+        $intrinsic "$3args-js_object_set"
     }
 }
 
@@ -14,7 +18,14 @@ struct IntrinsicBinding {
 
 impl IntrinsicBinding {
     fn create_js_object() JsObject {
-        return $intrinsic "$arg0-create_js_object"
+        return $intrinsic "$0args-js_object_create"
+    }
+
+    fn add_label($1: label) void {
+        $intrinsic "$1args-add_label"
     }
 }
 export $ := IntrinsicBinding::{}
+export stat_label := !{}
+
+$.add_label(stat_label)

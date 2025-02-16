@@ -1,3 +1,4 @@
+import { IlNode } from "../ir/types.ts";
 import { ChainMap } from "./chainmap.ts";
 import { IntrinsicInstr, IR } from "./flattener.ts";
 
@@ -20,7 +21,37 @@ type ClawValue =
     }
     | {
         type: "void"
+    }
+    | {
+        type: "jsobject",
+        // deno-lint-ignore no-explicit-any
+        value: any
+    }
+    | {
+        type: "label",
+        name: string,
+        blocks: IlNode[]
     };
+// deno-lint-ignore no-explicit-any
+function ClawValueToObject(v: ClawValue): any {
+    switch (v.type) {
+        case "string": return v.value
+        case "number": return v.value
+        case "boolean": return v.value
+        case "struct": return Object.fromEntries(v.value.entries().map(a => [a[0], ClawValueToObject(a[1])]))
+        case "void": return void 0;
+        case "jsobject": return v.value
+        case "label": return v
+    }
+}
+// deno-lint-ignore no-explicit-any
+function ObjectToClawValue(v: any): ClawValue {
+    if (typeof v === "string") return { type: "string", value: v };
+    if (typeof v === "number") return { type: "number", value: v };
+    if (typeof v === "boolean") return { type: "boolean", value: v };
+    if (typeof v === "object") return { type: "jsobject", value: new Map(Object.entries(v).map(([k, v]) => [k, ObjectToClawValue(v)])) };
+    return {type: "void"}
+}
 
 function printSync(input: string | Uint8Array, to = Deno.stdout) {
     let bytesWritten = 0
@@ -35,14 +66,21 @@ export class Interpreter {
     variables: Map<string, ClawValue>;
     scope: ChainMap<string, ClawValue>;
     callStack: number[];
+    counter: number;
+    labels: IlNode[];
 
     constructor() {
         this.ip = 0;
         this.variables = new Map();
         this.scope = new ChainMap();
         this.callStack = [];
+        this.counter = 0;
+        this.labels = [];
     }
 
+    reserve(): string {
+        return `CL_${this.counter++}`
+    }
     interpret(ir: IR[]) {
         while (this.ip < ir.length) {
             const DEBUG_FLAG = false;
@@ -156,6 +194,11 @@ export class Interpreter {
             } break;
             case "CreateLabelInstr": {
                 // todo
+                this.setValue(ir.target, {
+                    type: "label",
+                    name: this.reserve(),
+                    blocks: []
+                })
                 this.ip++;
             } break;
         }
@@ -252,8 +295,28 @@ export class Interpreter {
                     return undefined;
                 } else if (value.type === "boolean") {
                     printSync(`${value.value ? "true" : "false"}`)
+                } else {
+                    printSync(`${JSON.stringify(ClawValueToObject(value))}`);
                 }
                 return undefined;
+            }
+            case "$0args-js_object_create": {
+                return {
+                    type: "jsobject",
+                    value: {}
+                }
+            }
+            case "$3args-js_object_set": {
+                const [targetId, keyId, valueId] = int.args;
+                const t = this.getValue(targetId);
+                if (t.type !== "jsobject") throw new Error(`target not jsobject`);
+                const k = this.getValue(keyId);
+                if (k.type !== "string") throw new Error(`key not string`);
+                const v = this.getValue(valueId);
+                t.value[k.value] = ClawValueToObject(v)
+                return {
+                    type: "void"
+                }
             }
             default: {
                 throw new Error(`Unknown intrinsic: ${int.name}`)

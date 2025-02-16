@@ -4,5 +4,16 @@ useinterface Display
 
 for i := 0; i < 10; i += 1 {
     print("hello, world\n")
-    10:to_scratch_value()
 }
+fn run(l: label) void {
+
+}
+
+fn test() void {
+    print($scope)
+}
+
+run(!{
+    print("\n")
+    print("hello, world\n")
+})
