@@ -97,7 +97,7 @@ async function main() {
       Deno.exit(1);
     }
     const afterParse = performance.now();
-    if (time) logger.info(`took ${afterParse - beforeParse}ms to parse`)
+    if (time) logger.info(`took ${(afterParse - beforeParse).toFixed(3)}ms to parse`)
 
     const config = new ClawConfig();
     config.stdlibPath = path.join(import.meta.dirname!, "..", "lib", "std")
@@ -114,13 +114,13 @@ async function main() {
     }
     console.profileEnd("test")
     const afterTypecheck = performance.now();
-    if (time) logger.info(`took ${afterTypecheck-afterParse}ms to typecheck`);
+    if (time) logger.info(`took ${(afterTypecheck-afterParse).toFixed(3)}ms to typecheck (including imports)`);
 
     const flattener = new Flattener(smap, tc.implementations);
     const ir = flattener.convertAll(parsed);
 
     const afterFlatten = performance.now();
-    if (time) logger.info(`took ${afterFlatten - afterTypecheck}ms to flatten`);
+    if (time) logger.info(`took ${(afterFlatten - afterTypecheck).toFixed(3)}ms to flatten`);
     if (dumpBc) {
       Deno.writeTextFileSync("clawjs-bc-debug-dump.txt", ir.map((a, i) => `${i}: ` + JSON.stringify(a)).join("\n"))
     }
@@ -128,7 +128,7 @@ async function main() {
     interpreter.interpret(ir);
     const afterInterpret = performance.now();
 
-    if (time) logger.info(`took ${afterInterpret - afterFlatten}ms to interpret`);
+    if (time) logger.info(`took ${(afterInterpret - afterFlatten).toFixed(3)}ms to interpret`);
 
     const convertor = new Convertor(interpreter.labels.entries().toArray().map(a => ({
       type: "Label",
