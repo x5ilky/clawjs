@@ -1,5 +1,8 @@
 import "std"
 import "sprite"
+import "var"
+
+i := make_number!()
 
 cat := make_sprite("Cat", false)
 pop := make_costume("svg", "pop.svg")

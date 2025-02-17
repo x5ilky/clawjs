@@ -1,0 +1,21 @@
+struct number! {
+    id: string
+}
+
+impl number! {
+    fn js_object(num: Self) JsObject {
+        js := $.create_js_object()
+        // | { type: "CreateVar"; name: string }
+        js:set("type", "CreateVar")
+        js:set("name", num.id)
+        return js
+    }
+}
+
+export fn make_number!() number! {
+    v := number!::{
+        id: $.reserve()
+    }
+    $.label_push_object(stat_label, v:js_object())
+    return v
+}
