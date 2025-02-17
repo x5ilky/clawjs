@@ -6,5 +6,6 @@ impl Sprite {
         js:set("target", spr.id)
         js:set("label", $.label_get_name(l))
         $.label_push_object(stat_label, js)
+        $.set_label(l)
     }
 }
