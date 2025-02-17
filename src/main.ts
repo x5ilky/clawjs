@@ -1,3 +1,8 @@
+import {
+  BlobWriter,
+  TextReader,
+  ZipWriter,
+} from "https://deno.land/x/zipjs/index.js";
 import * as path from "@std/path"
 import { Flattener } from "../claw/flattener.ts";
 import { Interpreter } from "../claw/interpreter.ts";
@@ -11,6 +16,7 @@ import { irBuild } from "./ir.ts";
 import { Convertor } from "../ir/convertor.ts";
 import { IlNode } from "../ir/types.ts";
 import { IR } from "../claw/flattener.ts";
+import { MD5 } from "../external/md5.js";
 
 export const logger = new Logger({
   prefixTags: [{
@@ -65,7 +71,9 @@ export const shape = skap.command({
     run: skap.command({
       inputFile: skap.string("-i").required().description("input file path"),
       dumpBc: skap.boolean("-Ddumpbc").description("dump flattened bytecode"),
-      time: skap.boolean("-T").description("time the steps")
+      time: skap.boolean("-T").description("time the steps"),
+      resourceFolder: skap.string("-F").description("resource folder path").required(),
+      output: skap.string('-o').description("output file name").default("out.sb3")
     }).description("run a file"),
   }).required()
 })
@@ -88,7 +96,7 @@ async function main() {
   } else if (cmd.subc.selected === "dev") {
     await dev(cmd.subc.commands.dev!)
   } else if (cmd.subc.selected === "run") {
-    const { inputFile, dumpBc, time } = cmd.subc.commands.run!;
+    const { inputFile, dumpBc, time, resourceFolder, output } = cmd.subc.commands.run!;
     const smap = new SourceMap();
     smap.set(inputFile, await Deno.readTextFile(inputFile));
     const beforeParse = performance.now();
@@ -137,8 +145,33 @@ async function main() {
     const convertor = new Convertor(interpreter.labels.entries().toArray().map(a => ({
       type: "Label",
       value: a
-    } satisfies IlNode)), "", logger);
-    console.log(convertor.create());
+    } satisfies IlNode)), resourceFolder!, logger);
+    const project = convertor.create();
+
+
+    const zipFileWriter = new BlobWriter();
+    const zipWriter = new ZipWriter(zipFileWriter);
+    await zipWriter.add("project.json", new TextReader(project.toJsonStringified()));
+
+    for (const [_, spr] of convertor.sprites) {
+        for (const [path, format] of spr.costume_paths) {
+            const file = Deno.readTextFileSync(path);
+            const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+            await zipWriter.add(fileName, new TextReader(file));
+        }
+        for (const [path, format] of spr.sound_paths) {
+            const file = Deno.readTextFileSync(path);
+            const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+            await zipWriter.add(fileName, new TextReader(file));
+        }
+    }
+
+    await zipWriter.close();
+
+    // Retrieves the Blob object containing the zip content into `zipFileBlob`. It
+    // is also returned by zipWriter.close() for more convenience.
+    const zipFileBlob = await zipFileWriter.getData();
+    await Deno.writeFile(output, await zipFileBlob.bytes())
   }
 }
 async function dev(cmd: skap.SkapInfer<typeof devShape>) {

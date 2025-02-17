@@ -75,6 +75,6 @@ impl<T> array<T> {
 fn __array_new<T>() array<T> {
     return $intrinsic "$0args-array_new"
 }
-export fn array_new<T>() array<T> {
+export fn make_array<T>() array<T> {
     return __array_new<T>()
 }
