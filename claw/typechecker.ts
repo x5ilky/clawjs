@@ -1141,12 +1141,11 @@ export class Typechecker {
 
       case NodeKind.ImplTraitNode: {
         this.gcm.push();
-        const [trait, inputs] = this.resolveInterface(node.trait);
-        const tas = this.resolveTypeGenerics(node.generics);
         this.ti.types.push();
+        const tas = this.resolveTypeGenerics(node.generics);
           for (const ta of tas) this.ti.types.set(ta.name, ta);
           const tt = this.resolveTypeNode(node.targetType, this.gcm);
-        this.ti.types.pop();
+        const [trait, inputs] = this.resolveInterface(node.trait);
         this.gcm.set(new GenericClawType("Self", tt.loc, []), tt);
         const map = new Map<string, FunctionClawType>();
         if (node.defs.length !== trait.functions.size) {
@@ -1166,6 +1165,9 @@ export class Typechecker {
           const args = [];
           for (const [_n, arg] of def.args) {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
+          }
+          for (const [_n, arg] of args) {
+            this.scope.set(_n, arg)
           }
           const v = new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) })
           const errorStack: string[] = [];
@@ -1192,6 +1194,7 @@ export class Typechecker {
           this.ti.types.pop();
         }
         this.gcm.pop();
+        this.ti.types.pop();
         trait.specificImplementations.push({
           generics: tas,
           target: tt,

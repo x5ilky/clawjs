@@ -10,6 +10,19 @@ impl Sprite {
     }
 }
 
+impl<T + Runtime, U + Runtime> Add<U, JsObject> for T {
+    fn add(left: T, right: U) JsObject {
+        js := $.create_js_object()
+        // | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }
+        js:set("key", "BinaryOperation")
+        js:set("oper", "Add")
+        js:set("left", left:to_scratch_value())
+        js:set("right", right:to_scratch_value())
+
+        return js
+    }
+}
+
 export fn goto<T + Runtime, U + Runtime>(x: T, y: U) void {
     js := $.create_js_object()
     // | { type: "GotoXY"; x: IlValue; y: IlValue }
