@@ -10,16 +10,33 @@ impl Sprite {
     }
 }
 
-impl<T + Runtime, U + Runtime> Add<U, JsObject> for T {
-    fn add(left: T, right: U) JsObject {
+struct BinaryOperation {
+    left: JsObject,
+    right: JsObject,
+    oper: string
+}
+impl Runtime for BinaryOperation {
+    fn sizeof() number {
+        return 1
+    }
+    fn to_scratch_value(bo: Self) JsObject {
         js := $.create_js_object()
         // | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }
         js:set("key", "BinaryOperation")
         js:set("oper", "Add")
-        js:set("left", left:to_scratch_value())
-        js:set("right", right:to_scratch_value())
-
+        js:set("left", bo.left)
+        js:set("right", bo.right)
         return js
+    } 
+}
+
+impl<T + Runtime, U + Runtime> Add<U, BinaryOperation> for T {
+    fn add(left: T, right: U) BinaryOperation {
+        return BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Add"
+        }
     }
 }
 

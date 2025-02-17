@@ -10,7 +10,6 @@ import { TypeNode } from "./nodes.ts";
 import { Lexer, Loc } from "./lexer.ts";
 import { UnaryOperationType } from "./nodes.ts";
 import { Parser } from "./parser.ts";
-import { info, time } from "node:console";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
 
@@ -19,8 +18,16 @@ export class TypecheckerError {
 }
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
-  constructor() {
-    super((a, b) => a.name === b.name && a.bounds.length === b.bounds.length && arrzip(a.bounds, b.bounds).every(([a, b]) => a.eq(b)));
+  constructor(layers?: GenericChainMap["__inner"]) {
+    super((a, b) => {
+      return (
+        a.name === b.name 
+        && a.bounds.length === b.bounds.length 
+        && arrzip(a.bounds, b.bounds).every(([a, b]) => a.eq(b))
+      )
+    });
+    if (layers !== undefined)
+      this.__inner = layers
   }
 
   override toString() {
@@ -93,40 +100,52 @@ export class TypeIndex {
     return works;
   }
 
-  typeMatches(left: ClawType, right: ClawType, stop = false) {
+  typeMatches(left: ClawType, right: ClawType, stop = false): boolean {
     if (left instanceof BuiltinClawType && left.name === "ERROR") return false;
     // if (right instanceof BuiltinClawType && right.name === "ERROR") return false;
-    if (left instanceof VariableClawType && left.base instanceof VariableClawType) return left.base.eq(right) || right.eq(left.base);
-    if (right instanceof VariableClawType && right.base instanceof VariableClawType) return right.base.eq(left) || left.eq(right.base);
+    if (left instanceof VariableClawType && left.base instanceof VariableClawType) return this.typeMatches(left.base, right) || this.typeMatches(right, left.base);
+    if (right instanceof VariableClawType && right.base instanceof VariableClawType) return this.typeMatches(right.base, left) || this.typeMatches(left, right.base);
     if (left instanceof BuiltinClawType && left.name === "any") return !(right instanceof BuiltinClawType && right.name === "ERROR");
     if (left instanceof GenericClawType && right instanceof GenericClawType) {
       return (
-        left.name === right.name
+        left.name === right.name && left.bounds.length === right.bounds.length && arreq(left.bounds, right.bounds, (a, b) => a.eq(b))
       );
+    }
+    if (left instanceof GenericClawType) {
+      for (const bound of left.bounds) {
+        if (!this.getAllTypeInterfaceImplementations(right, bound).length) return false;
+      }
+      return true;
+    }
+    if (right instanceof GenericClawType) {
+      for (const bound of right.bounds) {
+        if (!this.getAllTypeInterfaceImplementations(left, bound).length) return false;
+      }
+      return true;
     }
     if (left instanceof FunctionClawType && right instanceof FunctionClawType) {
       return (
         left.name === right.name &&
-        arreq(left.generics, right.generics, (a, b) => a.eq(b)) &&
-        arreq(left.args, right.args, ([_, a], [__, b]) => a.eq(b)) &&
+        arreq(left.generics, right.generics, (a, b) => this.typeMatches(a, b)) &&
+        arreq(left.args, right.args, ([_, a], [__, b]) => this.typeMatches(a, b)) &&
         left.output.eq(right.output)
       );
     }
     if (left instanceof VariableClawType) {
       if (right instanceof VariableClawType) {
         return (
-          left.base.eq(right.base) &&
-          arreq(left.generics, right.generics, (a, b) => a.eq(b))
+          this.typeMatches(left.base, right.base) &&
+          arreq(left.generics, right.generics, (a, b) => this.typeMatches(a, b))
         );
       }
-      return left.base.eq(right);
+      return this.typeMatches(left.base, right);
     }
     if (
       left instanceof StructureClawType && right instanceof StructureClawType
     ) {
       return (
         left.name === right.name &&
-        arreq(left.generics, right.generics, (a, b) => a.eq(b))
+        arreq(left.generics, right.generics, (a, b) => this.typeMatches(a, b))
       );
     }
     if (left instanceof BuiltinClawType && right instanceof BuiltinClawType) {
@@ -135,19 +154,19 @@ export class TypeIndex {
     if (
       left instanceof ReferenceClawType && right instanceof ReferenceClawType
     ) {
-      return (left.base.eq(right.base));
+      return this.typeMatches(left.base, right.base);
     }
     if (
       left instanceof OfClawType && right instanceof OfClawType
     ) {
       return (
         left.int.eq(right.int) &&
-        left.base.eq(right.base) &&
-        left.intType.eq(right.intType)
+        this.typeMatches(left.base, right.base) &&
+        this.typeMatches(left.intType, right.intType)
       )
     }
     if (stop) return false;
-    return right.eq(left, true);
+    return this.typeMatches(right, left, true);
   }
 
   getTypeInterfaceImplementations(
@@ -156,7 +175,6 @@ export class TypeIndex {
     inputs: ClawType[],
     mapping?: GenericChainMap,
   ) {
-    const gcm = mapping ?? new GenericChainMap();
     if (inputs.length !== int.generics.length) {
       logger.error(
         "assert: in TypeIndex.getTypeInterfaceImplementations, inputs.length !== ClawInterface.generics.length",
@@ -170,27 +188,42 @@ export class TypeIndex {
       //               ^ spec.inputs
       //                              ^ spec.target
 
-      if (spec.target instanceof VariableClawType && spec.target.base instanceof GenericClawType) {
-        const base = spec.target.base;
-        
-        for (const bound of base.bounds) {
-          if (!this.getAllTypeInterfaceImplementations(type, bound, gcm).length) 
-            continue outer;
-        }
-      } else if (!spec.target.eq(type)) {
-        continue;
-      }
-  
+      const gcm = new GenericChainMap(mapping?.__inner);
       gcm.push();
+      if (!this.typeMatches(spec.target, type)) continue
+      // if (spec.target instanceof VariableClawType && spec.target.base instanceof GenericClawType) {
+      //   const base = spec.target.base;
+        
+      //   for (const bound of base.bounds) {
+      //     if (!this.getAllTypeInterfaceImplementations(type, bound, gcm).length) 
+      //       continue outer;
+      //   }
+      // } else if (!spec.target.eq(type)) {
+      //   continue;
+      // }
+      let tm = new GenericChainMap()
+      tm.push()
+      const targetMapping = this.tryFindGenericSingle(spec.target, type, gcm, tm);
+      if (targetMapping === undefined) throw new Error(`dont even know whne this wouldhappen`)
+      for (const [k, v] of targetMapping.flatten()){
+        gcm.set(k, v)
+      }
+
       gcm.set(new GenericClawType("Self", BUILTIN_LOC, []), type);
       const errorStack: string[] = [];
-      this.tryExtractGeneric(spec.inputs, inputs, gcm, errorStack);
+      tm = new GenericChainMap()
+      tm.push()
+      const mp = this.tryFindGenericMulti(spec.inputs, inputs, gcm, tm);
+      if (mp === undefined) throw new Error(`dont even know whne this wouldhappen`)
+      for (const [k, v] of mp.flatten()){
+        gcm.set(k, v)
+      }
+
       const subsituted = this.substituteRaw(spec.inputs, gcm, errorStack, false);
       for (let i = 0; i < subsituted.length; i++) {
         const sub = subsituted[i];
         const inp = inputs[i];
-
-        if (!inp.eq(sub)) {
+        if (!this.typeMatches(inp, sub)) {
           gcm.pop();
           continue outer;
         }
@@ -200,7 +233,6 @@ export class TypeIndex {
         continue;
       }
       works.push({ gcm, spec });
-      gcm.pop();
     }
     return works;
   }
@@ -403,7 +435,7 @@ export class TypeIndex {
         value = new VariableClawType(value.name, [], value.loc, value);
       }
       if (!assertType<VariableClawType>(value)) return;
-      if (!value.base.eq(template.base)) {
+      if (!this.typeMatches(value.base, template.base)) {
         errorStack.push(
           `${template.toDisplay()} cannot map onto ${value.toDisplay()}`,
         );
@@ -1659,6 +1691,7 @@ export class Typechecker {
         }
 
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
+        if (fn.body === null) console.log(fn.toDisplay(), fn.body === null)
         if (fn.body !== null) {
           this.scope.push();
           for (const [k, v] of arrzip(fn.args.map(a => a[0]), mapped)) {
@@ -1758,9 +1791,30 @@ export class Typechecker {
           this.warnAt(node, `TODO: sort implementations by specifity better, defaulting to first implementation`);
         }
         const [[impl]] = sortedImpls.toSorted((a, b) => a[1] - b[1]);
-        const fn = impl.spec.functions[0]!;
-        node.target = `${fn.name}-${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-        this.implementations.set(node.target, fn.body!);
+        let fn = impl.spec.functions[0]!;
+        fn = this.ti.substituteRawSingle(fn, impl.gcm, []) as FunctionClawType
+        
+        if (fn.body !== null) {
+          this.scope.push();
+          for (const [k, v] of fn.args) {
+            this.scope.set(k, v);
+          }
+          try {
+            this.typecheckForReturn(fn.body.nodes);
+          } catch (e) {
+            if (e instanceof TypecheckerError) {
+              this.errorNoteAt(node, `Error arrised from this call`)
+              throw new TypecheckerError()
+            }
+          }
+          this.scope.pop()
+          
+          node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+          this.implementations.set(node.target, fn.body!);
+        } 
+        this.gcm.pop();
+
+        console.dir(fn.body, { depth: null })
         
         const returnValue = impl.spec.functions[0].output;
         return returnValue;

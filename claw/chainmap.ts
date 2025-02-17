@@ -56,29 +56,29 @@ export class ChainArray<V> {
 }
 
 export class ChainCustomMap<K, V> {
-    #inner: [K, V][][];
+    __inner: [K, V][][];
 
     constructor(private equality: (a: K, b: K) => boolean) {
-        this.#inner = [];
+        this.__inner = [];
     }
 
     push() {
-        this.#inner.push([]);
+        this.__inner.push([]);
     } 
 
     pop() {
-        this.#inner.pop();
+        this.__inner.pop();
     }
 
     get(k: K) {
-        for (const layer of this.#inner.toReversed()) {
+        for (const layer of this.__inner.toReversed()) {
             const v = layer.find(([K, _]) => this.equality(k, K));
             if (v !== undefined) return v;
         }
         return undefined;
     }
     set(k: K, v: V) {
-        const layer = this.#inner[this.#inner.length-1];
+        const layer = this.__inner[this.__inner.length-1];
         const index = layer.findIndex(([K, _]) => this.equality(k, K));
         if (index !== -1)
             layer.splice(index, 1, [k, v])
@@ -86,7 +86,7 @@ export class ChainCustomMap<K, V> {
             layer.push([k, v])
     }
     has(k: K) {
-        for (const layer of this.#inner.toReversed()) {
+        for (const layer of this.__inner.toReversed()) {
             const v = layer.find(([K, _]) => this.equality(k, K));
             if (v !== undefined) return true;
         }
@@ -96,7 +96,7 @@ export class ChainCustomMap<K, V> {
     flatten(): [K, V][] {
         const out: [K, V][] = [];
         const addedKeys: K[] = [];
-        for (const layer of this.#inner.toReversed()) {
+        for (const layer of this.__inner.toReversed()) {
             for (const [key, value] of layer) {
                 if (addedKeys.find(a => this.equality(a, key)) === undefined) {
                     out.push([key, value]);

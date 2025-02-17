@@ -338,6 +338,7 @@ export class Flattener {
           k.location = this.insertImplementation(node.target)
         } else {
           this.errorAt(node, `Target is undefined, this shouldn't really be possible, this is a bug in the typechecker`);
+          throw new Error()
         }
         j.ip = this.output.length;
         this.push({
