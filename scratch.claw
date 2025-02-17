@@ -2,6 +2,6 @@ import "std"
 import "sprite"
 
 cat := make_sprite("Cat", false)
-pop := make_costume("pop", "svg", "pop.svg")
+pop := make_costume("svg", "pop.svg")
 
 cat:add_costume(pop)

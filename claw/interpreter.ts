@@ -414,6 +414,12 @@ export class Interpreter {
                 const v = a.values.pop();
                 return v!;
             }
+            case "$0args-reserve": {
+                return {
+                    type: "string",
+                    value: this.reserve()
+                }
+            }
             default: {
                 throw new Error(`Unknown intrinsic: ${int.name}`)
             }

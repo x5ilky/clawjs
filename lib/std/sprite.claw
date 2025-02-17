@@ -19,24 +19,25 @@ impl Sprite {
         js:set("anchorY", costume.anchor_y)
         $.label_push_object(stat_label, js)
     }
+    
+    fn js_object(spr: Self) JsObject {
+        js := $.create_js_object()
+        // | { type: "CreateSpr"; id: string; name: string; isStage: boolean }
+        js:set("type", "CreateSpr")
+        js:set("id", spr.id)
+        js:set("name", spr.name)
+        js:set("isStage", spr.is_stage)
+        return js
+    }
 }
 
-fn sprite_jsobject(name: string, is_stage: bool) JsObject {
-    js := $.create_js_object()
-    // | { type: "CreateSpr"; id: string; name: string; isStage: boolean }
-    js:set("type", "CreateSpr")
-    js:set("id", name)
-    js:set("name", name)
-    js:set("isStage", is_stage)
-    return js
-}
 export fn make_sprite(name: string, is_stage: bool) Sprite {
     v := Sprite::{
-        id: name,
+        id: $.reserve(),
         name: name,
         is_stage: is_stage,
         costumes: make_array<Costume>()
     }
-    $.label_push_object(stat_label, sprite_jsobject(name, is_stage))
+    $.label_push_object(stat_label, v:js_object())
     return v
 }

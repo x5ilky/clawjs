@@ -8,10 +8,10 @@ struct Costume {
     anchor_y: number,
 }
 
-export fn make_costume(id: string, format: string, file: string) Costume {
+export fn make_costume(format: string, file: string) Costume {
     return Costume::{
-        id: id,
-        name: id,
+        id: $.reserve(),
+        name: $.reserve(),
         format: format,
         file: file,
         anchor_x: 0,
