@@ -19,7 +19,7 @@ export class TypecheckerError {
 
 export class GenericChainMap extends ChainCustomMap<GenericClawType, ClawType> {
   constructor() {
-    super((a, b) => a.name === b.name && arrzip(a.bounds, b.bounds).every(([a, b]) => a.eq(b)));
+    super((a, b) => a.name === b.name && a.bounds.length === b.bounds.length && arrzip(a.bounds, b.bounds).every(([a, b]) => a.eq(b)));
   }
 
   override toString() {

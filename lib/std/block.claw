@@ -1,5 +1,5 @@
 impl Sprite {
-    fn on_flag(spr: Self, l: label) voidd {
+    fn on_flag(spr: Self, l: label) void {
         // | { type: "Flag"; target: string; label: string }
         js := $.create_js_object()
         js:set("type", "Flag")
@@ -16,5 +16,5 @@ export fn goto<T + Runtime, U + Runtime>(x: T, y: U) void {
     js:set("type", "GotoXY")
     js:set("x", x:to_scratch_value())
     js:set("y", y:to_scratch_value())
-    $.label_push_object(stat_label, js)
+    $.label_push_object($scope, js)
 }

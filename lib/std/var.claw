@@ -12,6 +12,21 @@ impl number! {
     }
 }
 
+impl Runtime for number! {
+    fn sizeof() number {
+        return 1
+    }
+    
+    fn to_scratch_value(num: Self) JsObject {
+        obj := $.create_js_object()
+        // | { key: "Variable", name: string }
+        obj:set("key", "Variable")
+        obj:set("name", num.id)
+
+        return obj
+    }
+}
+
 export fn make_number!() number! {
     v := number!::{
         id: $.reserve()
