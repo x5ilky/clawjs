@@ -1,0 +1,10 @@
+impl Sprite {
+    fn on_flag(spr: Self, l: label) void {
+        // | { type: "Flag"; target: string; label: string }
+        js := $.create_js_object()
+        js:set("type", "Flag")
+        js:set("target", spr.id)
+        js:set("label", l.id)
+        
+    }
+}

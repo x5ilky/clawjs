@@ -1217,6 +1217,7 @@ export class Typechecker {
             "option": "option.claw",
             "costume": "costume.claw",
             "var": "var.claw",
+            "block": "block.claw",
           };
           const mapped = PATH_MAP?.[node.string as keyof typeof PATH_MAP];
           if (mapped === undefined) {
