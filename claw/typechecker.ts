@@ -2,7 +2,7 @@ import * as path from "jsr:@std/path";
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { BinaryOperationType, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode } from "./nodes.ts";
+import { BinaryOperation, BinaryOperationType, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -1553,6 +1553,27 @@ export class Typechecker {
     return node;
   }
 
+  doFunctionBody(node: BinaryOperation | UnaryOperation, fn: FunctionClawType) {
+    if (fn.body !== null) {
+      this.scope.push();
+      for (const [k, v] of fn.args) {
+        this.scope.set(k, v);
+      }
+      try {
+        this.typecheckForReturn(fn.body.nodes);
+      } catch (e) {
+        if (e instanceof TypecheckerError) {
+          this.errorNoteAt(node, `Error arrised from this call`)
+          throw new TypecheckerError()
+        }
+      }
+      this.scope.pop()
+      
+      node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+      this.implementations.set(node.target, fn.body!);
+    } 
+  }
+
   evaluateTypeFromValue(node: Node): ClawType {
     switch (node.type) {
       case NodeKind.NumberNode:
@@ -1741,10 +1762,13 @@ export class Typechecker {
         if (sortedImpls.length > 1) {
           this.warnAt(node, `TODO: sort implementations by specifity better, defaulting to first implementation`);
         }
+
         const [[impl]] = sortedImpls.toSorted((a, b) => a[1] - b[1]);
-        const fn = impl.spec.functions[0]!;
-        node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-        this.implementations.set(node.target, fn.body!);
+        let fn = impl.spec.functions[0]!;
+        fn = this.ti.substituteRawSingle(fn, impl.gcm, []) as FunctionClawType
+        
+        this.doFunctionBody(node, fn)
+
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
       }
@@ -1793,24 +1817,8 @@ export class Typechecker {
         let fn = impl.spec.functions[0]!;
         fn = this.ti.substituteRawSingle(fn, impl.gcm, []) as FunctionClawType
         
-        if (fn.body !== null) {
-          this.scope.push();
-          for (const [k, v] of fn.args) {
-            this.scope.set(k, v);
-          }
-          try {
-            this.typecheckForReturn(fn.body.nodes);
-          } catch (e) {
-            if (e instanceof TypecheckerError) {
-              this.errorNoteAt(node, `Error arrised from this call`)
-              throw new TypecheckerError()
-            }
-          }
-          this.scope.pop()
-          
-          node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-          this.implementations.set(node.target, fn.body!);
-        } 
+        this.doFunctionBody(node, fn)
+
         this.gcm.pop();
 
         
