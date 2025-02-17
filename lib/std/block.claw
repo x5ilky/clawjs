@@ -48,3 +48,10 @@ export fn goto<T + Runtime, U + Runtime>(x: T, y: U) void {
     js:set("y", y:to_scratch_value())
     $.label_push_object($scope, js)
 }
+export fn turn_right<T + Runtime>(deg: T) void {
+    js := $.create_js_object()
+    // | { type: "TurnRight"; degrees: IlValue }
+    js:set("type", "TurnRight")
+    js:set("degrees", deg:to_scratch_value())
+    $.label_push_object($scope, js)
+}
