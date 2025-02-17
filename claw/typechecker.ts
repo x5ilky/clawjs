@@ -1382,16 +1382,14 @@ export class Typechecker {
     const fn = new FunctionClawType(node.name, ta, node, args, returnValue, { nodes: [node.nodes], args: args.map(a => a[0]) });
     this.scope.set(fn.name, fn);
     for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg[1]);
-    for (const [_n, arg] of args) {
-      if (arg instanceof VariableClawType && arg.base instanceof GenericClawType) {
-        const base = arg.base;
-        for (const bound of base.bounds) {
+    for (const t of ta) {
+        for (const bound of t.bounds) {
           const map = (v: ClawType) => {
             if (v instanceof GenericClawType) {
               if (v.name === "Self") {
-                return arg.base;
+                return t;
               }
-              const v2 = new OfClawType(v.loc, bound, [], v, arg.base);
+              const v2 = new OfClawType(v.loc, bound, [], v, t);
               return v2;
             }
             return v;
@@ -1408,11 +1406,10 @@ export class Typechecker {
             }).toArray(),
             generics: [],
             inputs: inputs,
-            target: arg.base
+            target: t
           });
           // this.gcm.set(base, base);
         }
-      }
     }
     const types = this.typecheckForReturn([node.nodes])[1];
     if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
