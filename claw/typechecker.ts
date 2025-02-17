@@ -1144,6 +1144,7 @@ export class Typechecker {
         this.ti.types.push();
         const tas = this.resolveTypeGenerics(node.generics);
           for (const ta of tas) this.ti.types.set(ta.name, ta);
+          for (const ta of tas) this.gcm.set(ta, ta);
           const tt = this.resolveTypeNode(node.targetType, this.gcm);
         const [trait, inputs] = this.resolveInterface(node.trait);
         this.gcm.set(new GenericClawType("Self", tt.loc, []), tt);
@@ -1160,6 +1161,8 @@ export class Typechecker {
           this.ti.types.push();
           const ta = this.resolveTypeGenerics(def.typeArgs);
           for (const t of ta) this.ti.types.set(t.name, t);
+          this.addGenericImplementations(tas)
+          this.addGenericImplementations(ta)
 
           const retType = this.resolveTypeNode(def.returnType, this.gcm);
           const args = [];
@@ -1190,6 +1193,8 @@ export class Typechecker {
               continue;
             }
           }
+          this.removeGenericImplementations(ta)
+          this.removeGenericImplementations(tas)
           map.set(def.name, v);
           this.ti.types.pop();
         }
@@ -1364,6 +1369,46 @@ export class Typechecker {
     return [int, tas];
   }
 
+  addGenericImplementations(ta: GenericClawType[]) {
+    for (const t of ta) {
+      for (const bound of t.bounds) {
+        const map = (v: ClawType) => {
+          if (v instanceof GenericClawType) {
+            if (v.name === "Self") {
+              return t;
+            }
+            const v2 = new OfClawType(v.loc, bound, [], v, t);
+            return v2;
+          }
+          return v;
+        };
+        const inputs = bound.generics.map(map);
+        bound.specificImplementations.stack();
+        bound.specificImplementations.push({
+          functions: bound.functions.values().map((v) => {
+            // add(self: Self, other: Right) Output
+            //  convert
+            // add(self: T, other: (Add.Right of T)) (Add.Output of T)
+            const V = new FunctionClawType(v.name, v.generics, v.loc, v.args.map(([k, v]) => [k, map(v)]), map(v.output), null)
+            return V;
+          }).toArray(),
+          generics: [],
+          inputs: inputs,
+          target: t
+        });
+        // this.gcm.set(base, base);
+      }
+    }
+  }
+
+  removeGenericImplementations(ta: GenericClawType[]) {
+    for (const t of ta) {
+      for (const bound of t.bounds) {
+        bound.specificImplementations.take();
+      }
+    }
+  }
+
   typecheckFunction(node: FunctionDefinitionNode) {
     const ta = this.resolveTypeGenerics(node.typeArgs);
     this.ti.types.push();
@@ -1382,35 +1427,9 @@ export class Typechecker {
     const fn = new FunctionClawType(node.name, ta, node, args, returnValue, { nodes: [node.nodes], args: args.map(a => a[0]) });
     this.scope.set(fn.name, fn);
     for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg[1]);
-    for (const t of ta) {
-        for (const bound of t.bounds) {
-          const map = (v: ClawType) => {
-            if (v instanceof GenericClawType) {
-              if (v.name === "Self") {
-                return t;
-              }
-              const v2 = new OfClawType(v.loc, bound, [], v, t);
-              return v2;
-            }
-            return v;
-          };
-          const inputs = bound.generics.map(map);
-          bound.specificImplementations.stack();
-          bound.specificImplementations.push({
-            functions: bound.functions.values().map((v) => {
-              // add(self: Self, other: Right) Output
-              //  convert
-              // add(self: T, other: (Add.Right of T)) (Add.Output of T)
-              const V = new FunctionClawType(v.name, v.generics, v.loc, v.args.map(([k, v]) => [k, map(v)]), map(v.output), null)
-              return V;
-            }).toArray(),
-            generics: [],
-            inputs: inputs,
-            target: t
-          });
-          // this.gcm.set(base, base);
-        }
-    }
+
+    this.addGenericImplementations(ta);
+
     const types = this.typecheckForReturn([node.nodes])[1];
     if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
       this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
@@ -1421,14 +1440,7 @@ export class Typechecker {
         this.errorNoteAt(returnValue.loc, `Definition here`);
       }
     }
-    for (const arg of args) {
-      if (arg instanceof VariableClawType && arg.base instanceof GenericClawType) {
-        const base = arg.base;
-        for (const bound of base.bounds) {
-          bound.specificImplementations.take();
-        }
-      }
-    }
+    this.removeGenericImplementations(ta)
 
     this.gcm.pop();
     this.ti.types.pop();
