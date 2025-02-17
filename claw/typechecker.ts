@@ -10,6 +10,7 @@ import { TypeNode } from "./nodes.ts";
 import { Lexer, Loc } from "./lexer.ts";
 import { UnaryOperationType } from "./nodes.ts";
 import { Parser } from "./parser.ts";
+import { info, time } from "node:console";
 
 const BUILTIN_LOC = { fp: "<builtin>", start: 0, end: 0 };
 
@@ -58,8 +59,15 @@ export class TypeIndex {
   ) {
     const gcm = mapping ?? new GenericChainMap();
     const works = [];
-    for (const spec of this.baseImplementations) { 
-      if (!spec.target.eq(type)) {
+    outer: for (const spec of this.baseImplementations) { 
+      if (spec.target instanceof VariableClawType && spec.target.base instanceof GenericClawType) {
+        const base = spec.target.base;
+        
+        for (const bound of base.bounds) {
+          if (!this.getAllTypeInterfaceImplementations(type, bound, gcm).length) 
+            continue outer;
+        }
+      } else if (!spec.target.eq(type)) {
         continue;
       }
   
@@ -84,6 +92,64 @@ export class TypeIndex {
     }
     return works;
   }
+
+  typeMatches(left: ClawType, right: ClawType, stop = false) {
+    if (left instanceof BuiltinClawType && left.name === "ERROR") return false;
+    // if (right instanceof BuiltinClawType && right.name === "ERROR") return false;
+    if (left instanceof VariableClawType && left.base instanceof VariableClawType) return left.base.eq(right) || right.eq(left.base);
+    if (right instanceof VariableClawType && right.base instanceof VariableClawType) return right.base.eq(left) || left.eq(right.base);
+    if (left instanceof BuiltinClawType && left.name === "any") return !(right instanceof BuiltinClawType && right.name === "ERROR");
+    if (left instanceof GenericClawType && right instanceof GenericClawType) {
+      return (
+        left.name === right.name
+      );
+    }
+    if (left instanceof FunctionClawType && right instanceof FunctionClawType) {
+      return (
+        left.name === right.name &&
+        arreq(left.generics, right.generics, (a, b) => a.eq(b)) &&
+        arreq(left.args, right.args, ([_, a], [__, b]) => a.eq(b)) &&
+        left.output.eq(right.output)
+      );
+    }
+    if (left instanceof VariableClawType) {
+      if (right instanceof VariableClawType) {
+        return (
+          left.base.eq(right.base) &&
+          arreq(left.generics, right.generics, (a, b) => a.eq(b))
+        );
+      }
+      return left.base.eq(right);
+    }
+    if (
+      left instanceof StructureClawType && right instanceof StructureClawType
+    ) {
+      return (
+        left.name === right.name &&
+        arreq(left.generics, right.generics, (a, b) => a.eq(b))
+      );
+    }
+    if (left instanceof BuiltinClawType && right instanceof BuiltinClawType) {
+      return (left.name === right.name);
+    }
+    if (
+      left instanceof ReferenceClawType && right instanceof ReferenceClawType
+    ) {
+      return (left.base.eq(right.base));
+    }
+    if (
+      left instanceof OfClawType && right instanceof OfClawType
+    ) {
+      return (
+        left.int.eq(right.int) &&
+        left.base.eq(right.base) &&
+        left.intType.eq(right.intType)
+      )
+    }
+    if (stop) return false;
+    return right.eq(left, true);
+  }
+
   getTypeInterfaceImplementations(
     type: ClawType,
     int: ClawInterface,
@@ -104,7 +170,14 @@ export class TypeIndex {
       //               ^ spec.inputs
       //                              ^ spec.target
 
-      if (!spec.target.eq(type)) {
+      if (spec.target instanceof VariableClawType && spec.target.base instanceof GenericClawType) {
+        const base = spec.target.base;
+        
+        for (const bound of base.bounds) {
+          if (!this.getAllTypeInterfaceImplementations(type, bound, gcm).length) 
+            continue outer;
+        }
+      } else if (!spec.target.eq(type)) {
         continue;
       }
   
@@ -116,6 +189,7 @@ export class TypeIndex {
       for (let i = 0; i < subsituted.length; i++) {
         const sub = subsituted[i];
         const inp = inputs[i];
+
         if (!inp.eq(sub)) {
           gcm.pop();
           continue outer;

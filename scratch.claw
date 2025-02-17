@@ -10,5 +10,5 @@ pop := make_costume("svg", "pop.svg")
 
 cat:add_costume(pop)
 cat:on_flag(!{
-    goto(10, i)
+    goto(10 + i, i)
 })
