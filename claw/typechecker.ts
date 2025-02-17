@@ -1691,7 +1691,6 @@ export class Typechecker {
         }
 
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
-        if (fn.body === null) console.log(fn.toDisplay(), fn.body === null)
         if (fn.body !== null) {
           this.scope.push();
           for (const [k, v] of arrzip(fn.args.map(a => a[0]), mapped)) {
@@ -1814,7 +1813,6 @@ export class Typechecker {
         } 
         this.gcm.pop();
 
-        console.dir(fn.body, { depth: null })
         
         const returnValue = impl.spec.functions[0].output;
         return returnValue;
