@@ -1,6 +1,7 @@
 import "std"
 import "sprite"
 import "var"
+import "block"
 
 i := make_number!()
 
@@ -8,3 +9,6 @@ cat := make_sprite("Cat", false)
 pop := make_costume("svg", "pop.svg")
 
 cat:add_costume(pop)
+cat:on_flag(!{
+
+})

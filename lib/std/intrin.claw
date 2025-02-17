@@ -27,6 +27,9 @@ impl IntrinsicBinding {
     fn label_push_object($1: label, $2: JsObject) void {
         $intrinsic "$2args-label_push_object"
     }
+    fn label_get_name($1: label) string {
+        return $intrinsic "$1args-get_label_name"
+    }
     fn reserve() string {
         return $intrinsic "$0args-reserve"
     }

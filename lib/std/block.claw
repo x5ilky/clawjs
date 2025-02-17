@@ -4,7 +4,7 @@ impl Sprite {
         js := $.create_js_object()
         js:set("type", "Flag")
         js:set("target", spr.id)
-        js:set("label", l.id)
-        
+        js:set("label", $.label_get_name(l))
+        $.label_push_object(stat_label, js)
     }
 }

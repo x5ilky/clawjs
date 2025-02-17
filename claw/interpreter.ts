@@ -420,6 +420,15 @@ export class Interpreter {
                     value: this.reserve()
                 }
             }
+            case "$1args-get_label_name": {
+                const [labelId] = int.args;
+                const label = this.getValue(labelId);
+                if (label.type !== "label") throw new Error("label not label");
+                return {
+                    type: "string",
+                    value: label.name
+                }
+            }
             default: {
                 throw new Error(`Unknown intrinsic: ${int.name}`)
             }
