@@ -169,11 +169,31 @@ export class Parser {
 
     parseStatement() {
         const peek = this.tokens.peek();
+        if (peek.type === "Keyword" && peek.value === "import") {
+            const v = this.parseImport()
+            if (v === null) this.errorAt(peek, `Failed to parse import statement`);
+            return v;
+        }
         const decl = this.parseDeclaration();
         if (decl !== null) return decl;
+        const opAssign = this.parseOpAssign();
+        if (opAssign !== null) return opAssign;
+        const assign = this.parseAssignment();
+        if (assign !== null) return assign;
         throw new Error("no statement matched")
     }
 
+    parseImport(): Node | null {
+        this.save();
+        const i = this.expect(a => a.type === "Keyword" && a.value === "import");
+        if (i === null) return this.restore();
+        const s = this.expectOrTerm("expected import path", a => a.type === "StringLiteral");
+        return this.finish(cn(i, s, {
+            type: NodeKind.ImportNode,
+            string: s?.value,
+            nodes: []
+        }))
+    }
     parseDeclaration(): Node | null {
         this.save();
         const name = this.expect(t => t.type === "Identifier");
@@ -185,12 +205,102 @@ export class Parser {
         if (equals === null) return this.restore();
         const value = this.parseValue();
         if (value === null) return this.restore();
-        return <Node>cn(name, value, <Node>{
+        return this.finish(<Node>cn(name, value, <Node>{
             type: (equals.type === "Symbol" && equals.value === ":") ? NodeKind.ConstDeclarationNode : NodeKind.DeclarationNode,
             name: name.name,
             valueType: type,
             value
+        }));
+    }
+    parseAssignment(): Node | null {
+        this.save();
+        const base = this.parseValue();
+        if (base === null) return this.restore();
+        const equals = this.expect(t => t.type === "Symbol" && t.value === "=");
+        if (equals === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) return this.restore();
+        return cn(base, value, {
+            type: NodeKind.AssignmentNode,
+            assignee: base,
+            value
         });
+    }
+    VALID_ASSIGN_OPERATOR(
+        op: ClawTokenType<"Symbol">["value"],
+    ): op is
+        | "+="
+        | "-="
+        | "*="
+        | "/="
+        | "%="
+        | "^="
+        | "|="
+        | "&="
+        | "||="
+        | "&&=" {
+        switch (op) {
+            case "+=":
+            case "-=":
+            case "*=":
+            case "/=":
+            case "%=":
+            case "^=":
+            case "|=":
+            case "&=":
+            case "||=":
+            case "&&=":
+                return true;
+            default:
+                return false;
+        }
+    };
+    OP_TO_OPERATOR(opequals: string) {
+        switch (opequals) {
+            case "+=":
+                return BinaryOperationType.Add;
+            case "-=":
+                return BinaryOperationType.Subtract;
+            case "*=":
+                return BinaryOperationType.Multiply;
+            case "/=":
+                return BinaryOperationType.Divide;
+            case "%=":
+                return BinaryOperationType.Modulo;
+            case "^=":
+                return BinaryOperationType.BitwiseXor;
+            case "|=":
+                return BinaryOperationType.BitwiseOr;
+            case "&=":
+                return BinaryOperationType.BitwiseAnd;
+            case "||=":
+                return BinaryOperationType.Or;
+            case "&&=":
+                return BinaryOperationType.And;
+            default:
+                throw "unreachable";
+        }
+    };
+    parseOpAssign(): Node | null {
+        this.save();
+        const base = this.parseValue();
+        if (base === null) return this.restore();
+        const opequals = this.expect((tok) =>
+          tok.type === "Symbol" && this.VALID_ASSIGN_OPERATOR(tok.value)
+        ) as ClawTokenType<"Symbol">;
+        if (opequals === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) return this.restore();
+        return this.finish(cn(base, value, {
+          type: NodeKind.AssignmentNode,
+          assignee: base,
+          value: cn(value, value, {
+            type: NodeKind.BinaryOperation,
+            oper: this.OP_TO_OPERATOR(opequals.value),
+            left: base,
+            right: value,
+          }),
+        }));
     }
     parseType(): TypeNode | null {
         return this.try(
