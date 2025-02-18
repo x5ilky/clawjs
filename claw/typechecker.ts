@@ -984,6 +984,22 @@ export class Typechecker {
       ])
     );
     this.ti.interfaces.set("Runtime", RuntimeInterface);
+    const AssignInterface = new ClawInterface(
+      "Assign",
+      [new GenericClawType("T", BUILTIN_LOC, []), new GenericClawType("O", BUILTIN_LOC, [])],
+      new Map([
+        ["assign", 
+            new FunctionClawType(
+                "assign", 
+                [], 
+                BUILTIN_LOC, 
+                [["self", Self], ["new_value", new GenericClawType("T", BUILTIN_LOC, [])]], 
+                new GenericClawType("O", BUILTIN_LOC, []), 
+                null)],
+        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
+      ])
+    );
+    this.ti.interfaces.set("Assign", AssignInterface);
   }
 
   typecheckFile(nodes: Node[]): Node[] {
