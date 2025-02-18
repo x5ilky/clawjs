@@ -996,7 +996,6 @@ export class Typechecker {
                 [["self", Self], ["new_value", new GenericClawType("T", BUILTIN_LOC, [])]], 
                 new GenericClawType("O", BUILTIN_LOC, []), 
                 null)],
-        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
       ])
     );
     this.ti.interfaces.set("Assign", AssignInterface);
@@ -1056,6 +1055,16 @@ export class Typechecker {
       }
       case NodeKind.AssignmentNode: {
         const value = this.evaluateTypeFromValue(node.assignee);
+        
+
+        const assignment = 
+          this.ti.getTypeInterfaceImplementations(
+            value, 
+            this.ti.getInterfaceFromName("Assign")!, 
+            [this.ti.getTypeFromName("any")!, this.ti.getTypeFromName("any")!]
+          );
+        console.log(assignment)
+
         const type = this.evaluateTypeFromValue(node.value);
         if (!value.eq(type)) {
           this.errorAt(node, `variable type and assigned type are different:`);

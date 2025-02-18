@@ -43,6 +43,12 @@ impl Runtime for number! {
         return obj
     }
 }
+impl Assign<number, number!> for number! {
+    fn assign(num: Self, to: number) number! {
+        
+        return num
+    }
+}
 
 export fn make_number!() number! {
     v := number!::{

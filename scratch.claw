@@ -15,3 +15,5 @@ cat:on_flag(!{
         i:change(10)
     })
 })
+
+i = 0
