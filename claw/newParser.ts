@@ -1,7 +1,7 @@
 import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ClawToken, ClawTokenType, Loc, TSymbol } from "./lexer.ts";
-import { BaseNode, BinaryOperationType, Node, NodeKind, OfTypeNode, TypeNode, UnaryOperationType } from "./nodes.ts";
+import { BaseNode, BinaryOperationType, FunctionDefinitionNode, Node, NodeKind, OfTypeNode, TypeNode, UnaryOperationType } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 
@@ -163,24 +163,107 @@ export class Parser {
 
     parse() {
         const nodes = [];
-        while(this.tokens.hasItems()) nodes.push(this.parseStatement())
+        while(this.tokens.hasItems()) nodes.push(this.parseTopLevel())
         return nodes
     }
 
-    parseStatement() {
+    parseTopLevel() {
         const peek = this.tokens.peek();
         if (peek.type === "Keyword" && peek.value === "import") {
             const v = this.parseImport()
             if (v === null) this.errorAt(peek, `Failed to parse import statement`);
             return v;
         }
+        if (peek.type === "Keyword" && peek.value === "fn") {
+            const v = this.parseFunction()
+            if (v === null) this.errorAt(peek, `Failed to parse function definition`);
+            return v;
+        }
+
+        return this.parseStatement();
+    }
+    parseStatement() {
+        const peek = this.tokens.peek();
         const decl = this.parseDeclaration();
         if (decl !== null) return decl;
         const opAssign = this.parseOpAssign();
         if (opAssign !== null) return opAssign;
         const assign = this.parseAssignment();
         if (assign !== null) return assign;
+        const value = this.parseValue();
+        if (value !== null) return value;
         throw new Error("no statement matched")
+    }
+
+    parseGenericTypeList(): TypeNode[] | null {
+        this.save();
+        const generics: TypeNode[] = [];
+        if (this.eatIfThereIsSymbol("<")) {
+            while (true) {
+                if (this.eatIfThereIsSymbol(">")) break;
+                const v = this.parseType();
+                if (v === null) return this.restore();
+                if (this.eatIfThereIsSymbol(">")) break;
+                if (this.eatIfThereIsSymbol(",")) continue;
+                this.errorAt(this.tokens.justShifted(), `Expected commas or right angle bracket`);
+            }
+        }
+        return this.finish(generics);
+    }
+
+    parseFunctionDefinition(): FunctionDefinitionNode | null {
+        this.save();
+        const fn = this.expect(a => a.type === "Keyword" && a.value === "fn");
+        if (fn === null) return this.restore();
+        const name = this.expectOrTerm("Expected function name", token => token.type === "Identifier");
+        const typeArgs = this.parseGenericTypeList();
+        if (typeArgs === null) return this.restore();
+        const startParen = this.expectSymbol("(")
+        if (startParen === null) return this.restore();
+
+        const args: [string, TypeNode][] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol(")")) break;
+            const name = this.expectOrTerm("Expected function argument", token => token.type === "Identifier");
+            const colon = this.expectSymbol(":");
+            if (colon === null) return this.restore();
+            const type = this.parseType();
+            if (type === null) return this.restore();
+            args.push([name.name, type] as const);
+            if (this.eatIfThereIsSymbol(")")) break;
+            if (this.eatIfThereIsSymbol(",")) continue;
+            this.errorAt(this.tokens.justShifted(), `Expected ending parentheses`);
+        }
+        const returnType = this.parseType();
+        if (returnType === null) return this.restore();
+        const end = this.tokens.justShifted();
+        return this.finish(cn(fn, end, {
+            type: NodeKind.FunctionDefinitionNode,
+            name: name.name,
+            args,
+            typeArgs,
+            nodes: cn(end, end, {
+                type: NodeKind.BlockNode,
+                nodes: []
+            }),
+            returnType
+        }))
+    }
+
+    parseFunction(): FunctionDefinitionNode | null {
+        this.save();
+        const def = this.parseFunctionDefinition();
+        if (def === null) return this.errorAt(this.tokens.justShifted(), `Failed to parse function definition`);
+        const block = this.parseStatement();
+        if (block === null) this.errorAt(def, `Expected function body`);
+        return this.finish(cn(def, block, {
+            type: NodeKind.FunctionDefinitionNode, 
+            name: def.name,
+            args: def.args,
+            returnType: def.returnType,
+            typeArgs: def.typeArgs,
+            nodes: block,
+        }))
     }
 
     parseImport(): Node | null {
