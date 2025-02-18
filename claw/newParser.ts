@@ -184,6 +184,16 @@ export class Parser {
             if (v === null) this.errorAt(peek, `Failed to parse function definition`);
             return v;
         }
+        if (peek.type === "Keyword" && peek.value === "impl") {
+            this.save();
+            const v = this.parseImplBase()
+            if (v === null) this.restore();
+            else return this.finish(v);
+            const v2 = this.parseImplTrait()
+            if (v2 === null)
+                this.errorAt(peek, `Failed to parse impl statement`);
+            return this.finish(v2);
+        }
 
         return this.parseStatement();
     }
@@ -293,6 +303,119 @@ export class Parser {
             defs: functions,
             typeArguments: generics
         });
+    }
+
+    parseImplBase(): Node | null {
+        this.save();
+        const implToken = this.expect(a => a.type === "Keyword" && a.value === "impl");
+        if (implToken === null) return this.restore();
+        const implGenerics = this.parseGenericTypeList();
+        if (implGenerics === null) return this.restore();
+        const targetType = this.parseType();
+        if (targetType === null) return this.restore();
+        const _begin_curly = this.expectSymbol("{");
+        if (_begin_curly === null) return this.restore();
+        const functions = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const f = this.parseFunction();
+            if (f === null) this.errorAt(this.tokens.justShifted(), "Expected function implementation");
+            functions.push(f);
+        }
+        return this.finish(cn(implToken, this.tokens.justShifted(), {
+            type: NodeKind.ImplBaseNode,
+            targetType,
+            defs: functions,
+            generics: implGenerics
+        }))
+    }
+    parseImplTrait(): Node | null {
+        this.save();
+        const implToken = this.expect(a => a.type === "Keyword" && a.value === "impl");
+        if (implToken === null) return this.restore();
+        const implGenerics = this.parseGenericTypeList();
+        if (implGenerics === null) return this.restore();
+
+        const trait = this.parseType();
+        if (trait === null) return this.restore();
+
+        const forToken = this.expect(a => a.type === "Keyword" && a.value === "for");
+        if (forToken === null) return this.restore();
+
+        const targetType = this.parseType();
+        if (targetType === null) return this.restore();
+        const _begin_curly = this.expectSymbol("{");
+        if (_begin_curly === null) return this.restore();
+        const functions = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const f = this.parseFunction();
+            if (f === null) this.errorAt(this.tokens.justShifted(), "Expected function implementation");
+            functions.push(f);
+        }
+        return this.finish(cn(implToken, this.tokens.justShifted(), {
+            type: NodeKind.ImplTraitNode,
+            defs: functions,
+            generics: implGenerics,
+            targetType,
+            trait
+        }))
+    }
+
+    parseStructRule(): Node | null {
+        this.save();
+        const structToken = this.expect(a => a.type === "Keyword" && (a.value === "struct" || a.value === "data"));
+        if (structToken === null) return this.restore();
+        const structName = this.expectOrTerm("Expected struct name", token => token.type === "Identifier");
+        const generics = this.parseGenericTypeList();
+        if (generics === null) return this.restore();
+
+        const startCurly = this.expectSymbol("{");
+        if (startCurly === null) this.errorAt(this.tokens.justShifted(), `Expected left curly`);
+        const members: [string, TypeNode][] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const name = this.expectOrTerm("Expected member name", token => token.type === "Identifier");
+            this.expectOrTerm("Expected colon", token => token.type === "Symbol" && token.value === ":");
+            const type = this.parseType();
+            if (type === null) this.errorAt(this.tokens.justShifted(), `Expected member type`);
+            members.push([name.name, type]);
+
+            if (this.eatIfThereIsSymbol("}")) break;
+            if (this.eatIfThereIsSymbol(",")) continue;
+            this.errorAt(type, "Expected ending curly brackets or comma");
+        }
+        return this.finish(cn(structToken, this.tokens.justShifted(), {
+            type:
+                (structToken.type === "Keyword" && structToken.value === "data")
+                    ? NodeKind.DataStructDefinitionNode
+                    : NodeKind.StructDefinitionNode,
+            generics,
+            members,
+            name: structName.name
+        }))
+    }
+
+    parseReturnRule(): Node | null {
+        this.save();
+        const returnToken = this.expect(token => token.type === "Keyword" && token.value === "return");
+        if (returnToken === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) return this.restore();
+        return this.finish(cn(returnToken, value, {
+            type: NodeKind.ReturnNode,
+            value
+        }));
+    }
+    parseIntrinsicRule(): Node | null {
+        this.save();
+        const intrinsicToken = this.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
+        if (intrinsicToken === null) return this.restore();
+        const s = this.expectOrTerm("Expected intrinsic string literal", a => a.type === 'StringLiteral');
+        return this.finish(cn(intrinsicToken, s, {
+            type: NodeKind.IntrinsicNode,
+            string: s.value
+        }));
     }
 
     parseImport(): Node | null {
