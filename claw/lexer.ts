@@ -91,7 +91,7 @@ const KEYWORD = [
   "$intrinsic"
 ] as const;
 const SYMBOLS = <readonly string[]> S;
-type TSymbol = typeof S[number];
+export type TSymbol = typeof S[number];
 const SYMBOL_INITIALS = SYMBOLS.map((a) => a[0]);
 
 export class Lexer {

@@ -8,7 +8,7 @@ import { Flattener } from "../claw/flattener.ts";
 import { Interpreter } from "../claw/interpreter.ts";
 import { Lexer } from "../claw/lexer.ts";
 import { NodeKind } from "../claw/nodes.ts";
-import { Parser } from "../claw/parser.ts";
+import { Parser } from "../claw/newParser.ts";
 import { SourceMap } from "../claw/sourcemap.ts";
 import { ClawConfig, Typechecker, TypecheckerError } from "../claw/typechecker.ts";
 import { Logger, LogLevel, skap } from "../SkOutput.ts";
