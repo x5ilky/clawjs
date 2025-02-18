@@ -1,7 +1,7 @@
 import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ClawToken, ClawTokenType, Loc, TSymbol } from "./lexer.ts";
-import { BaseNode, DeclarationNode, Node, NodeKind, OfTypeNode, TypeNode } from "./nodes.ts";
+import { BaseNode, BinaryOperationType, Node, NodeKind, OfTypeNode, TypeNode, UnaryOperationType } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 
@@ -41,6 +41,10 @@ class Iterray<T> {
     push(value: T) {
         this.values.push(value)
     }
+
+    justShifted(): T {
+        return this.values[this.iterator - 1];
+    }
 }
 type ApplyTypePredicate<T, E> = (T extends (value: E) => value is (infer R extends E) ? R : E) ;
 
@@ -52,6 +56,7 @@ export class Parser {
         this.state = [];
     }
 
+    // deno-lint-ignore no-explicit-any
     try<T>(...fns: ((this: Parser, ...values: any[]) => T)[]): T | null {
         this.save();
         for (const fn of fns) {
@@ -101,7 +106,7 @@ export class Parser {
         logger.printWithTags([
             logger.config.levels[LogLevel.ERROR],
             tag
-        ], `At ${location.fp}:${col + 1}:${row}:`);
+        ], `At ${location.fp}:${col + 1}:${row + 1}:`);
         for (const ln of lines) {
             logger.printWithTags([
                 logger.config.levels[LogLevel.ERROR],
@@ -169,19 +174,19 @@ export class Parser {
         throw new Error("no statement matched")
     }
 
-    parseDeclaration(): DeclarationNode | null {
+    parseDeclaration(): Node | null {
         this.save();
         const name = this.expect(t => t.type === "Identifier");
         if (name === null) return this.restore();
         const colon = this.expect(t => t.type === "Symbol" && t.value === ":");
         if (colon === null) return this.restore();
         const type = this.parseType();
-        const equals = this.expect(t => t.type === "Symbol" && t.value === "=");
+        const equals = this.expect(t => t.type === "Symbol" && (t.value === "=" || t.value === ":"));
         if (equals === null) return this.restore();
         const value = this.parseValue();
         if (value === null) return this.restore();
-        return cn(name, value, {
-            type: NodeKind.DeclarationNode,
+        return <Node>cn(name, value, <Node>{
+            type: (equals.type === "Symbol" && equals.value === ":") ? NodeKind.ConstDeclarationNode : NodeKind.DeclarationNode,
             name: name.name,
             valueType: type,
             value
@@ -248,7 +253,6 @@ export class Parser {
         this.save();
         const generics = [];
         if (this.eatIfThereIs(t => t.type === "Symbol" && t.value === "<")) {
-            console.log(this.tokens.iterator)
             while (true) {
                 if (this.eatIfThereIsSymbol(">")) break;
                 const v = this.parseType();
@@ -262,28 +266,81 @@ export class Parser {
 
         return this.finish(generics);
     }
+
+    parseFunctionArgs(
+        lhs: Node,
+        typeArgs: TypeNode[] | null,
+    ) {
+        this.save();
+        const args: Node[] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol(")")) break;
+            const v = this.parseValue();
+            if (v === null) return this.restore();
+            args.push(v);
+
+            if (this.eatIfThereIsSymbol(")")) continue;
+            if (this.eatIfThereIsSymbol(",")) break;
+            this.errorAt(this.tokens.justShifted(), `Expected commas or parentheses`);
+        }
+        return this.finish(cn(lhs, this.tokens.justShifted(), {
+            type: NodeKind.CallNode,
+            typeArguments: typeArgs,
+            callee: lhs,
+            arguments: args
+        }))
+    }
+
+    tryParseFunctionWithTypeArgs(lhs: Node): Node | null {
+        this.save();
+        const p = this.expectSymbol("<");
+        if (p === null) return this.restore();
+        const typeArgs: TypeNode[] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol(">")) break;
+            const v = this.parseType();
+            if (v === null) return this.restore();
+            typeArgs.push(v);
+
+            if (this.eatIfThereIsSymbol(",")) continue;
+            if (this.eatIfThereIsSymbol(">")) break;
+        }
+        const leftParen = this.expectSymbol("(");
+        if (leftParen === null) return this.restore();
+        const v = this.parseFunctionArgs(lhs, typeArgs);
+        if (v === null) return this.restore();
+        lhs = v;
+        return this.finish(lhs);
+    }
+    parseFunctionCall(lhs: Node): Node | null {
+        this.save();
+        const leftParen = this.expectSymbol("(");
+        if (leftParen === null) return this.restore();
+        const v = this.parseFunctionArgs(lhs, null);
+        if (v === null) return this.restore();
+        lhs = v;
+        return this.finish(lhs);
+    }
+
     parseValue(): Node | null {
-        return this.try(
-            this.parseLiteral
-        )
+        return this.parseBinaryOperator()
     }
 
     parseStructLiteral(): Node | null {
         this.save();
         const type = this.parseType();
         if (type === null) return this.restore();
-        const colon1 = this.expectSymbol(":")
+        const colon1 = this.expectSymbol(":");
         if (colon1 === null) return this.restore();
-        const colon2 = this.expectSymbol(":")
+        const colon2 = this.expectSymbol(":");
         if (colon2 === null) return this.restore();
-        const startCurly = this.expectSymbol("{")
+        const startCurly = this.expectSymbol("{");
         if (startCurly === null) return this.restore();
         const members: {[key: string]: Node} = {};
-        let left: Loc = startCurly;
         while (true) {
             if (this.eatIfThereIsSymbol("}")) break;
             const name = this.expectOrTerm("Expected struct member key", v => v.type === "Identifier");
-            const colon = this.expectOrTerm("Expected colon", v => v.type === "Symbol" && v.value === ":");
+            this.expectOrTerm("Expected colon", v => v.type === "Symbol" && v.value === ":");
             const value = this.parseValue();
             if (value === null) return this.restore();
             members[name.name] = value;
@@ -291,8 +348,173 @@ export class Parser {
             if (this.eatIfThereIsSymbol("}")) break;
             this.errorAt(value, `Expected comma or right curly`);
         }
+        return this.finish(cn(type, this.tokens.justShifted(), {
+            type: NodeKind.StructLiteralNode,
+            baseType: type,
+            members
+        }));
         // todo
     }
+
+    parseChild(lhs: Node): Node | null {
+        this.save();
+        const _dot = this.expectSymbol(".");
+        if (_dot === null) return this.restore();
+        const name = this.expect(a => a.type === "Identifier");
+        if (name === null) return this.restore();
+        return cn(lhs, name, {
+            type: NodeKind.ChildOfNode,
+            base: lhs,
+            extension: name.name
+        });
+    }
+
+    parseUnaryOperator(): Node | null {
+        this.save();
+        const peek = this.tokens.peek();
+        if (peek === undefined) return null;
+        if (peek.type === "Symbol") {
+            if (["!", "~", "-"].includes(peek.value)) {
+                const opToken = this.tokens.shift();
+                const rhs = this.parseUnaryOperator();
+                if (rhs === null) return this.restore();
+                return this.finish(cn(opToken, rhs, {
+                    type: NodeKind.UnaryOperation,
+                    value: rhs,
+                    oper: (() => {
+                        switch ((opToken as ClawTokenType<"Symbol">).value) {
+                            case "!":
+                                return UnaryOperationType.Not;
+                            case "~":
+                                return UnaryOperationType.BitwiseNot;
+                            case "-":
+                                return UnaryOperationType.Negate;
+                            default:
+                                throw "unreachable";
+                        }
+                    })(),
+                }));
+            }
+        }
+        return this.finish(this.parseMemberAccess());
+    }
+    parseBinaryOperator(): Node | null {
+        const BINARY_OPERATOR_TO_PRECEDENCE = {
+            "||": [BinaryOperationType.Or, 1],
+            "&&": [BinaryOperationType.And, 2],
+            "|": [BinaryOperationType.BitwiseOr, 3],
+            "^": [BinaryOperationType.BitwiseXor, 4],
+            "&": [BinaryOperationType.BitwiseAnd, 5],
+            "==": [BinaryOperationType.Equal, 6],
+            "!=": [BinaryOperationType.NotEqual, 6],
+            ">": [BinaryOperationType.Gt, 7],
+            ">=": [BinaryOperationType.Gte, 7],
+            "<": [BinaryOperationType.Lt, 7],
+            "<=": [BinaryOperationType.Lte, 7],
+            "+": [BinaryOperationType.Add, 8],
+            "-": [BinaryOperationType.Subtract, 8],
+            "*": [BinaryOperationType.Multiply, 9],
+            "/": [BinaryOperationType.Divide, 9],
+            "%": [BinaryOperationType.Modulo, 9],
+        };
+        type BKey = keyof typeof BINARY_OPERATOR_TO_PRECEDENCE;
+        const parseExpression = (lhs: Node, minPrecedence: number) => {
+            let lookahead = this.tokens.peek();
+            while (
+                lookahead !== undefined &&
+                lookahead.type === "Symbol" &&
+                lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE &&
+                BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >=
+                minPrecedence
+            ) {
+                const op = this.tokens.shift() as ClawTokenType<"Symbol">;
+                const opPrec = BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][1];
+                let rhs = this.parseUnaryOperator();
+                if (rhs === null) return null;
+                
+                lookahead = this.tokens.peek();
+                while (
+                    lookahead !== undefined &&
+                    lookahead.type === "Symbol" &&
+                    lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE &&
+                    (
+                        BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >
+                        opPrec
+                    )
+                ) {
+                    rhs = parseExpression(
+                        rhs!,
+                        opPrec +
+                        +(BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][
+                            1
+                        ] > opPrec),
+                    );
+                    lookahead = this.tokens.peek();
+                    if (lookahead === undefined) break;
+                }
+                lhs = cn(lhs, rhs!, {
+                    type: NodeKind.BinaryOperation,
+                    oper: BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][0],
+                    left: lhs,
+                    right: rhs,
+                }) as Node;
+            }
+            return lhs;
+        };
+
+        const init = this.parseUnaryOperator();
+        if (init === null) return this.restore();
+        const v = parseExpression(init, 0);
+        if (v === null) return this.restore();
+        return v;
+    }
+
+    parseMethodAccess(lhs: Node): Node | null {
+        this.save();
+        const _dot = this.expectSymbol(":");
+        if (_dot === null) return this.restore();
+        const name = this.expect(a => a.type === "Identifier");
+        if (name === null) return this.restore();
+        return cn(lhs, name, {
+            type: NodeKind.MethodOfNode,
+            base: lhs,
+            extension: name.name
+        });
+    }
+
+    parseMemberAccess(): Node | null {
+        this.save();
+        let lhs = this.parseLiteral();
+        if (lhs === null) return this.restore();
+        const operatorNext = () => {
+            const p = this.tokens.peek();
+            if (p === undefined) return false
+            if (
+              p.type === "Symbol" &&
+              (p.value === "<" || p.value === "(" || p.value === "." ||
+                p.value === ":")
+            ) return true;
+            return false;
+        };
+
+        while (operatorNext()) {
+            if ((this.tokens.peek() as ClawTokenType<"Symbol">).value === "<") {
+                const r = this.tryParseFunctionWithTypeArgs(lhs);
+                if (r === null) break;
+                else {
+                    lhs = r;
+                    continue;
+                }
+            }
+            return this.try(
+                () => this.parseFunctionCall(lhs!),
+                () => this.parseMethodAccess(lhs!),
+                () => this.parseChild(lhs!)
+            )
+        }
+        return this.finish(lhs);
+    }
+
     parseLiteral(): Node | null {
         this.save();
         const peek = this.tokens.shift();
@@ -312,6 +534,12 @@ export class Parser {
             return this.finish(cn(peek, peek, {
                 type: NodeKind.BooleanNode,
                 value: peek.value
+            }))
+        }
+        if (peek.type === "Identifier") {
+            return this.finish(cn(peek, peek, {
+                type: NodeKind.VariableNode,
+                name: peek.name
             }))
         }
         if (peek.type === "Symbol" && peek.value === "(") {
@@ -350,6 +578,9 @@ export class Parser {
                 nodes: blocks
             }));
         }
+        this.load();
+        const structLit = this.parseStructLiteral();
+        if (structLit !== null) return structLit
         
         return this.finish(null)
     }

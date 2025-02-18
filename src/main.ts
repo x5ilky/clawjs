@@ -193,11 +193,14 @@ async function dev(cmd: skap.SkapInfer<typeof devShape>) {
     smap.set(inputFile, await Deno.readTextFile(inputFile));
     const lexer = new Lexer(inputFile, smap);
     const tokens = lexer.lex();
+    const beforeParse = performance.now();
     const parser = new Parser(tokens, smap);
     const parsed = parser.parse();
     if (parsed instanceof Error) {
       logger.error(parsed);
     }
+    const afterParse = performance.now();
+    logger.info(`parsed in ${(afterParse - beforeParse).toFixed(3)}ms`)
     // deno-lint-ignore no-explicit-any
     const replacer = function(this: any, key: string, value: any) {
       if (key === "type") {
