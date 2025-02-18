@@ -194,11 +194,19 @@ export class Parser {
                 this.errorAt(peek, `Failed to parse impl statement`);
             return this.finish(v2);
         }
+        if (peek.type === "Keyword" && (peek.value === "data" || peek.value === "struct")) {
+            return this.parseStructDefinition();
+        }
 
         return this.parseStatement();
     }
     parseStatement() {
         const peek = this.tokens.peek();
+        if (peek.type === "Keyword") {
+            if (peek.value === "$intrinsic") return this.parseIntrinsic() ?? (() => { throw new Error() })();
+            if (peek.value === "return") return this.parseReturnRule() ?? (() => { throw new Error() })();
+            // i think these are guarenteed?
+        }
         const decl = this.parseDeclaration();
         if (decl !== null) return decl;
         const opAssign = this.parseOpAssign();
@@ -362,7 +370,7 @@ export class Parser {
         }))
     }
 
-    parseStructRule(): Node | null {
+    parseStructDefinition(): Node | null {
         this.save();
         const structToken = this.expect(a => a.type === "Keyword" && (a.value === "struct" || a.value === "data"));
         if (structToken === null) return this.restore();
@@ -407,7 +415,7 @@ export class Parser {
             value
         }));
     }
-    parseIntrinsicRule(): Node | null {
+    parseIntrinsic(): Node | null {
         this.save();
         const intrinsicToken = this.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
         if (intrinsicToken === null) return this.restore();
@@ -418,6 +426,18 @@ export class Parser {
         }));
     }
 
+    parseUseInterface() {
+        this.save();
+        const i = this.expect(a => a.type === "Keyword" && a.value === "useinterface");
+        if (i === null) return this.restore();
+        const s = this.expectOrTerm("expected interface name", a => a.type === "Identifier");
+        return this.finish(cn(i, s, {
+            type: NodeKind.UseInterfaceNode,
+            string: s.name,
+            nodes: []
+        }))
+
+    }
     parseImport(): Node | null {
         this.save();
         const i = this.expect(a => a.type === "Keyword" && a.value === "import");
