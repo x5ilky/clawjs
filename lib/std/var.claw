@@ -10,6 +10,23 @@ impl number! {
         js:set("name", num.id)
         return js
     }
+
+    fn set<T + Runtime>(num: Self, amount: T) void {
+        // | { type: "Set"; target: string; value: IlValue }
+        js := $.create_js_object()
+        js:set("type", "Set")
+        js:set("target", num.id)
+        js:set("value", amount:to_scratch_value())
+        $.label_push_object($scope, js)
+    }
+    fn change<T + Runtime>(num: Self, amount: T) void {
+        // | { type: "Change"; target: string; value: IlValue }
+        js := $.create_js_object()
+        js:set("type", "Change")
+        js:set("target", num.id)
+        js:set("value", amount:to_scratch_value())
+        $.label_push_object($scope, js)
+    }
 }
 
 impl Runtime for number! {

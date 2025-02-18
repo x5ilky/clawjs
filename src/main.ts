@@ -100,6 +100,8 @@ async function main() {
     const smap = new SourceMap();
     smap.set(inputFile, await Deno.readTextFile(inputFile));
     const beforeParse = performance.now();
+    const config = new ClawConfig();
+
     const lexer = new Lexer(inputFile, smap);
     const tokens = lexer.lex();
     const parser = new Parser(tokens, smap);
@@ -109,9 +111,8 @@ async function main() {
       Deno.exit(1);
     }
     const afterParse = performance.now();
-    if (time) logger.info(`took ${(afterParse - beforeParse).toFixed(3)}ms to parse`)
+    config.timers.parsing += afterParse - beforeParse;
 
-    const config = new ClawConfig();
     config.stdlibPath = path.join(import.meta.dirname!, "..", "lib", "std")
     config.skipDeepCheck = true;
     console.profile("test")
@@ -126,7 +127,8 @@ async function main() {
     }
     console.profileEnd("test")
     const afterTypecheck = performance.now();
-    if (time) logger.info(`took ${(afterTypecheck-afterParse).toFixed(3)}ms to typecheck (including imports)`);
+    if (time) logger.info(`took ${(config.timers.parsing).toFixed(3)}ms to parse`)
+    if (time) logger.info(`took ${(config.timers.typechecking).toFixed(3)}ms to typecheck (including imports)`);
 
     const flattener = new Flattener(smap, tc.implementations);
     const ir = flattener.convertAll(parsed);

@@ -806,10 +806,20 @@ export class TCReturnValue {
 
 export class ClawConfig {
   stdlibPath: string;
-  skipDeepCheck: boolean
+  skipDeepCheck: boolean;
+
+  timers: {
+    typechecking: number,
+    parsing: number,
+  }
+
   constructor() {
     this.stdlibPath = "";
     this.skipDeepCheck = false;
+    this.timers = {
+      typechecking: 0,
+      parsing: 0
+    };
   }
 }
 
@@ -1205,14 +1215,23 @@ export class Typechecker {
           this.ti.types.push();
           const ta = this.resolveTypeGenerics(def.typeArgs);
           for (const t of ta) this.ti.types.set(t.name, t);
+          for (const t of ta) this.gcm.set(t, t);
+          this.addGenericImplementations(tas)
+          this.addGenericImplementations(ta)
 
           const retType = this.resolveTypeNode(def.returnType, this.gcm);
           const args = [];
           for (const [_n, arg] of def.args) {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
+          for (const [_n, arg] of args) {
+            this.scope.set(_n, arg)
+          }
+          const v = new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) })
           
-          map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) }));
+          this.removeGenericImplementations(ta)
+          this.removeGenericImplementations(tas)
+          map.set(def.name, v);
           this.ti.types.pop();
         }
         this.ti.baseImplementations.push({
@@ -1222,11 +1241,28 @@ export class Typechecker {
           functions: map.values().toArray()
         });
         for (const def of node.defs) {
+          const mapped = map.get(def.name)!;
+          this.addGenericImplementations(tas)
+          this.addGenericImplementations(mapped.generics as GenericClawType[])
+          const [_nodes, actualRetType] = this.typecheckForReturn([def.nodes]);
+          for (const rt of actualRetType) {
+            if (!rt.value.eq(mapped.output)) {
+              this.errorAt(rt.value.loc, `Mismatched return types, expected: ${mapped.output.toDisplay()}, got: ${rt.value.toDisplay()}`);
+              this.errorNoteAt(mapped.output.loc, `Return type specified here:`)
+              continue;
+            }
+          }
+          this.removeGenericImplementations(tas)
+          this.removeGenericImplementations(mapped.generics as GenericClawType[])
+
+        }
+        for (const def of node.defs) {
           const f = map.get(def.name)!;
           this.scope.push();
           for (const [k, v] of f.args) {
             this.scope.set(k, v); 
           }
+          this.addGenericImplementations(f.generics as GenericClawType[])
           for (const k of f.generics) {
             this.ti.types.set(k.name, k);
           }
@@ -1238,6 +1274,7 @@ export class Typechecker {
               throw new TypecheckerError();
             }
           }
+          this.removeGenericImplementations(f.generics as GenericClawType[])
           this.scope.pop();
         }
         this.ti.types.pop();
@@ -1537,9 +1574,6 @@ export class Typechecker {
     this.addGenericImplementations(ta);
 
     const types = this.typecheckForReturn([node.nodes])[1];
-    if (types.length === 0 && !returnValue.eq(this.ti.getTypeFromName("void")!)) {
-      this.errorAt(node.returnType, `Expected return value to be ${returnValue.toDisplay()}, instead got void`);
-    }
     for (const type of types) {
       if (!type.value.eq(returnValue)) {
         this.errorAt(type.value.loc, `Mismatching return types, expected: ${returnValue.toDisplay()}, got: ${type.value.toDisplay()}`);
@@ -2008,14 +2042,21 @@ export class Typechecker {
     try {
       const f = Deno.readTextFileSync(p);
       this.sourcemap.set(p, f);
+      const before = performance.now();
+
       const lexer = new Lexer(p, this.sourcemap);
       const tokens = lexer.lex();
       const parser = new Parser(tokens, this.sourcemap);
       const parsed = parser.parse();
+
+      const after = performance.now()
+      this.config.timers.parsing += after - before
       if (parsed instanceof Error) {
         throw new TypecheckerError();
       }
+
       this.typecheckFile(parsed);
+      this.config.timers.typechecking += performance.now() - after
       return parsed;
 
     } catch (e) {
