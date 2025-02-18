@@ -24,6 +24,12 @@
                 "-i",
                 "scratch.claw"
             ],
+            // "args": [
+            //     "dev",
+            //     "check",
+            //     "-i",
+            //     ".\\lib\\std\\std.claw"
+            // ],
             "attachSimplePort": 9229
         }
     ]

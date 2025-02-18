@@ -1,7 +1,7 @@
 import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ClawToken, ClawTokenType, Loc, TSymbol } from "./lexer.ts";
-import { BaseNode, BinaryOperationType, FunctionDefinitionNode, Node, NodeKind, OfTypeNode, TypeNode, UnaryOperationType } from "./nodes.ts";
+import { BaseNode, BinaryOperationType, FunctionDefinitionNode, Node, NodeKind, OfTypeNode, TypeNode, UnaryOperationType, ExportNode } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 
@@ -72,22 +72,22 @@ export class Parser {
 
 
     save() {
-        console.log('save:', this.tokens.iterator, new Error().stack!.split("\n")[2])
+        // console.log('save:', this.tokens.iterator, new Error().stack!.split("\n")[2])
         this.state.push(this.tokens.iterator);
     }
     load() {
         this.tokens.iterator = this.state.pop()!;
         this.state.push(this.tokens.iterator)
-        console.log('load:', this.tokens.iterator, new Error().stack!.split("\n")[2])
+        // console.log('load:', this.tokens.iterator, new Error().stack!.split("\n")[2])
         return null;
     }
     restore() {
         this.tokens.iterator = this.state.pop()!;
-        console.log('restore:', this.tokens.iterator, new Error().stack!.split("\n")[2])
+        // console.log('restore:', this.tokens.iterator, new Error().stack!.split("\n")[2])
         return null;
     }
     finish<T>(v: T): T {
-        console.log("finish:", this.tokens.iterator, new Error().stack!.split("\n")[2])
+        // console.log("finish:", this.tokens.iterator, new Error().stack!.split("\n")[2])
         this.state.pop();
         return v;
     }
@@ -169,8 +169,14 @@ export class Parser {
 
     parseTopLevel() {
         const peek = this.tokens.peek();
+        if (peek.type === "Keyword" && peek.value === "useinterface") return this.parseUseInterface()!;
         if (peek.type === "Keyword" && peek.value === "import") {
             const v = this.parseImport()
+            if (v === null) this.errorAt(peek, `Failed to parse import statement`);
+            return v;
+        }
+        if (peek.type === "Keyword" && peek.value === "export") {
+            const v = this.parseExport()
             if (v === null) this.errorAt(peek, `Failed to parse import statement`);
             return v;
         }
@@ -203,9 +209,39 @@ export class Parser {
     parseStatement() {
         const peek = this.tokens.peek();
         if (peek.type === "Keyword") {
+            if (["import", "export", "useinterface", "fn", "impl", "struct", "data", "interface"].includes(peek.value))
+                this.errorAt(peek, `This statement can only be used on the top level`);
             if (peek.value === "$intrinsic") return this.parseIntrinsic()!;
             if (peek.value === "return") return this.parseReturnRule()!;
             // yes it is guarenteed
+            if (peek.value === "if" || peek.value === "if!") {
+                this.save();
+                const v1 = this.parseIfElseStatement();
+                if (v1 === null)
+                    this.restore();
+                else
+                    return this.finish(v1);
+
+                const v2 = this.parseIfStatement();
+                if (v2 === null) 
+                    this.errorAt(this.tokens.justShifted(), `Failed to parse if statement`)
+                else
+                    return this.finish(v2);
+            }
+            if (peek.value === "for" || peek.value === "for!") {
+                const v2 = this.parseForStatement();
+                if (v2 === null) 
+                    this.errorAt(this.tokens.justShifted(), `Failed to parse for loop`)
+                else
+                    return v2;
+            }
+            if (peek.value === "while" || peek.value === "while!") {
+                const v2 = this.parseWhileStatement();
+                if (v2 === null) 
+                    this.errorAt(this.tokens.justShifted(), `Failed to parse while loop`)
+                else
+                    return v2;
+            }
         }
         const decl = this.parseDeclaration();
         if (decl !== null) return decl;
@@ -216,6 +252,89 @@ export class Parser {
         const value = this.parseValue();
         if (value !== null) return value;
         throw new Error("no statement matched")
+    }
+
+    parseIfStatement(): Node | null {
+        this.save();
+        const ifKeyword = this.expect(a => a.type === "Keyword" && (a.value === "if" || a.value === "if!"));
+        if (ifKeyword === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) this.errorAt(ifKeyword, `Expected predicate`);
+        const action = this.parseStatement();
+        return this.finish(cn(ifKeyword, action, {
+            type: 
+                (ifKeyword.type === "Keyword" && ifKeyword.value === "if!")
+                    ? NodeKind.IfRuntimeNode
+                    : NodeKind.IfNode,
+            predicate: value,
+            body: action
+        }));
+    }
+    parseIfElseStatement(): Node | null {
+        this.save();
+        const ifKeyword = this.expect(a => a.type === "Keyword" && (a.value === "if" || a.value === "if!"));
+        if (ifKeyword === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) this.errorAt(ifKeyword, `Expected predicate`);
+        const action = this.parseStatement();
+
+        const elseKeyword = this.expect(a => a.type === "Keyword" && a.value === "else");
+        if (elseKeyword === null) return this.restore();
+
+        const action2 = this.parseStatement();
+        return this.finish(cn(ifKeyword, action, {
+            type: 
+                (ifKeyword.type === "Keyword" && ifKeyword.value === "if!")
+                    ? NodeKind.IfElseRuntimeNode
+                    : NodeKind.IfElseNode,
+            predicate: value,
+            body: action,
+            elseBody: action2
+        }));
+    }
+    parseForStatement(): Node | null {
+        this.save();
+        const forKeyword = this.expect(a => a.type === "Keyword" && (a.value === "for" || a.value === "for!"));
+        if (forKeyword === null) return this.restore();
+
+        const pre = this.parseStatement();
+        if (pre === null) this.errorAt(forKeyword, `Expected pre statement`);
+
+        const value = this.parseValue();
+        if (value === null) this.errorAt(forKeyword, `Expected predicate`);
+
+        const post = this.parseStatement();
+        if (post === null) this.errorAt(forKeyword, `Expected post statement`);
+
+        const action = this.parseStatement();
+        return this.finish(cn(forKeyword, action, {
+            type: 
+                (forKeyword.type === "Keyword" && forKeyword.value === "for!")
+                    ? NodeKind.ForRuntimeNode
+                    : NodeKind.ForNode,
+            predicate: value,
+            body: action,
+            post,
+            initialiser: pre
+        }));
+    }
+    parseWhileStatement(): Node | null {
+        this.save();
+        const forKeyword = this.expect(a => a.type === "Keyword" && (a.value === "while" || a.value === "while!"));
+        if (forKeyword === null) return this.restore();
+
+        const value = this.parseValue();
+        if (value === null) this.errorAt(forKeyword, `Expected predicate`);
+
+        const action = this.parseStatement();
+        return this.finish(cn(forKeyword, action, {
+            type: 
+                (forKeyword.type === "Keyword" && forKeyword.value === "while!")
+                    ? NodeKind.WhileRuntimeNode
+                    : NodeKind.WhileNode,
+            predicate: value,
+            body: action,
+        }));
     }
 
     parseGenericTypeList(): TypeNode[] | null {
@@ -426,15 +545,14 @@ export class Parser {
         }));
     }
 
-    parseUseInterface() {
+    parseUseInterface(): Node | null {
         this.save();
         const i = this.expect(a => a.type === "Keyword" && a.value === "useinterface");
         if (i === null) return this.restore();
         const s = this.expectOrTerm("expected interface name", a => a.type === "Identifier");
         return this.finish(cn(i, s, {
             type: NodeKind.UseInterfaceNode,
-            string: s.name,
-            nodes: []
+            interfaceName: s.name,
         }))
 
     }
@@ -447,6 +565,21 @@ export class Parser {
             type: NodeKind.ImportNode,
             string: s?.value,
             nodes: []
+        }))
+    }
+    parseExport(): Node | null {
+        this.save();
+        const i = this.expect(a => a.type === "Keyword" && a.value === "export");
+        if (i === null) return this.restore();
+        const s = this.try(
+            this.parseDeclaration,
+            this.parseFunction,
+            this.parseStructDefinition,
+        );
+        if (s === null) this.errorAt(i, `Expected function definition, struct definition or variable declaration`);
+        return this.finish(cn(i, s, {
+            type: NodeKind.ExportNode,
+            sub: s as ExportNode["sub"]
         }))
     }
     parseDeclaration(): Node | null {
@@ -576,11 +709,11 @@ export class Parser {
     }
     parseOfType(): OfTypeNode | null {
         this.save();
-        const traitName = this.parseType();
+        const traitName = this.parseBaseType();
         if (traitName === null) return this.restore();
         const _right_paren = this.expectSymbol(".")
         if (_right_paren === null) return this.restore();
-        const traitType = this.parseType();
+        const traitType = this.parseBaseType();
         if (traitType === null) return this.restore();
         const _of_keyword = this.expect(t => t.type === "Keyword" && t.value === "of")
         if (_of_keyword === null) return this.restore();
@@ -644,8 +777,8 @@ export class Parser {
             if (v === null) return this.restore();
             args.push(v);
 
-            if (this.eatIfThereIsSymbol(")")) continue;
-            if (this.eatIfThereIsSymbol(",")) break;
+            if (this.eatIfThereIsSymbol(")")) break;
+            if (this.eatIfThereIsSymbol(",")) continue;
             this.errorAt(this.tokens.justShifted(), `Expected commas or parentheses`);
         }
         return this.finish(cn(lhs, this.tokens.justShifted(), {
@@ -727,11 +860,11 @@ export class Parser {
         if (_dot === null) return this.restore();
         const name = this.expect(a => a.type === "Identifier");
         if (name === null) return this.restore();
-        return cn(lhs, name, {
+        return this.finish(cn(lhs, name, {
             type: NodeKind.ChildOfNode,
             base: lhs,
             extension: name.name
-        });
+        }));
     }
 
     parseUnaryOperator(): Node | null {
@@ -764,6 +897,7 @@ export class Parser {
         return this.finish(this.parseMemberAccess());
     }
     parseBinaryOperator(): Node | null {
+        this.save();
         const BINARY_OPERATOR_TO_PRECEDENCE = {
             "||": [BinaryOperationType.Or, 1],
             "&&": [BinaryOperationType.And, 2],
@@ -840,11 +974,11 @@ export class Parser {
         if (_dot === null) return this.restore();
         const name = this.expect(a => a.type === "Identifier");
         if (name === null) return this.restore();
-        return cn(lhs, name, {
+        return this.finish(cn(lhs, name, {
             type: NodeKind.MethodOfNode,
             base: lhs,
             extension: name.name
-        });
+        }));
     }
 
     parseMemberAccess(): Node | null {
@@ -871,11 +1005,16 @@ export class Parser {
                     continue;
                 }
             }
-            return this.try(
-                () => this.parseFunctionCall(lhs!),
-                () => this.parseMethodAccess(lhs!),
-                () => this.parseChild(lhs!)
-            )
+            const fc = this.parseFunctionCall(lhs!);
+            if (fc === null) {
+                const ma = this.parseMethodAccess(lhs!);
+                if (ma === null) {
+                    const c = this.parseChild(lhs!);
+                    if (c === null) {
+                        return this.restore();
+                    } else lhs = c;
+                } else lhs = ma;
+            } else lhs = fc;
         }
         return this.finish(lhs);
     }
