@@ -55,3 +55,12 @@ export fn turn_right<T + Runtime>(deg: T) void {
     js:set("degrees", deg:to_scratch_value())
     $.label_push_object($scope, js)
 }
+export fn forever(l: label) void {
+    // | { type: "Forever"; label: string }
+    js := $.create_js_object()
+    js:set("type", "Forever")
+    js:set("label", $.label_get_name(l))
+    $.label_push_object($scope, js)
+    $.set_label(l)
+    
+}

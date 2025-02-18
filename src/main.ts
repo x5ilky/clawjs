@@ -174,6 +174,7 @@ async function main() {
     // is also returned by zipWriter.close() for more convenience.
     const zipFileBlob = await zipFileWriter.getData();
     await Deno.writeFile(output, await zipFileBlob.bytes())
+    if (time) logger.info(`took ${(performance.now() - afterInterpret).toFixed(3)}ms to write to zip`);
   }
 }
 async function dev(cmd: skap.SkapInfer<typeof devShape>) {
