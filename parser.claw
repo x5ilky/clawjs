@@ -1,4 +1,3 @@
-
-interface Display {
-    fn display(self: Self) void
+if self:test() > 0 {
+    print("Hello, world!")
 }

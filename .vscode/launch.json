@@ -22,11 +22,13 @@
             "args": [
                 "run",
                 "-i",
-                "scratch.claw"
+                "scratch.claw",
+                "-F",
+                "resources"
             ],
             // "args": [
             //     "dev",
-            //     "check",
+            //     "parse",
             //     "-i",
             //     ".\\lib\\std\\std.claw"
             // ],
