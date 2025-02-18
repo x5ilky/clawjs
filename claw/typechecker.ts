@@ -2,7 +2,7 @@ import * as path from "jsr:@std/path";
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { BinaryOperation, BinaryOperationType, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
+import { AssignmentNode, BinaryOperation, BinaryOperationType, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -986,7 +986,7 @@ export class Typechecker {
     this.ti.interfaces.set("Runtime", RuntimeInterface);
     const AssignInterface = new ClawInterface(
       "Assign",
-      [new GenericClawType("T", BUILTIN_LOC, []), new GenericClawType("O", BUILTIN_LOC, [])],
+      [new GenericClawType("T", BUILTIN_LOC, [])],
       new Map([
         ["assign", 
             new FunctionClawType(
@@ -994,7 +994,7 @@ export class Typechecker {
                 [], 
                 BUILTIN_LOC, 
                 [["self", Self], ["new_value", new GenericClawType("T", BUILTIN_LOC, [])]], 
-                new GenericClawType("O", BUILTIN_LOC, []), 
+                Self,
                 null)],
       ])
     );
@@ -1061,9 +1061,18 @@ export class Typechecker {
           this.ti.getTypeInterfaceImplementations(
             value, 
             this.ti.getInterfaceFromName("Assign")!, 
-            [this.ti.getTypeFromName("any")!, this.ti.getTypeFromName("any")!]
+            [this.ti.getTypeFromName("any")!]
           );
-        console.log(assignment)
+        if (assignment.length > 1) {
+          this.errorAt(node, `Cannot have multiple competeting assignment implementations`);
+          for (const a of assignment) {
+            this.errorNoteAt(a.spec.functions[0].loc, `Assignment implementations here:`);
+          }
+          throw new TypecheckerError();
+        } else if (assignment.length === 1) {
+          this.doFunctionBody(node, assignment[0].spec.functions[0]);
+          return node;
+        }
 
         const type = this.evaluateTypeFromValue(node.value);
         if (!value.eq(type)) {
@@ -1315,6 +1324,10 @@ export class Typechecker {
           for (const ta of tas) this.gcm.set(ta, ta);
           const tt = this.resolveTypeNode(node.targetType, this.gcm);
         const [trait, inputs] = this.resolveInterface(node.trait);
+        if (inputs.length !== trait.generics.length) {
+          this.errorAt(node.trait, `Mismatched input count for impl interface`);
+          throw new TypecheckerError();
+        }
         this.gcm.set(new GenericClawType("Self", tt.loc, []), tt);
         const map = new Map<string, FunctionClawType>();
         if (node.defs.length !== trait.functions.size) {
@@ -1612,7 +1625,7 @@ export class Typechecker {
     return node;
   }
 
-  doFunctionBody(node: BinaryOperation | UnaryOperation, fn: FunctionClawType) {
+  doFunctionBody(node: BinaryOperation | UnaryOperation | AssignmentNode, fn: FunctionClawType) {
     if (fn.body !== null) {
       this.scope.push();
       for (const [k, v] of fn.args) {
@@ -1632,6 +1645,8 @@ export class Typechecker {
       this.implementations.set(node.target, fn.body!);
     } 
   }
+
+
 
   evaluateTypeFromValue(node: Node): ClawType {
     switch (node.type) {

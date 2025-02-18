@@ -43,9 +43,9 @@ impl Runtime for number! {
         return obj
     }
 }
-impl Assign<number, number!> for number! {
+impl Assign<number> for number! {
     fn assign(num: Self, to: number) number! {
-        
+
         return num
     }
 }

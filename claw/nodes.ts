@@ -127,7 +127,8 @@ export type CallNode = {
 export type AssignmentNode = {
     readonly type: NodeKind.AssignmentNode,
     readonly assignee: Node,
-    readonly value: Node
+    readonly value: Node,
+    target?: string // target if custom assignment
 } & Loc;
 export type DeclarationNode = {
     readonly type: NodeKind.DeclarationNode,
