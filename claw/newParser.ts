@@ -203,9 +203,9 @@ export class Parser {
     parseStatement() {
         const peek = this.tokens.peek();
         if (peek.type === "Keyword") {
-            if (peek.value === "$intrinsic") return this.parseIntrinsic() ?? (() => { throw new Error() })();
-            if (peek.value === "return") return this.parseReturnRule() ?? (() => { throw new Error() })();
-            // i think these are guarenteed?
+            if (peek.value === "$intrinsic") return this.parseIntrinsic()!;
+            if (peek.value === "return") return this.parseReturnRule()!;
+            // yes it is guarenteed
         }
         const decl = this.parseDeclaration();
         if (decl !== null) return decl;
@@ -409,7 +409,7 @@ export class Parser {
         const returnToken = this.expect(token => token.type === "Keyword" && token.value === "return");
         if (returnToken === null) return this.restore();
         const value = this.parseValue();
-        if (value === null) return this.restore();
+        if (value === null) this.errorAt(returnToken, `Expected return value`);
         return this.finish(cn(returnToken, value, {
             type: NodeKind.ReturnNode,
             value
