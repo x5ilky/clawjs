@@ -179,6 +179,11 @@ export class Parser {
             if (v === null) this.errorAt(peek, `Failed to parse function definition`);
             return v;
         }
+        if (peek.type === "Keyword" && peek.value === "interface") {
+            const v = this.parseInterface()
+            if (v === null) this.errorAt(peek, `Failed to parse function definition`);
+            return v;
+        }
 
         return this.parseStatement();
     }
@@ -264,6 +269,30 @@ export class Parser {
             typeArgs: def.typeArgs,
             nodes: block,
         }))
+    }
+
+    parseInterface(): Node | null {
+        this.save();
+        const interfaceToken = this.expect(a => a.type === "Keyword" && a.value === "interface");
+        if (interfaceToken === null) return this.restore()
+        const interfaceNameToken = this.expectOrTerm("expected identifier name", a => a.type === "Identifier");
+        const generics = this.parseGenericTypeList();
+        if (generics === null) return this.restore();
+        const beginCurly = this.expectSymbol("{");
+        if (beginCurly === null) return this.restore()
+        const functions = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const f = this.parseFunctionDefinition();
+            if (f === null) this.errorAt(this.tokens.justShifted(), "expected function definition");
+            functions.push(f);
+        }
+        return cn(interfaceToken, this.tokens.justShifted(), {
+            type: NodeKind.InterfaceNode,
+            name: interfaceNameToken.name,
+            defs: functions,
+            typeArguments: generics
+        });
     }
 
     parseImport(): Node | null {

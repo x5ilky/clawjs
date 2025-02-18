@@ -1,3 +1,4 @@
-fn just() void {
 
+interface Display {
+    fn display(self: Self) void
 }
