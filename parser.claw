@@ -1,0 +1,3 @@
+if self:test() > 0 {
+    print("Hello, world!")
+}

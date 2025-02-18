@@ -1,20 +1,10 @@
-import { EZP, EZPError, LogLevel } from "../SkOutput.ts";
+import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
-import { ClawToken, ClawTokenType, Loc } from "./lexer.ts";
-import {
-  BaseNode,
-  BinaryOperationType,
-  ExportNode,
-  FunctionDefinitionNode,
-  Node,
-  NodeKind,
-  TypeNode,
-  UnaryOperationType,
-} from "./nodes.ts";
+import { ClawToken, ClawTokenType, Loc, TSymbol } from "./lexer.ts";
+import { BaseNode, BinaryOperationType, FunctionDefinitionNode, Node, NodeKind, OfTypeNode, TypeNode, UnaryOperationType, ExportNode } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
 
-// construct node
 function cn<T extends Omit<BaseNode, keyof Loc>>(
   start: { start: number; end: number; fp: string },
   end: { start: number; end: number; fp: string },
@@ -27,397 +17,888 @@ function cn<T extends Omit<BaseNode, keyof Loc>>(
     ...value,
   };
 }
+class Iterray<T> {
+    values: T[]
+    iterator: number
+
+    constructor(values: T[]) {
+        this.values = values;
+        this.iterator = 0;
+    }
+
+    hasItems(): boolean {
+        return this.iterator < this.values.length
+    }
+
+    peek(): T {
+        return this.values[this.iterator]
+    }
+
+    shift(): T {
+        return this.values[this.iterator++]
+    }
+
+    push(value: T) {
+        this.values.push(value)
+    }
+
+    justShifted(): T {
+        return this.values[this.iterator - 1];
+    }
+}
+type ApplyTypePredicate<T, E> = (T extends (value: E) => value is (infer R extends E) ? R : E) ;
+
 export class Parser {
-  ezp: EZP<ClawToken, Node>;
-  constructor(tokens: ClawToken[], private sourcemap: SourceMap) {
-    const sh = new SourceHelper(sourcemap.get(tokens?.[0]?.fp) ?? "");
-    this.ezp = new EZP<ClawToken, Node>(tokens, {
-      getLoc: (tok) => {
-        const [row, col] = sh.getColRow(tok.start);
-        return [tok.fp, row + 1, col + 1];
-      },
-      customError: (error, tok) => this.errorAt(tok, error),
-    });
-    const typeRule = this.ezp.instantiateHelper<ClawToken, TypeNode>("type", (ezp): TypeNode => {
-      return ezp.getFirstThatWorks(
-        groupTypeRule,
-        ofTypeRule,
-        baseTypeRule
-      )
-    })
-    const groupTypeRule = this.ezp.instantiateRule<ClawToken, TypeNode>("type grouping", (ezp): TypeNode => {
-      const _start_paren = ezp.expect(a => a.type === "Symbol" && a.value === "(");
-      const type = ezp.expectRule(typeRule);
-      const _end_paren = ezp.expect(a => a.type === "Symbol" && a.value === ")");
-      return type;
-    })
-    const ofTypeRule = this.ezp.instantiateRule<ClawToken, TypeNode>("of type", (ezp): TypeNode => {
-      const traitName = ezp.expectRule(baseTypeRule);
-      const _period = ezp.expect(a => a.type === "Symbol" && a.value === ".");
-      const traitType = ezp.expectRule(baseTypeRule);
-      const _of = ezp.expect(a => a.type === "Keyword" && a.value === "of");
-      const type = ezp.expectRuleOrTerm("expected base type", typeRule);
-      return cn(traitName, type, {
-        type: NodeKind.OfTypeNode,
-        baseType: type,
-        int: traitName,
-        intType: traitType,
-      })
-    })
-    const baseTypeRule = this.ezp.instantiateRule<ClawToken, TypeNode>(
-      "type",
-      (ezp) => {
-        let ref = false;
+    tokens: Iterray<ClawToken>;
+    state: number[];
+    constructor(tokens: ClawToken[], private sourcemap: SourceMap) {
+        this.tokens = new Iterray(tokens);
+        this.state = [];
+    }
+
+    // deno-lint-ignore no-explicit-any
+    try<T>(...fns: ((this: Parser, ...values: any[]) => T)[]): T | null {
+        this.save();
+        for (const fn of fns) {
+            const v = fn.bind(this)();
+            if (v !== null) return this.finish(v);
+            else {
+                this.load();
+            }
+        }
+        return this.finish(null)
+    }
+
+
+    save() {
+        this.state.push(this.tokens.iterator);
+        // console.log('save:', this.state.length, this.tokens.iterator, new Error().stack!.split("\n")[2])
+    }
+    load() {
+        this.tokens.iterator = this.state.pop()!;
+        this.state.push(this.tokens.iterator)
+        // console.log('load:', this.state.length, this.tokens.iterator, new Error().stack!.split("\n")[2])
+        return null;
+    }
+    restore() {
+        this.tokens.iterator = this.state.pop()!;
+        // console.log('restore:', this.state.length, this.tokens.iterator, new Error().stack!.split("\n")[2])
+        return null;
+    }
+    finish<T>(v: T): T {
+        this.state.pop();
+        // console.log("finish:", this.state.length, this.tokens.iterator, new Error().stack!.split("\n")[2])
+        return v;
+    }
+    errorAt(
+        location: { start: number; end: number; fp: string },
+        message: string,
+    ): never {
+        const tag = {
+        color: [196, 34, 235] as [number, number, number],
+        priority: -20,
+        name: "parser",
+        };
+        const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
+        const lines = sh.getLines(location.start, location.end);
+        const [col, row] = sh.getColRow(location.start);
+        logger.printWithTags([
+            logger.config.levels[LogLevel.ERROR],
+            tag
+        ], `At ${location.fp}:${col + 1}:${row + 1}:`);
+        for (const ln of lines) {
+            logger.printWithTags([
+                logger.config.levels[LogLevel.ERROR],
+                tag
+            ], ln);
+        }
+        logger.printWithTags([
+            logger.config.levels[LogLevel.ERROR],
+            tag
+        ], `${message}`);
+        Deno.exit(1);
+    }
+
+    eatIfThereIs<F extends (token: ClawToken) => unknown>(pred: F): boolean {
+        const v = this.tokens.peek()
+        if (v === undefined) return false;
+        if (!pred(v)) return false;
+        this.tokens.shift();
+        return true;
+    }
+    eatIfThereIsSymbol(symbol: TSymbol): boolean {
+        const v = this.tokens.peek()
+        if (v === undefined) return false;
+        if (!(v.type === "Symbol" && v.value === symbol)) return false;
+        this.tokens.shift();
+        return true;
+    }
+    expect<F extends (token: ClawToken) => unknown>(pred: F): ApplyTypePredicate<F, ClawToken> | null {
+        const v = this.tokens.shift()
+        if (v === undefined) return null;
+        if (!pred(v)) return null;
+        return v as ApplyTypePredicate<F, ClawToken>;
+    }
+    expectOrTerm<F extends (token: ClawToken) => unknown>(message: string, pred: F): ApplyTypePredicate<F, ClawToken> {
+        const v = this.tokens.shift()
+        if (v === undefined) return this.errorAt(this.tokens.values[this.tokens.iterator-2], message);
+        if (!pred(v)) return this.errorAt(v, message);
+        return v as ApplyTypePredicate<F, ClawToken>;
+    }
+    expectSymbol<F extends (token: ClawTokenType<"Symbol">) => unknown>(symbolType: TSymbol): ApplyTypePredicate<F, ClawToken> | null {
+        const v = this.tokens.shift();
+        if (v === undefined) return null;
+        if (v.type !== "Symbol") return null;
+        if (v.value !== symbolType) return null;
+        return v as ApplyTypePredicate<F, ClawToken>;
+    }
+    expectSymbolOrLoad<F extends (token: ClawTokenType<"Symbol">) => unknown>(symbolType: TSymbol): ApplyTypePredicate<F, ClawToken> | null {
+        const v = this.tokens.shift();
+        if (v === undefined) return this.load();
+        if (v.type !== "Symbol") return this.load();
+        if (v.value !== symbolType) return this.load();
+        return v as ApplyTypePredicate<F, ClawToken>;
+    }
+
+    parse() {
+        const nodes = [];
+        while(this.tokens.hasItems()) nodes.push(this.parseTopLevel())
+        return nodes
+    }
+
+    parseTopLevel(): Node {
+        const peek = this.tokens.peek();
+        if (peek.type === "Keyword" && peek.value === "useinterface") return this.parseUseInterface()!;
+        if (peek.type === "Keyword" && peek.value === "import") {
+            const v = this.parseImport()
+            if (v === null) this.errorAt(peek, `Failed to parse import statement`);
+            return v;
+        }
+        if (peek.type === "Keyword" && peek.value === "export") {
+            const v = this.parseExport()
+            if (v === null) this.errorAt(peek, `Failed to parse import statement`);
+            return v;
+        }
+        if (peek.type === "Keyword" && peek.value === "fn") {
+            const v = this.parseFunction()
+            if (v === null) this.errorAt(peek, `Failed to parse function definition`);
+            return v;
+        }
+        if (peek.type === "Keyword" && peek.value === "interface") {
+            const v = this.parseInterface()
+            if (v === null) this.errorAt(peek, `Failed to parse function definition`);
+            return v;
+        }
+        if (peek.type === "Keyword" && peek.value === "impl") {
+            this.save();
+            const v = this.parseImplBase()
+            if (v === null) this.restore();
+            else return this.finish(v);
+            const v2 = this.parseImplTrait()
+            if (v2 === null)
+                this.errorAt(peek, `Failed to parse impl statement`);
+            return this.finish(v2);
+        }
+        if (peek.type === "Keyword" && (peek.value === "data" || peek.value === "struct")) {
+            return this.parseStructDefinition()!;
+        }
+
+        return this.parseStatement();
+    }
+    parseStatement() {
+        const peek = this.tokens.peek();
+        if (peek.type === "Keyword") {
+            if (["import", "export", "useinterface", "fn", "impl", "struct", "data", "interface"].includes(peek.value))
+                this.errorAt(peek, `This statement can only be used on the top level`);
+            if (peek.value === "return") return this.parseReturnRule()!;
+            // yes it is guarenteed
+            if (peek.value === "if" || peek.value === "if!") {
+                this.save();
+                const v1 = this.parseIfElseStatement();
+                if (v1 === null)
+                    this.restore();
+                else
+                    return this.finish(v1);
+
+                const v2 = this.parseIfStatement();
+                if (v2 === null) 
+                    this.errorAt(this.tokens.justShifted(), `Failed to parse if statement`)
+                else
+                    return this.finish(v2);
+            }
+            if (peek.value === "for" || peek.value === "for!") {
+                const v2 = this.parseForStatement();
+                if (v2 === null) 
+                    this.errorAt(this.tokens.justShifted(), `Failed to parse for loop`)
+                else
+                    return v2;
+            }
+            if (peek.value === "while" || peek.value === "while!") {
+                const v2 = this.parseWhileStatement();
+                if (v2 === null) 
+                    this.errorAt(this.tokens.justShifted(), `Failed to parse while loop`)
+                else
+                    return v2;
+            }
+        }
+        const decl = this.parseDeclaration();
+        if (decl !== null) return decl;
+        const opAssign = this.parseOpAssign();
+        if (opAssign !== null) return opAssign;
+        const assign = this.parseAssignment();
+        if (assign !== null) return assign;
+        const value = this.parseValue();
+        if (value !== null) return value;
+        this.errorAt(this.tokens.justShifted(), "no statement matched")
+    }
+
+    parseIfStatement(): Node | null {
+        this.save();
+        const ifKeyword = this.expect(a => a.type === "Keyword" && (a.value === "if" || a.value === "if!"));
+        if (ifKeyword === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) this.errorAt(ifKeyword, `Expected predicate`);
+        const action = this.parseStatement();
+        return this.finish(cn(ifKeyword, action, {
+            type: 
+                (ifKeyword.type === "Keyword" && ifKeyword.value === "if!")
+                    ? NodeKind.IfRuntimeNode
+                    : NodeKind.IfNode,
+            predicate: value,
+            body: action
+        }));
+    }
+    parseIfElseStatement(): Node | null {
+        this.save();
+        const ifKeyword = this.expect(a => a.type === "Keyword" && (a.value === "if" || a.value === "if!"));
+        if (ifKeyword === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) this.errorAt(ifKeyword, `Expected predicate`);
+        const action = this.parseStatement();
+
+        const elseKeyword = this.expect(a => a.type === "Keyword" && a.value === "else");
+        if (elseKeyword === null) return this.restore();
+
+        const action2 = this.parseStatement();
+        return this.finish(cn(ifKeyword, action, {
+            type: 
+                (ifKeyword.type === "Keyword" && ifKeyword.value === "if!")
+                    ? NodeKind.IfElseRuntimeNode
+                    : NodeKind.IfElseNode,
+            predicate: value,
+            body: action,
+            elseBody: action2
+        }));
+    }
+    parseForStatement(): Node | null {
+        this.save();
+        const forKeyword = this.expect(a => a.type === "Keyword" && (a.value === "for" || a.value === "for!"));
+        if (forKeyword === null) return this.restore();
+
+        const pre = this.parseStatement();
+        if (pre === null) this.errorAt(forKeyword, `Expected pre statement`);
+
+        const value = this.parseValue();
+        if (value === null) this.errorAt(forKeyword, `Expected predicate`);
+
+        const post = this.parseStatement();
+        if (post === null) this.errorAt(forKeyword, `Expected post statement`);
+
+        const action = this.parseStatement();
+        return this.finish(cn(forKeyword, action, {
+            type: 
+                (forKeyword.type === "Keyword" && forKeyword.value === "for!")
+                    ? NodeKind.ForRuntimeNode
+                    : NodeKind.ForNode,
+            predicate: value,
+            body: action,
+            post,
+            initialiser: pre
+        }));
+    }
+    parseWhileStatement(): Node | null {
+        this.save();
+        const forKeyword = this.expect(a => a.type === "Keyword" && (a.value === "while" || a.value === "while!"));
+        if (forKeyword === null) return this.restore();
+
+        const value = this.parseValue();
+        if (value === null) this.errorAt(forKeyword, `Expected predicate`);
+
+        const action = this.parseStatement();
+        return this.finish(cn(forKeyword, action, {
+            type: 
+                (forKeyword.type === "Keyword" && forKeyword.value === "while!")
+                    ? NodeKind.WhileRuntimeNode
+                    : NodeKind.WhileNode,
+            predicate: value,
+            body: action,
+        }));
+    }
+
+    parseGenericTypeList(): TypeNode[] | null {
+        this.save();
+        const generics: TypeNode[] = [];
+        if (this.eatIfThereIsSymbol("<")) {
+            while (true) {
+                if (this.eatIfThereIsSymbol(">")) break;
+                const v = this.parseType();
+                if (v === null) return this.restore();
+                generics.push(v)
+                if (this.eatIfThereIsSymbol(">")) break;
+                if (this.eatIfThereIsSymbol(",")) continue;
+                this.errorAt(this.tokens.justShifted(), `Expected commas or right angle bracket`);
+            }
+        }
+        return this.finish(generics);
+    }
+
+    parseFunctionDefinition(): FunctionDefinitionNode | null {
+        this.save();
+        const fn = this.expect(a => a.type === "Keyword" && a.value === "fn");
+        if (fn === null) return this.restore();
+        const name = this.expectOrTerm("Expected function name", token => token.type === "Identifier");
+        const typeArgs = this.parseGenericTypeList();
+        if (typeArgs === null) return this.restore();
+        const startParen = this.expectSymbol("(")
+        if (startParen === null) return this.restore();
+
+        const args: [string, TypeNode][] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol(")")) break;
+            const name = this.expectOrTerm("Expected function argument", token => token.type === "Identifier");
+            const colon = this.expectSymbol(":");
+            if (colon === null) return this.restore();
+            const type = this.parseType();
+            if (type === null) return this.restore();
+            args.push([name.name, type] as const);
+            if (this.eatIfThereIsSymbol(")")) break;
+            if (this.eatIfThereIsSymbol(",")) continue;
+            this.errorAt(this.tokens.justShifted(), `Expected ending parentheses`);
+        }
+        const returnType = this.parseType();
+        if (returnType === null) return this.restore();
+        const end = this.tokens.justShifted();
+        return this.finish(cn(fn, end, {
+            type: NodeKind.FunctionDefinitionNode,
+            name: name.name,
+            args,
+            typeArgs,
+            nodes: cn(end, end, {
+                type: NodeKind.BlockNode,
+                nodes: []
+            }),
+            returnType
+        }))
+    }
+
+    parseFunction(): FunctionDefinitionNode | null {
+        this.save();
+        const def = this.parseFunctionDefinition();
+        if (def === null) return this.errorAt(this.tokens.justShifted(), `Failed to parse function definition`);
+
+        const block = this.parseLiteral();
+        if (block === null) this.errorAt(def, `Expected function body`);
+        return this.finish(cn(def, block, {
+            type: NodeKind.FunctionDefinitionNode, 
+            name: def.name,
+            args: def.args,
+            returnType: def.returnType,
+            typeArgs: def.typeArgs,
+            nodes: block,
+        }))
+    }
+
+    parseInterface(): Node | null {
+        this.save();
+        const interfaceToken = this.expect(a => a.type === "Keyword" && a.value === "interface");
+        if (interfaceToken === null) return this.restore()
+        const interfaceNameToken = this.expectOrTerm("expected identifier name", a => a.type === "Identifier");
+        const generics = this.parseGenericTypeList();
+        if (generics === null) return this.restore();
+        const beginCurly = this.expectSymbol("{");
+        if (beginCurly === null) return this.restore()
+        const functions = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const f = this.parseFunctionDefinition();
+            if (f === null) this.errorAt(this.tokens.justShifted(), "expected function definition");
+            functions.push(f);
+        }
+        return this.finish(cn(interfaceToken, this.tokens.justShifted(), {
+            type: NodeKind.InterfaceNode,
+            name: interfaceNameToken.name,
+            defs: functions,
+            typeArguments: generics
+        }));
+    }
+
+    parseImplBase(): Node | null {
+        this.save();
+        const implToken = this.expect(a => a.type === "Keyword" && a.value === "impl");
+        if (implToken === null) return this.restore();
+        const implGenerics = this.parseGenericTypeList();
+        if (implGenerics === null) return this.restore();
+        const targetType = this.parseType();
+        if (targetType === null) return this.restore();
+        const _begin_curly = this.expectSymbol("{");
+        if (_begin_curly === null) return this.restore();
+        const functions = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const f = this.parseFunction();
+            if (f === null) this.errorAt(this.tokens.justShifted(), "Expected function implementation");
+            functions.push(f);
+        }
+        return this.finish(cn(implToken, this.tokens.justShifted(), {
+            type: NodeKind.ImplBaseNode,
+            targetType,
+            defs: functions,
+            generics: implGenerics
+        }))
+    }
+    parseImplTrait(): Node | null {
+        this.save();
+        const implToken = this.expect(a => a.type === "Keyword" && a.value === "impl");
+        if (implToken === null) return this.restore();
+        const implGenerics = this.parseGenericTypeList();
+        if (implGenerics === null) return this.restore();
+
+        const trait = this.parseType();
+        if (trait === null) return this.restore();
+
+        const forToken = this.expect(a => a.type === "Keyword" && a.value === "for");
+        if (forToken === null) return this.restore();
+
+        const targetType = this.parseType();
+        if (targetType === null) return this.restore();
+        const _begin_curly = this.expectSymbol("{");
+        if (_begin_curly === null) return this.restore();
+        const functions = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const f = this.parseFunction();
+            if (f === null) this.errorAt(this.tokens.justShifted(), "Expected function implementation");
+            functions.push(f);
+        }
+        return this.finish(cn(implToken, this.tokens.justShifted(), {
+            type: NodeKind.ImplTraitNode,
+            defs: functions,
+            generics: implGenerics,
+            targetType,
+            trait
+        }))
+    }
+
+    parseStructDefinition(): Node | null {
+        this.save();
+        const structToken = this.expect(a => a.type === "Keyword" && (a.value === "struct" || a.value === "data"));
+        if (structToken === null) return this.restore();
+        const structName = this.expectOrTerm("Expected struct name", token => token.type === "Identifier");
+        const generics = this.parseGenericTypeList();
+        if (generics === null) return this.restore();
+
+        const startCurly = this.expectSymbol("{");
+        if (startCurly === null) this.errorAt(this.tokens.justShifted(), `Expected left curly`);
+        const members: [string, TypeNode][] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const name = this.expectOrTerm("Expected member name", token => token.type === "Identifier");
+            this.expectOrTerm("Expected colon", token => token.type === "Symbol" && token.value === ":");
+            const type = this.parseType();
+            if (type === null) this.errorAt(this.tokens.justShifted(), `Expected member type`);
+            members.push([name.name, type]);
+
+            if (this.eatIfThereIsSymbol("}")) break;
+            if (this.eatIfThereIsSymbol(",")) continue;
+            this.errorAt(type, "Expected ending curly brackets or comma");
+        }
+        return this.finish(cn(structToken, this.tokens.justShifted(), {
+            type:
+                (structToken.type === "Keyword" && structToken.value === "data")
+                    ? NodeKind.DataStructDefinitionNode
+                    : NodeKind.StructDefinitionNode,
+            generics,
+            members,
+            name: structName.name
+        }))
+    }
+
+    parseReturnRule(): Node | null {
+        this.save();
+        const returnToken = this.expect(token => token.type === "Keyword" && token.value === "return");
+        if (returnToken === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) this.errorAt(returnToken, `Expected return value`);
+        return this.finish(cn(returnToken, value, {
+            type: NodeKind.ReturnNode,
+            value
+        }));
+    }
+    parseIntrinsic(): Node | null {
+        this.save();
+        const intrinsicToken = this.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
+        if (intrinsicToken === null) return this.restore();
+        const s = this.expectOrTerm("Expected intrinsic string literal", a => a.type === 'StringLiteral');
+        return this.finish(cn(intrinsicToken, s, {
+            type: NodeKind.IntrinsicNode,
+            string: s.value
+        }));
+    }
+
+    parseUseInterface(): Node | null {
+        this.save();
+        const i = this.expect(a => a.type === "Keyword" && a.value === "useinterface");
+        if (i === null) return this.restore();
+        const s = this.expectOrTerm("expected interface name", a => a.type === "Identifier");
+        return this.finish(cn(i, s, {
+            type: NodeKind.UseInterfaceNode,
+            interfaceName: s.name,
+        }))
+
+    }
+    parseImport(): Node | null {
+        this.save();
+        const i = this.expect(a => a.type === "Keyword" && a.value === "import");
+        if (i === null) return this.restore();
+        const s = this.expectOrTerm("expected import path", a => a.type === "StringLiteral");
+        return this.finish(cn(i, s, {
+            type: NodeKind.ImportNode,
+            string: s?.value,
+            nodes: []
+        }))
+    }
+    parseExport(): Node | null {
+        this.save();
+        const i = this.expect(a => a.type === "Keyword" && a.value === "export");
+        if (i === null) return this.restore();
+        const s = this.try(
+            this.parseDeclaration,
+            this.parseFunction,
+            this.parseStructDefinition,
+        );
+        if (s === null) this.errorAt(i, `Expected function definition, struct definition or variable declaration`);
+        return this.finish(cn(i, s, {
+            type: NodeKind.ExportNode,
+            sub: s as ExportNode["sub"]
+        }))
+    }
+    parseDeclaration(): Node | null {
+        this.save();
+        const name = this.expect(t => t.type === "Identifier");
+        if (name === null) return this.restore();
+        const colon = this.expect(t => t.type === "Symbol" && t.value === ":");
+        if (colon === null) return this.restore();
+        const type = this.parseType();
+        const equals = this.expect(t => t.type === "Symbol" && (t.value === "=" || t.value === ":"));
+        if (equals === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) return this.restore();
+        return this.finish(<Node>cn(name, value, <Node>{
+            type: (equals.type === "Symbol" && equals.value === ":") ? NodeKind.ConstDeclarationNode : NodeKind.DeclarationNode,
+            name: name.name,
+            valueType: type,
+            value
+        }));
+    }
+    parseAssignment(): Node | null {
+        this.save();
+        const base = this.parseValue();
+        if (base === null) return this.restore();
+        const equals = this.expect(t => t.type === "Symbol" && t.value === "=");
+        if (equals === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) return this.restore();
+        return this.finish(cn(base, value, {
+            type: NodeKind.AssignmentNode,
+            assignee: base,
+            value
+        }));
+    }
+    VALID_ASSIGN_OPERATOR(
+        op: ClawTokenType<"Symbol">["value"],
+    ): op is
+        | "+="
+        | "-="
+        | "*="
+        | "/="
+        | "%="
+        | "^="
+        | "|="
+        | "&="
+        | "||="
+        | "&&=" {
+        switch (op) {
+            case "+=":
+            case "-=":
+            case "*=":
+            case "/=":
+            case "%=":
+            case "^=":
+            case "|=":
+            case "&=":
+            case "||=":
+            case "&&=":
+                return true;
+            default:
+                return false;
+        }
+    };
+    OP_TO_OPERATOR(opequals: string) {
+        switch (opequals) {
+            case "+=":
+                return BinaryOperationType.Add;
+            case "-=":
+                return BinaryOperationType.Subtract;
+            case "*=":
+                return BinaryOperationType.Multiply;
+            case "/=":
+                return BinaryOperationType.Divide;
+            case "%=":
+                return BinaryOperationType.Modulo;
+            case "^=":
+                return BinaryOperationType.BitwiseXor;
+            case "|=":
+                return BinaryOperationType.BitwiseOr;
+            case "&=":
+                return BinaryOperationType.BitwiseAnd;
+            case "||=":
+                return BinaryOperationType.Or;
+            case "&&=":
+                return BinaryOperationType.And;
+            default:
+                throw "unreachable";
+        }
+    };
+    parseOpAssign(): Node | null {
+        this.save();
+        const base = this.parseValue();
+        if (base === null) return this.restore();
+        const opequals = this.expect((tok) =>
+          tok.type === "Symbol" && this.VALID_ASSIGN_OPERATOR(tok.value)
+        ) as ClawTokenType<"Symbol">;
+        if (opequals === null) return this.restore();
+        const value = this.parseValue();
+        if (value === null) return this.restore();
+        return this.finish(cn(base, value, {
+          type: NodeKind.AssignmentNode,
+          assignee: base,
+          value: cn(value, value, {
+            type: NodeKind.BinaryOperation,
+            oper: this.OP_TO_OPERATOR(opequals.value),
+            left: base,
+            right: value,
+          }),
+        }));
+    }
+    parseType(): TypeNode | null {
+        return this.try(
+            this.parseBaseType,
+            this.parseGroupType,
+            this.parseOfType,
+        )
+    }
+    parseGroupType(): TypeNode | null {
+        this.save();
+        const _left_paren = this.expectSymbol("(")
+        if (_left_paren === null) return this.restore();
+        const inner = this.parseType();
+        if (inner === null) return this.restore();
+        const _right_paren = this.expectSymbol(")")
+        if (_right_paren === null) return this.restore();
+        return this.finish(inner);
+    }
+    parseOfType(): OfTypeNode | null {
+        this.save();
+        const traitName = this.parseBaseType();
+        if (traitName === null) return this.restore();
+        const _right_paren = this.expectSymbol(".")
+        if (_right_paren === null) return this.restore();
+        const traitType = this.parseBaseType();
+        if (traitType === null) return this.restore();
+        const _of_keyword = this.expect(t => t.type === "Keyword" && t.value === "of")
+        if (_of_keyword === null) return this.restore();
+        const inner = this.parseType();
+        if (inner === null) return this.restore();
+        return this.finish(cn(traitName, inner, {
+            type: NodeKind.OfTypeNode,
+            baseType: inner,
+            int: traitName,
+            intType: traitType
+        }));
+    }
+    parseBaseType(): TypeNode | null {
+        this.save()
         const bounds: string[] = [];
-        if (
-          ezp.doesNext((token) =>
-            token.type === "Symbol" && token.value === "&"
-          )
-        ) {
-          ezp.consume();
-          ref = true;
+        const name = this.expect(a => a.type === "Identifier");
+        if (name === null) return this.restore();
+        const generics: TypeNode[] | null = this.generateTypeList(); 
+        if (generics === null) return this.restore();
+        while (this.eatIfThereIsSymbol("+")) {
+            const boundName = this.expect(a => a.type === "Identifier");
+            if (boundName === null) return this.restore();
+            bounds.push(boundName.name);
         }
-        const name = ezp.expect((token) =>
-          token.type === "Identifier"
-        ) ;
-        const generics: TypeNode[] = ezp.expectRule(genericTypeListRule);
-        while (
-          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "+")
-        ) {
-          ezp.consume()
-          const boundName = ezp.expect(
-             (token) => token.type === "Identifier",
-          ) ;
-          bounds.push(boundName.name);
+        return this.finish(cn(name, name, {
+            type: NodeKind.NormalTypeNode,
+            name: name.name,
+            ref: false,
+            typeArguments: generics,
+            bounds
+        }));
+    }
+
+    generateTypeList(): TypeNode[] | null {
+        this.save();
+        const generics = [];
+        if (this.eatIfThereIs(t => t.type === "Symbol" && t.value === "<")) {
+            while (true) {
+                if (this.eatIfThereIsSymbol(">")) break;
+                const v = this.parseType();
+                if (v === null) return this.restore();
+                generics.push(v);
+
+                if (this.eatIfThereIsSymbol(">")) break;
+                if (this.eatIfThereIsSymbol(",")) continue;
+            }
         }
-        return cn(name, name, {
-          type: NodeKind.NormalTypeNode,
-          name: name.name,
-          ref,
-          typeArguments: generics,
-          bounds,
-        });
-      },
-    );
-    const valueRule = this.ezp.instantiateRule("value", (ezp) => {
-      const literalRule = ezp.instantiateRule("literal", (ezp) => {
-        const numberRule = ezp.addRule("number", (ezp) => {
-          const numberToken = ezp.expect((token) =>
-            token.type === "NumericLiteral"
-          ) ;
-          return cn(numberToken, numberToken, {
-            type: NodeKind.NumberNode,
-            value: numberToken.value,
-          });
-        });
-        const stringRule = ezp.addRule("string", (ezp) => {
-          const stringToken = ezp.expect((token) =>
-            token.type === "StringLiteral"
-          ) ;
-          return cn(stringToken, stringToken, {
-            type: NodeKind.StringNode,
-            value: stringToken.value,
-          });
-        });
-        const variableRule = ezp.addRule("variable", (ezp) => {
-          const ident = ezp.expect((token) =>
-            token.type === "Identifier"
-          ) ;
-          return cn(ident, ident, {
-            type: NodeKind.VariableNode,
-            name: ident.name,
-          });
-        });
-        const groupingRule = ezp.addRule("(<value>)", (ezp) => {
-          const ident = ezp.expect((token) =>
-            token.type === "Symbol" && token.value === "("
-          );
-          const value = ezp.expectRule(valueRule);
-          const end = ezp.expect((token) =>
-            token.type === "Symbol" && token.value === ")"
-          );
-          return cn(ident, end, {
-            type: NodeKind.Grouping,
-            value,
-          });
-        });
-        const blockRule = ezp.addRule("block", (ezp) => {
-          const _start = ezp.expect((token) =>
-            token.type === "Symbol" && token.value === "{"
-          );
-          const blocks = [];
-          let end: Loc = _start;
-          while (true) {
-            if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === "}"
-              )
-            ) {
-              end = ezp.consume();
-              break;
-            }
-            blocks.push(
-              end = ezp.expectRuleOrTerm(
-                "Expected statement inside block",
-                statementRule,
-              ),
-            );
-          }
-          return cn(_start, end, {
-            type: NodeKind.BlockNode,
-            nodes: blocks,
-          });
-        });
-        const labelRule = ezp.addRule("label", (ezp) => {
-          const _start = ezp.expect((token) =>
-            token.type === "Symbol" && token.value === "!{"
-          );
-          const blocks = [];
-          let end: Loc = _start;
-          while (true) {
-            if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === "}"
-              )
-            ) {
-              end = ezp.consume();
-              break;
-            }
-            blocks.push(
-              end = ezp.expectRuleOrTerm(
-                "Expected statement inside block",
-                statementRule,
-              ),
-            );
-          }
-          return cn(_start, end, {
-            type: NodeKind.LabelNode,
-            nodes: blocks,
-          });
-        });
-        const structOrDataRule = ezp.addRule("struct or data literal", (ezp) => {
-          const type = ezp.expectRule(typeRule);
-          const _colon = ezp.expect(token => token.type === "Symbol" && token.value === ":");
-          const _colon2 = ezp.expect(token => token.type === "Symbol" && token.value === ":");
-          const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
-          const members: {[key: string]: Node} = {};
-          let left: Loc = _start_curly;
-          while (true) {
-            if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
-              left = ezp.consume();
-              break;
-            }
-            const name = ezp.expectOrTerm("expected member name in struct/data literal", token => token.type === "Identifier");
-            const _colon = ezp.expect(token => token.type === "Symbol" && token.value === ":");
-            const value = ezp.expectRuleOrTerm("expected member value in struct/data literal", valueRule);
+
+        return this.finish(generics);
+    }
+
+    parseFunctionArgs(
+        lhs: Node,
+        typeArgs: TypeNode[] | null,
+    ) {
+        this.save();
+        const args: Node[] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol(")")) break;
+            const v = this.parseValue();
+            if (v === null) return this.restore();
+            args.push(v);
+
+            if (this.eatIfThereIsSymbol(")")) break;
+            if (this.eatIfThereIsSymbol(",")) continue;
+            this.errorAt(this.tokens.justShifted(), `Expected commas or parentheses`);
+        }
+        return this.finish(cn(lhs, this.tokens.justShifted(), {
+            type: NodeKind.CallNode,
+            typeArguments: typeArgs,
+            callee: lhs,
+            arguments: args
+        }))
+    }
+
+    tryParseFunctionWithTypeArgs(lhs: Node): Node | null {
+        this.save();
+        const p = this.expectSymbol("<");
+        if (p === null) return this.restore();
+        const typeArgs: TypeNode[] = [];
+        while (true) {
+            if (this.eatIfThereIsSymbol(">")) break;
+            const v = this.parseType();
+            if (v === null) return this.restore();
+            typeArgs.push(v);
+
+            if (this.eatIfThereIsSymbol(",")) continue;
+            if (this.eatIfThereIsSymbol(">")) break;
+        }
+        const leftParen = this.expectSymbol("(");
+        if (leftParen === null) return this.restore();
+        const v = this.parseFunctionArgs(lhs, typeArgs);
+        if (v === null) return this.restore();
+        lhs = v;
+        return this.finish(lhs);
+    }
+    parseFunctionCall(lhs: Node): Node | null {
+        this.save();
+        const leftParen = this.expectSymbol("(");
+        if (leftParen === null) return this.restore();
+        const v = this.parseFunctionArgs(lhs, null);
+        if (v === null) return this.restore();
+        lhs = v;
+        return this.finish(lhs);
+    }
+
+    parseValue(): Node | null {
+        return this.parseBinaryOperator()
+    }
+
+    parseStructLiteral(): Node | null {
+        this.save();
+        const type = this.parseType();
+        if (type === null) return this.restore();
+        const colon1 = this.expectSymbol(":");
+        if (colon1 === null) return this.restore();
+        const colon2 = this.expectSymbol(":");
+        if (colon2 === null) return this.restore();
+        const startCurly = this.expectSymbol("{");
+        if (startCurly === null) return this.restore();
+        const members: {[key: string]: Node} = {};
+        while (true) {
+            if (this.eatIfThereIsSymbol("}")) break;
+            const name = this.expectOrTerm("Expected struct member key", v => v.type === "Identifier");
+            this.expectOrTerm("Expected colon", v => v.type === "Symbol" && v.value === ":");
+            const value = this.parseValue();
+            if (value === null) return this.restore();
             members[name.name] = value;
-            if (ezp.peekAnd(token => token.type === "Symbol" && token.value === "}")) {
-              left = ezp.consume();
-              break;
-            }
-            if (ezp.peekAnd(token => token.type === "Symbol" && token.value === ",")) {
-              left = ezp.consume();
-              continue;
-            }
-            this.errorAt(left, "Expected right curly or comma")
-          }
-          return cn(type, left, {
+            if (this.eatIfThereIsSymbol(",")) continue;
+            if (this.eatIfThereIsSymbol("}")) break;
+            this.errorAt(value, `Expected comma or right curly`);
+        }
+        return this.finish(cn(type, this.tokens.justShifted(), {
             type: NodeKind.StructLiteralNode,
             baseType: type,
             members
-          })
-        })
-        const booleanRule = ezp.addRule("boolean", ezp => {
-          const b = ezp.expect(a => a.type === "BooleanLiteral");
-          return cn(b, b, {
-            type: NodeKind.BooleanNode,
-            value: b.value
-          })
-        })
-        return ezp.getFirstThatWorksOrTerm(
-          "Expected a value",
-          intrinsicRule,
-          structOrDataRule,
-          groupingRule,
-          variableRule,
-          numberRule,
-          stringRule,
-          booleanRule,
-          blockRule,
-          labelRule,
-        );
-      });
-      const precedence2 = ezp.instantiateRule(
-        "call or member access",
-        (ezp) => {
-          let lhs = ezp.expectRuleOrTerm("Expected value", literalRule);
-          const operatorNext = (ezp: EZP<ClawToken, Node>) => {
-            const p = ezp.peek();
-            if (p === undefined) return false;
-            if (
-              p.type === "Symbol" &&
-              (p.value === "<" || p.value === "(" || p.value === "." ||
-                p.value === ":")
-            ) return true;
-            return false;
-          };
-          const parseFunctionArguments = (
-            leftLoc: Loc,
-            typeArgs: TypeNode[] | null,
-            ezp: EZP<ClawToken, Node>,
-          ) => {
-            // function call
-            const args: Node[] = [];
-            let end: Loc = leftLoc;
-            while (true) {
-              if (ezp.peekAnd((t) => t.type === "Symbol" && t.value === ")")) {
-                end = ezp.consume();
-                break;
-              }
-              args.push(ezp.expectRule(valueRule));
-              if (ezp.peekAnd((t) => t.type === "Symbol" && t.value === ")")) {
-                end = ezp.consume();
-                break;
-              } else if (
-                ezp.peekAnd((t) => t.type === "Symbol" && t.value === ",")
-              ) {
-                end = ezp.consume();
-                continue;
-              }
-              this.errorAt(ezp.consume(), "Expected comma or parentheses");
-            }
-            lhs = cn(lhs, end, {
-              type: NodeKind.CallNode,
-              typeArguments: typeArgs,
-              callee: lhs,
-              arguments: args,
-            });
-          };
-          const functionCallRule = ezp.instantiateRule(
-            "function call",
-            (ezp) => {
-              const p = ezp.expect((token) =>
-                token.type === "Symbol" && token.value === "("
-              );
-              parseFunctionArguments(p, null, ezp);
-              return lhs;
-            },
-          );
-          const functionWithTypeArgsRule = ezp.instantiateRule(
-            "function call with generics",
-            (ezp) => {
-              const _p = ezp.expect((token) =>
-                token.type === "Symbol" && token.value === "<"
-              );
-              const typeArgs: TypeNode[] = [];
-              while (true) {
-                if (
-                  ezp.peekAnd((t) => t.type === "Symbol" && t.value === ">")
-                ) {
-                  ezp.consume();
-                  break;
-                }
-                typeArgs.push(ezp.expectRule(typeRule));
-                if (
-                  ezp.peekAnd((t) => t.type === "Symbol" && t.value === ">")
-                ) {
-                  ezp.consume();
-                  break;
-                } else if (
-                  ezp.peekAnd((t) => t.type === "Symbol" && t.value === ",")
-                ) {
-                  ezp.consume();
-                  continue;
-                }
-                throw new EZPError("Expected commas or right angle bracket")
-              }
-              const _St = ezp.expect(a => a.type === "Symbol" && a.value === "(")
-              parseFunctionArguments(_St, typeArgs, ezp);
-              return lhs;
-            },
-          );
-          const childRule = ezp.instantiateRule("member access", (ezp) => {
-            const _dot = ezp.expect((tok) =>
-              tok.type === "Symbol" && tok.value === "."
-            );
-            const name = ezp.expect((tok) =>
-              tok.type === "Identifier"
-            ) ;
-            lhs = cn(lhs, name, {
-              type: NodeKind.ChildOfNode,
-              base: lhs,
-              extension: name.name,
-            });
-            return lhs;
-          });
-          const methodAccessRule = ezp.instantiateRule(
-            "method access",
-            (ezp) => {
-              const _dot = ezp.expect((tok) =>
-                tok.type === "Symbol" && tok.value === ":"
-              );
-              const name = ezp.expect((tok) =>
-                tok.type === "Identifier"
-              ) ;
-              lhs = cn(lhs, name, {
-                type: NodeKind.MethodOfNode,
-                base: lhs,
-                extension: name.name,
-              });
-              return lhs;
-            },
-          );
-          while (operatorNext(ezp)) {
-            if ((ezp.peek() as ClawTokenType<"Symbol">).value === "<") {
-              // this is so that we dont accidently try force parsing the less than operator as a function generic call
-              const r = ezp.tryRule(functionWithTypeArgsRule);
-              if (r === null) break;
-              else continue;
-            }
-            ezp.getFirstThatWorksOrTerm(
-              "Expected function call or function call with generics",
-              functionCallRule,
-              methodAccessRule,
-              childRule,
-            );
-          }
-          return lhs;
-        },
-      );
-      const unaryOperatorRule = ezp.instantiateRule(
-        "unary operation",
-        (ezp): Node => {
-          const peek = ezp.peek();
-          if (peek === undefined) throw new EZPError("Expected value");
-          if (peek.type === "Symbol") {
+        }));
+        // todo
+    }
+
+    parseChild(lhs: Node): Node | null {
+        this.save();
+        const _dot = this.expectSymbol(".");
+        if (_dot === null) return this.restore();
+        const name = this.expect(a => a.type === "Identifier");
+        if (name === null) return this.restore();
+        return this.finish(cn(lhs, name, {
+            type: NodeKind.ChildOfNode,
+            base: lhs,
+            extension: name.name
+        }));
+    }
+
+    parseUnaryOperator(): Node | null {
+        this.save();
+        const peek = this.tokens.peek();
+        if (peek === undefined) return null;
+        if (peek.type === "Symbol") {
             if (["!", "~", "-"].includes(peek.value)) {
-              const opToken = ezp.consume() ;
-              const rhs = ezp.expectRule(unaryOperatorRule);
-              return cn(opToken, rhs, {
-                type: NodeKind.UnaryOperation,
-                value: rhs,
-                oper: (() => {
-                  switch ((opToken as ClawTokenType<"Symbol">).value) {
-                    case "!":
-                      return UnaryOperationType.Not;
-                    case "~":
-                      return UnaryOperationType.BitwiseNot;
-                    case "-":
-                      return UnaryOperationType.Negate;
-                    default:
-                      throw "unreachable";
-                  }
-                })(),
-              });
+                const opToken = this.tokens.shift();
+                const rhs = this.parseUnaryOperator();
+                if (rhs === null) return this.restore();
+                return this.finish(cn(opToken, rhs, {
+                    type: NodeKind.UnaryOperation,
+                    value: rhs,
+                    oper: (() => {
+                        switch ((opToken as ClawTokenType<"Symbol">).value) {
+                            case "!":
+                                return UnaryOperationType.Not;
+                            case "~":
+                                return UnaryOperationType.BitwiseNot;
+                            case "-":
+                                return UnaryOperationType.Negate;
+                            default:
+                                throw "unreachable";
+                        }
+                    })(),
+                }));
             }
-          }
-          return ezp.expectRule(precedence2);
-        },
-      );
-      const binaryOperatorRule = ezp.instantiateRule(
-        "binary operation",
-        (ezp) => {
-          const BINARY_OPERATOR_TO_PRECEDENCE = {
+        }
+        return this.finish(this.parseMemberAccess());
+    }
+    parseBinaryOperator(): Node | null {
+        this.save();
+        const BINARY_OPERATOR_TO_PRECEDENCE = {
             "||": [BinaryOperationType.Or, 1],
             "&&": [BinaryOperationType.And, 2],
             "|": [BinaryOperationType.BitwiseOr, 3],
@@ -434,819 +915,183 @@ export class Parser {
             "*": [BinaryOperationType.Multiply, 9],
             "/": [BinaryOperationType.Divide, 9],
             "%": [BinaryOperationType.Modulo, 9],
-          };
-          type BKey = keyof typeof BINARY_OPERATOR_TO_PRECEDENCE;
-          const parseExpression = function (lhs: Node, minPrecedence: number) {
-            let lookahead = ezp.peek();
+        };
+        type BKey = keyof typeof BINARY_OPERATOR_TO_PRECEDENCE;
+        const parseExpression = (lhs: Node, minPrecedence: number) => {
+            let lookahead = this.tokens.peek();
             while (
-              lookahead !== undefined &&
-              lookahead.type === "Symbol" &&
-              lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE &&
-              BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >=
-                minPrecedence
-            ) {
-              const op = ezp.consume() as ClawTokenType<"Symbol">;
-              const opPrec = BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][1];
-              let rhs = ezp.expectRule(unaryOperatorRule);
-              lookahead = ezp.peek();
-              while (
                 lookahead !== undefined &&
                 lookahead.type === "Symbol" &&
                 lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE &&
-                (
-                  BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >
-                    opPrec
-                )
-              ) {
-                rhs = parseExpression(
-                  rhs,
-                  opPrec +
-                    +(BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][
-                      1
-                    ] > opPrec),
-                );
-                lookahead = ezp.peek();
-                if (lookahead === undefined) break;
-              }
-              lhs = cn(lhs, rhs, {
-                type: NodeKind.BinaryOperation,
-                oper: BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][0],
-                left: lhs,
-                right: rhs,
-              });
+                BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >=
+                minPrecedence
+            ) {
+                const op = this.tokens.shift() as ClawTokenType<"Symbol">;
+                const opPrec = BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][1];
+                let rhs = this.parseUnaryOperator();
+                if (rhs === null) return null;
+                
+                lookahead = this.tokens.peek();
+                while (
+                    lookahead !== undefined &&
+                    lookahead.type === "Symbol" &&
+                    lookahead.value in BINARY_OPERATOR_TO_PRECEDENCE &&
+                    (
+                        BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][1] >
+                        opPrec
+                    )
+                ) {
+                    rhs = parseExpression(
+                        rhs!,
+                        opPrec +
+                        +(BINARY_OPERATOR_TO_PRECEDENCE[lookahead.value as BKey][
+                            1
+                        ] > opPrec),
+                    );
+                    lookahead = this.tokens.peek();
+                    if (lookahead === undefined) break;
+                }
+                lhs = cn(lhs, rhs!, {
+                    type: NodeKind.BinaryOperation,
+                    oper: BINARY_OPERATOR_TO_PRECEDENCE[op.value as BKey][0],
+                    left: lhs,
+                    right: rhs,
+                }) as Node;
             }
             return lhs;
-          };
+        };
 
-          return parseExpression(ezp.expectRule(unaryOperatorRule), 0);
-        },
-      );
-      return ezp.expectRuleOrTerm("expected value", binaryOperatorRule);
-    });
-    const controlFlowRule = this.ezp.instantiateRule("control flow", (ezp) => {
-      const ifRule = ezp.instantiateRule("if statement", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "if"
-        );
-        const pred = ezp.expectRuleOrTerm(
-          "Expected predicate for if statement",
-          valueRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for if statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.IfNode,
-          predicate: pred,
-          body: block,
-        });
-      });
-      const ifRRule = ezp.instantiateRule("if! statement", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "if!"
-        );
-        const pred = ezp.expectRuleOrTerm(
-          "Expected predicate for if! statement",
-          valueRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for if! statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.IfRuntimeNode,
-          predicate: pred,
-          body: block,
-        });
-      });
-      const forRule = ezp.instantiateRule("for loop", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "for"
-        );
-        const initial = ezp.expectRuleOrTerm(
-          "Expected statement for for loop",
-          statementRule,
-        );
-        ezp.expect((a) => a.type === "Symbol" && a.value === ";");
-        const predicate = ezp.expectRuleOrTerm(
-          "Expected predicate for for loop",
-          valueRule,
-        );
-        ezp.expect((a) => a.type === "Symbol" && a.value === ";");
-        const post = ezp.expectRuleOrTerm(
-          "Expected post statement for for loop",
-          statementRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for for statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.ForNode,
-          body: block,
-          initialiser: initial,
-          post,
-          predicate,
-        });
-      });
-      const forRRule = ezp.instantiateRule("for! loop", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "for!"
-        );
-        const initial = ezp.expectRuleOrTerm(
-          "Expected statement for for! loop",
-          statementRule,
-        );
-        const predicate = ezp.expectRuleOrTerm(
-          "Expected predicate for for! loop",
-          valueRule,
-        );
-        const post = ezp.expectRuleOrTerm(
-          "Expected post statement for for! loop",
-          statementRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for for! statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.ForNode,
-          body: block,
-          initialiser: initial,
-          post,
-          predicate,
-        });
-      });
-      const whileRule = ezp.instantiateRule("while statement", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "while"
-        );
-        const pred = ezp.expectRuleOrTerm(
-          "Expected predicate for if statement",
-          valueRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for if statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.WhileNode,
-          predicate: pred,
-          body: block,
-        });
-      });
-      const whileRRule = ezp.instantiateRule("while! statement", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "while!"
-        );
-        const pred = ezp.expectRuleOrTerm(
-          "Expected predicate for while! statement",
-          valueRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for while! statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.WhileRuntimeNode,
-          predicate: pred,
-          body: block,
-        });
-      });
-      const ifElseRule = ezp.instantiateRule("if-else statement", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "if"
-        );
-        const pred = ezp.expectRuleOrTerm(
-          "Expected predicate for if statement",
-          valueRule,
-        );
-        const block = ezp.expectRuleOrTerm(
-          "Expected block for if statement",
-          valueRule,
-        );
-        const _elseT = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "else"
-        );
-        const block2 = ezp.expectRuleOrTerm(
-          "Expected block for if-else statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.IfElseNode,
-          predicate: pred,
-          body: block,
-          elseBody: block2,
-        });
-      });
-      const ifElseRRule = ezp.instantiateRule("if-else! statement", (ezp) => {
-        const tok = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "if!"
-        );
-        const pred = ezp.expectRule(valueRule);
-        const block = ezp.expectRule(valueRule);
-        const _elseT = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "else!"
-        );
-        const block2 = ezp.expectRuleOrTerm(
-          "Expected block for if-else! statement",
-          valueRule,
-        );
-        return cn(tok, block, {
-          type: NodeKind.IfElseRuntimeNode,
-          predicate: pred,
-          body: block,
-          elseBody: block2,
-        });
-      });
-      const v = ezp.getFirstThatWorks(
-        ifElseRule,
-        ifElseRRule,
-        ifRRule,
-        ifRule,
-        whileRule,
-        whileRRule,
-        forRule,
-        forRRule,
-      );
-      return v;
-    });
-
-    const genericTypeListRule = this.ezp.instantiateHelper<ClawToken, TypeNode[]>(
-      "generics",
-      (ezp): TypeNode[] => {
-        const generics = [];
-        if (
-          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "<")
-        ) {
-          ezp.consume();
-          while (true) {
-            if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === ">"
-              )
-            ) {
-              ezp.consume();
-              break;
-            }
-            generics.push(ezp.expectRule(typeRule));
-            if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === ">"
-              )
-            ) {
-              ezp.consume();
-              break;
-            } else if (
-              ezp.peekAnd((token) =>
-                token.type === "Symbol" && token.value === ","
-              )
-            ) {
-              ezp.consume();
-              continue;
-            }
-            throw new EZPError( "Expected commas or right angle bracket",)
-          }
-        }
-        return generics;
-      },
-    );
-    // const genericIdentifierListRule = this.ezp.instantiateHelper<ClawToken, string[]>(
-    //   "generics",
-    //   (ezp) => {
-    //     const generics: string[] = [];
-    //     if (
-    //       ezp.peekAnd((token) => token.type === "Symbol" && token.value === "<")
-    //     ) {
-    //       ezp.consume();
-    //       while (true) {
-    //         if (
-    //           ezp.peekAnd((token) =>
-    //             token.type === "Symbol" && token.value === ">"
-    //           )
-    //         ) {
-    //           ezp.consume();
-    //           break;
-    //         }
-    //         generics.push(ezp.expectOrTerm("Expected identifier for generic", token => token.type === "Identifier").name);
-    //         if (
-    //           ezp.peekAnd((token) =>
-    //             token.type === "Symbol" && token.value === ">"
-    //           )
-    //         ) {
-    //           ezp.consume();
-    //           break;
-    //         } else if (
-    //           ezp.peekAnd((token) =>
-    //             token.type === "Symbol" && token.value === ","
-    //           )
-    //         ) {
-    //           ezp.consume();
-    //           continue;
-    //         }
-    //         this.errorAt(
-    //           ezp.consume(),
-    //           "Expected commas or right angle bracket",
-    //         );
-    //       }
-    //     }
-    //     return generics;
-    //   },
-    // );
-    const functionDefinitionRule = this.ezp.instantiateRule(
-      "function definition",
-      (ezp): FunctionDefinitionNode => {
-        const fnKeyword = ezp.expect((token) =>
-          token.type === "Keyword" && token.value === "fn"
-        );
-        const name = ezp.expectOrTerm("Expected function name", (token) =>
-          token.type === "Identifier") ;
-        const typeArgs = ezp.expectRuleOrTerm("Expected type arguments", genericTypeListRule);
-        // parse arguments
-        const _start = ezp.expectOrTerm(
-          "Expected starting parenthese",
-          (token) => token.type === "Symbol" && token.value === "(",
-        );
-        let end: Loc = _start;
-
-        const args: [string, TypeNode][] = [];
-        while (true) {
-          if (
-            ezp.doesNext((token) =>
-              token.type === "Symbol" && token.value === ")"
-            )
-          ) {
-            end = ezp.consume();
-            break;
-          }
-          const name = ezp.expectOrTerm("Expected function argument", (token) =>
-            token.type === "Identifier") ;
-          const _colon = ezp.expectOrTerm(
-            "Expected colon as argument seperator",
-            (token) => token.type === "Symbol" && token.value === ":",
-          ) ;
-          const type = ezp.expectRuleOrTerm("Expected type", typeRule);
-          args.push([name.name, type] as const);
-          if (
-            ezp.doesNext((token) =>
-              token.type === "Symbol" && token.value === ","
-            )
-          ) {
-            end = ezp.consume();
-            continue;
-          } else if (
-            ezp.doesNext((token) =>
-              token.type === "Symbol" && token.value === ")"
-            )
-          ) {
-            end = ezp.consume();
-            break;
-          } else {
-            this.errorAt(ezp.consume(), "Expected ending parenthese");
-          }
-        }
-        const returnType = ezp.expectRuleOrTerm(
-          "Expected return type",
-          typeRule,
-        );
-        return cn(fnKeyword, end, {
-          type: NodeKind.FunctionDefinitionNode,
-          name: name.name,
-          args: args,
-          typeArgs,
-          nodes: cn(end, end, {
-            type: NodeKind.BlockNode,
-            nodes: [],
-          }),
-          returnType,
-        });
-      },
-    );
-    const functionRule = this.ezp.instantiateRule("function", (ezp) => {
-      const def = ezp.expectRule(functionDefinitionRule) as FunctionDefinitionNode;
-      const block = ezp.expectRuleOrTerm(
-        "Expected function body",
-        statementRule,
-      );
-      return cn(def, block, {
-        type: NodeKind.FunctionDefinitionNode,
-        name: def.name,
-        args: def.args,
-        nodes: block,
-        returnType: def.returnType,
-        typeArgs: def.typeArgs
-      });
-    });
-    const interfaceRule = this.ezp.instantiateRule("interface", (ezp) => {
-      const interfaceToken = ezp.expect((token) =>
-        token.type === "Keyword" && token.value === "interface"
-      );
-      const interfaceNameToken = ezp.expectOrTerm(
-        "Expected interface name",
-        (token) => token.type === "Identifier",
-      ) ;
-      const generics = ezp.expectRuleOrTerm("expected generics", genericTypeListRule);
-      let end: Loc = interfaceNameToken;
-      // get generics
-      const _begin_curly = ezp.expectOrTerm(
-        "Expected opening curly",
-        (token) => token.type === "Symbol" && token.value === "{",
-      );
-      const functions = [];
-      while (true) {
-        if (
-          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "}")
-        ) {
-          end = ezp.consume();
-          break;
-        }
-        const f = ezp.expectRuleOrTerm(
-          "Expected function definition",
-          functionDefinitionRule,
-        ) as FunctionDefinitionNode;
-        functions.push(f);
-      }
-      return cn(interfaceToken, end, {
-        type: NodeKind.InterfaceNode,
-        name: interfaceNameToken.name,
-        defs: functions,
-        typeArguments: generics,
-      });
-    });
-    const implBaseRule = this.ezp.instantiateRule("impl <type>", (ezp) => {
-      const implToken = ezp.expect((token) =>
-        token.type === "Keyword" && token.value === "impl"
-      );
-      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericTypeListRule);
-      const targetType = ezp.expectRuleOrTerm("Expected target type", typeRule);
-      let end: Loc = targetType;
-      const _begin_curly = ezp.expect((token) =>
-        token.type === "Symbol" && token.value === "{"
-      );
-      const functions = [];
-      while (true) {
-        if (
-          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "}")
-        ) {
-          end = ezp.consume();
-          break;
-        }
-        const f = ezp.expectRule(functionRule) as FunctionDefinitionNode;
-        functions.push(f);
-      }
-      return cn(implToken, end, {
-        type: NodeKind.ImplBaseNode,
-        targetType,
-        defs: functions,
-        generics: implGenerics,
-
-      });
-    });
-    const implTraitRule = this.ezp.instantiateRule("impl <trait> for <type>", (ezp) => {
-      const implToken = ezp.expect((token) =>
-        token.type === "Keyword" && token.value === "impl"
-      );
-      const implGenerics = ezp.expectRuleOrTerm("Expected impl generics", genericTypeListRule);
-      const trait = ezp.expectRuleOrTerm("Expected trait", typeRule);
-      
-      const _forToken = ezp.expect((token) =>
-        token.type === "Keyword" && token.value === "for"
-      );
-      const targetType = ezp.expectRuleOrTerm("Expected target type", typeRule);
-      let end: Loc = targetType;
-      const _begin_curly = ezp.expect((token) =>
-        token.type === "Symbol" && token.value === "{"
-      );
-      const functions = [];
-      while (true) {
-        if (
-          ezp.peekAnd((token) => token.type === "Symbol" && token.value === "}")
-        ) {
-          end = ezp.consume();
-          break;
-        }
-        const f = ezp.expectRule(functionRule) as FunctionDefinitionNode;
-        functions.push(f);
-      }
-      return cn(implToken, end, {
-        type: NodeKind.ImplTraitNode,
-        defs: functions,
-        targetType,
-        generics: implGenerics,
-        trait
-      });
-    });
-    const structRule = this.ezp.instantiateRule("struct", (ezp) => {
-      const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "struct");
-      const structName = ezp.expectOrTerm("Expected struct name", token => token.type === "Identifier");
-      const generics = ezp.expectRuleOrTerm("Expected generics", genericTypeListRule);
-      const _start_curly = ezp.expect(token => token.type === "Symbol" && token.value === "{");
-      const members: [string, TypeNode][] = [];
-      let end: Loc = _start_curly;
-      while (true) {
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
-          end = ezp.consume();
-          break;
-        }
-        const name = ezp.expectOrTerm("Expected member name", token => token.type === "Identifier");
-        const _colon = ezp.expectOrTerm("Expected colon", token => token.type === "Symbol" && token.value === ":");
-        const type = ezp.expectRuleOrTerm("Expected type", typeRule);
-        members.push([name.name, type]);
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
-          end = ezp.consume();
-          break;
-        }
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ",")) {
-          end = ezp.consume();
-          continue;
-        }
-        this.errorAt(type, "Expected ending curly brackets or comma")
-      }
-      return cn(structToken, end, {
-        type: NodeKind.StructDefinitionNode,
-        generics,
-        members,
-        name: structName.name
-      })
-    })
-    const dataRule = this.ezp.instantiateRule("data struct", (ezp) => {
-      const structToken = ezp.expect(token => token.type === "Keyword" && token.value === "data");
-      const structName = ezp.expectOrTerm("Expected data struct name", token => token.type === "Identifier");
-      const generics = ezp.expectRuleOrTerm("Expected generics", genericTypeListRule);
-      const _start_curly = ezp.expectOrTerm("Expected starting curly", token => token.type === "Symbol" && token.value === "{");
-      const members: [string, TypeNode][] = [];
-      let end: Loc = _start_curly;
-      while (true) {
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
-          end = ezp.consume();
-          break;
-        }
-        const name = ezp.expectOrTerm("Expected member name", token => token.type === "Identifier");
-        const _colon = ezp.expectOrTerm("Expected colon", token => token.type === "Symbol" && token.value === ":");
-        const type = ezp.expectRuleOrTerm("Expected type", typeRule);
-        members.push([name.name, type]);
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === "}")) {
-          end = ezp.consume();
-          break;
-        }
-        if (ezp.peekAnd(a => a.type === "Symbol" && a.value === ",")) {
-          end = ezp.consume();
-          continue;
-        }
-        this.errorAt(type, "Expected ending curly brackets or comma")
-      }
-      return cn(structToken, end, {
-        type: NodeKind.DataStructDefinitionNode,
-        generics,
-        members,
-        name: structName.name
-      })
-    })
-    const returnRule = this.ezp.instantiateRule("return", (ezp) => {
-      const returnToken = ezp.expect(token => token.type === "Keyword" && token.value === "return");
-      const value = ezp.expectRuleOrTerm("Expected return value", valueRule);
-      return cn(returnToken, value, {
-        type: NodeKind.ReturnNode,
-        value
-      })
-    })
-    const intrinsicRule = this.ezp.instantiateRule("intrinsic statement", ezp => {
-      const s = ezp.expect(a => a.type === "Keyword" && a.value === "$intrinsic");
-      const v = ezp.expect(a => a.type === "StringLiteral");
-      return cn(s, v, {
-        type: NodeKind.IntrinsicNode,
-        string: v.value
-      })
-    });
-    const statementRule = this.ezp.addRule("statement", (ezp) => {
-      const declRule = ezp.instantiateRule("declaration", (ezp) => {
-        const name = ezp.expect((token) =>
-          token.type === "Identifier"
-        ) ;
-        const _colon = ezp.expect((token) =>
-          token.type === "Symbol" && token.value === ":"
-        );
-        // variable decl
-        const type = ezp.tryRule<TypeNode>(typeRule);
-        const _equals = ezp.expect((tok) =>
-          tok.type === "Symbol" && tok.value === "="
-        );
-        const value = ezp.expectRuleOrTerm(
-          "Expected value after equals sign",
-          valueRule,
-        );
-        return cn(name, value, {
-          type: NodeKind.DeclarationNode,
-          name: name.name,
-          valueType: type,
-          value,
-        });
-      });
-      const constRule = ezp.instantiateRule("const declaration", (ezp) => {
-        const name = ezp.expect((token) =>
-          token.type === "Identifier"
-        ) ;
-        const _colon = ezp.expect((token) =>
-          token.type === "Symbol" && token.value === ":"
-        );
-        // variable decl
-        const type = ezp.tryRule<TypeNode>(typeRule);
-        const _equals = ezp.expect((tok) =>
-          tok.type === "Symbol" && tok.value === ":"
-        );
-        const value = ezp.expectRuleOrTerm(
-          "Expected value after equals sign",
-          valueRule,
-        );
-        return cn(name, value, {
-          type: NodeKind.ConstDeclarationNode,
-          name: name.name,
-          valueType: type,
-          value,
-        });
-      });
-      const assignRule = ezp.instantiateRule("assignment", (ezp) => {
-        const base = ezp.expectRule(valueRule);
-        const _equals = ezp.expect((tok) =>
-          tok.type === "Symbol" && tok.value === "="
-        );
-        const value = ezp.expectRuleOrTerm(
-          "Expected value after equals sign",
-          valueRule,
-        );
-        return cn(base, value, {
-          type: NodeKind.AssignmentNode,
-          assignee: base,
-          value,
-        });
-      });
-      const VALID_ASSIGN_OPERATOR = (
-        op: ClawTokenType<"Symbol">["value"],
-      ): op is 
-          | "+="
-          | "-="
-          | "*="
-          | "/="
-          | "%="
-          | "^="
-          | "|="
-          | "&="
-          | "||="
-          | "&&=" => {
-        switch (op) {
-          case "+=":
-          case "-=":
-          case "*=":
-          case "/=":
-          case "%=":
-          case "^=":
-          case "|=":
-          case "&=":
-          case "||=":
-          case "&&=":
-            return true;
-          default:
-            return false;
-        }
-      };
-      const OP_TO_OPERATOR = (opequals: string) => {
-        switch (opequals) {
-          case "+=":
-            return BinaryOperationType.Add;
-          case "-=":
-            return BinaryOperationType.Subtract;
-          case "*=":
-            return BinaryOperationType.Multiply;
-          case "/=":
-            return BinaryOperationType.Divide;
-          case "%=":
-            return BinaryOperationType.Modulo;
-          case "^=":
-            return BinaryOperationType.BitwiseXor;
-          case "|=":
-            return BinaryOperationType.BitwiseOr;
-          case "&=":
-            return BinaryOperationType.BitwiseAnd;
-          case "||=":
-            return BinaryOperationType.Or;
-          case "&&=":
-            return BinaryOperationType.And;
-          default:
-            throw "unreachable";
-        }
-      };
-      const assignOpRule = ezp.instantiateRule("operator assignment", (ezp) => {
-        const base = ezp.expectRule(valueRule);
-        const opequals = ezp.expect((tok) =>
-          tok.type === "Symbol" && VALID_ASSIGN_OPERATOR(tok.value)
-        ) as ClawTokenType<"Symbol">;
-        const value = ezp.expectRule(valueRule);
-        return cn(base, value, {
-          type: NodeKind.AssignmentNode,
-          assignee: base,
-          value: cn(value, value, {
-            type: NodeKind.BinaryOperation,
-            oper: OP_TO_OPERATOR(opequals.value),
-            left: base,
-            right: value,
-          }),
-        });
-      });
-      const importRule = ezp.instantiateRule("import rule", ezp => {
-        const i = ezp.expect(a => a.type === "Keyword" && a.value === "import");
-        const s = ezp.expect(a => a.type === "StringLiteral");
-        return cn(i, s, {
-          type: NodeKind.ImportNode,
-          string: s.value,
-          nodes: []
-        })
-      });
-      const exportRule = ezp.instantiateRule("export rule", ezp => {
-        const i = ezp.expect(a => a.type === "Keyword" && a.value === "export");
-        const t = ezp.getFirstThatWorksOrTerm(
-          `expected definition`,
-          functionRule,
-          structRule,
-          dataRule,
-          declRule,
-          constRule
-        );
-        return cn(i, t, {
-          type: NodeKind.ExportNode,
-          sub: t as ExportNode["sub"]
-        })
-      });
-      const useInterfaceRule = ezp.instantiateRule("use interface rule", ezp => {
-        const k = ezp.expect(a => a.type === "Keyword" && a.value === "useinterface");
-        const name = ezp.expectOrTerm("expected interface name", a => a.type === "Identifier");
-        return cn(k, name, {
-          type: NodeKind.UseInterfaceNode,
-          interfaceName: name.name
-        });
-      })
-
-      const semicolon = ezp.instantiateRule("semicolon", ezp => {
-        const loc = ezp.expect(a => a.type === "Symbol" && a.value === ";");
-        return cn(loc, loc, {
-          type: NodeKind.BlockNode,
-          nodes: []
-        })
-      })
-      return ezp.getFirstThatWorksOrTerm(
-        "expected statement",
-        semicolon,
-        useInterfaceRule,
-        importRule,
-        exportRule,
-        intrinsicRule,
-        returnRule,
-        controlFlowRule,
-        dataRule,
-        structRule,
-        implBaseRule,
-        implTraitRule,
-        interfaceRule,
-        functionRule,
-        constRule,
-        declRule,
-        assignOpRule,
-        assignRule,
-        valueRule,
-      );
-    });
-  }
-
-  parse() {
-    return this.ezp.parse();
-  }
-
-  errorAt(
-    location: { start: number; end: number; fp: string },
-    message: string,
-  ): never {
-    const tag = {
-      color: [196, 34, 235] as [number, number, number],
-      priority: -20,
-      name: "parser",
-    };
-    const sh = new SourceHelper(this.sourcemap.get(location.fp)!);
-    const lines = sh.getLines(location.start, location.end);
-    const [col, row] = sh.getColRow(location.start);
-    logger.printWithTags([
-      logger.config.levels[LogLevel.ERROR],
-      tag
-    ], `At ${location.fp}:${col + 1}:${row}:`);
-    for (const ln of lines) {
-      logger.printWithTags([
-        logger.config.levels[LogLevel.ERROR],
-        tag
-      ], ln);
+        const init = this.parseUnaryOperator();
+        if (init === null) return this.restore();
+        const v = parseExpression(init, 0);
+        if (v === null) return this.restore();
+        return this.finish(v);
     }
-    logger.printWithTags([
-      logger.config.levels[LogLevel.ERROR],
-      tag
-    ], `${message}`);
-    Deno.exit(1);
-  }
+
+    parseMethodAccess(lhs: Node): Node | null {
+        this.save();
+        const _dot = this.expectSymbol(":");
+        if (_dot === null) return this.restore();
+        const name = this.expect(a => a.type === "Identifier");
+        if (name === null) return this.restore();
+        return this.finish(cn(lhs, name, {
+            type: NodeKind.MethodOfNode,
+            base: lhs,
+            extension: name.name
+        }));
+    }
+
+    parseMemberAccess(): Node | null {
+        this.save();
+        let lhs = this.parseLiteral();
+        if (lhs === null) return this.restore();
+        const operatorNext = () => {
+            const p = this.tokens.peek();
+            if (p === undefined) return false
+            if (
+              p.type === "Symbol" &&
+              (p.value === "<" || p.value === "(" || p.value === "." ||
+                p.value === ":")
+            ) return true;
+            return false;
+        };
+
+        while (operatorNext()) {
+            if ((this.tokens.peek() as ClawTokenType<"Symbol">).value === "<") {
+                const r = this.tryParseFunctionWithTypeArgs(lhs);
+                if (r === null) break;
+                else {
+                    lhs = r;
+                    continue;
+                }
+            }
+            const fc = this.parseFunctionCall(lhs!);
+            if (fc === null) {
+                const ma = this.parseMethodAccess(lhs!);
+                if (ma === null) {
+                    const c = this.parseChild(lhs!);
+                    if (c === null) {
+                        return this.restore();
+                    } else lhs = c;
+                } else lhs = ma;
+            } else lhs = fc;
+        }
+        return this.finish(lhs);
+    }
+
+    parseLiteral(): Node | null {
+        this.save();
+        const structLit = this.parseStructLiteral();
+        if (structLit !== null) return this.finish(structLit)
+        this.restore();
+        this.save();
+        const peek = this.tokens.shift();
+        if (peek.type === "NumericLiteral") {
+            return this.finish(cn(peek, peek, {
+                type: NodeKind.NumberNode,
+                value: peek.value
+            }))
+        }
+        if (peek.type === "StringLiteral") {
+            return this.finish(cn(peek, peek, {
+                type: NodeKind.StringNode,
+                value: peek.value
+            }))
+        }
+        if (peek.type === "BooleanLiteral") {
+            return this.finish(cn(peek, peek, {
+                type: NodeKind.BooleanNode,
+                value: peek.value
+            }))
+        }
+        if (peek.type === "Symbol" && peek.value === "(") {
+            const value = this.parseValue();
+            if (value === null) return this.restore();
+            const _end = this.expectSymbol(")");
+            if (_end === null) return this.restore();
+            return this.finish(cn(peek, _end, {
+                type: NodeKind.Grouping,
+                value
+            }))
+        }
+        if (peek.type === "Symbol" && peek.value === "{") {
+            const blocks = [];
+            let end: Loc = peek;
+            while (true) {
+                if (this.eatIfThereIsSymbol("}")) break;
+                blocks.push(end = this.parseStatement());
+                if (end === null) return this.restore();
+            }
+            return this.finish(cn(peek, end, {
+                type: NodeKind.BlockNode,
+                nodes: blocks
+            }));
+        }
+        if (peek.type === "Symbol" && peek.value === "!{") {
+            const blocks = [];
+            let end: Loc = peek;
+            while (true) {
+                if (this.eatIfThereIsSymbol("}")) break;
+                blocks.push(end = this.parseStatement());
+                if (end === null) return this.restore();
+            }
+            return this.finish(cn(peek, end, {
+                type: NodeKind.LabelNode,
+                nodes: blocks
+            }));
+        }
+        if (peek.type === "Keyword" && peek.value === "$intrinsic") {
+            this.tokens.iterator--;
+            return this.finish(this.parseIntrinsic()!);
+        }
+        if (peek.type === "Identifier") {
+            return this.finish(cn(peek, peek, {
+                type: NodeKind.VariableNode,
+                name: peek.name
+            }))
+        }
+        this.load();
+        
+        return this.finish(null)
+    }
 }

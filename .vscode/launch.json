@@ -22,8 +22,16 @@
             "args": [
                 "run",
                 "-i",
-                "scratch.claw"
+                "scratch.claw",
+                "-F",
+                "resources"
             ],
+            // "args": [
+            //     "dev",
+            //     "parse",
+            //     "-i",
+            //     ".\\lib\\std\\std.claw"
+            // ],
             "attachSimplePort": 9229
         }
     ]
