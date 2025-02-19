@@ -29,11 +29,19 @@ impl Display for label {
         $intrinsic "$1args-print"
     }
 }
-export fn print<T + Display>(a: T) void {
+export fn write<T + Display>(a: T) void {
     a:display()
 }
-export fn print_raw<T>($1: T) void {
+export fn print<T + Display>(a: T) void {
+    a:display()
+    write("\n")
+}
+export fn write_raw<T>($1: T) void {
     $intrinsic "$1args-print"
+}
+export fn print_raw<T>(value: T) void {
+    write_raw(value)
+    write("\n")
 }
 
 export stage := make_sprite("Stage", true)

@@ -73,7 +73,9 @@ export const shape = skap.command({
       dumpBc: skap.boolean("-Ddumpbc").description("dump flattened bytecode"),
       time: skap.boolean("-T").description("time the steps"),
       resourceFolder: skap.string("-F").description("resource folder path").required(),
-      output: skap.string('-o').description("output file name").default("out.sb3")
+      output: skap.string('-o').description("output file name").default("out.sb3"),
+      dumpPj: skap.boolean("-Ddumppj").description("dump project.json"),
+      dumpLb: skap.boolean("-Ddumplb").description("dump outputed labels"),
     }).description("run a file"),
   }).required()
 })
@@ -96,7 +98,7 @@ async function main() {
   } else if (cmd.subc.selected === "dev") {
     await dev(cmd.subc.commands.dev!)
   } else if (cmd.subc.selected === "run") {
-    const { inputFile, dumpBc, time, resourceFolder, output } = cmd.subc.commands.run!;
+    const { inputFile, dumpBc, time, resourceFolder, output, dumpLb, dumpPj } = cmd.subc.commands.run!;
     const smap = new SourceMap();
     smap.set(inputFile, await Deno.readTextFile(inputFile));
     const beforeParse = performance.now();
@@ -144,13 +146,18 @@ async function main() {
 
     if (time) logger.info(`took ${(afterInterpret - afterFlatten).toFixed(3)}ms to interpret`);
 
-    const convertor = new Convertor(interpreter.labels.entries().toArray().map(a => ({
+    const labels = interpreter.labels.entries().toArray().map(a => ({
       type: "Label",
       value: a
-    } satisfies IlNode)), resourceFolder!, logger);
+    } satisfies IlNode));
+    if (dumpLb) Deno.writeTextFileSync("clawjs-lb-debug-dump.txt", JSON.stringify(labels, null, 4))
+    const convertor = new Convertor(labels, resourceFolder!, logger);
     const project = convertor.create();
+    if (dumpPj) Deno.writeTextFileSync("clawjs-pj-debug-dump.txt", JSON.stringify(project, null, 4))
+    // console.dir(labels, {depth: null})
+    
 
-
+    logger.start(LogLevel.INFO, "creating zip")
     const zipFileWriter = new BlobWriter();
     const zipWriter = new ZipWriter(zipFileWriter);
     await zipWriter.add("project.json", new TextReader(project.toJsonStringified()));
@@ -159,16 +166,25 @@ async function main() {
         for (const [path, format] of spr.costume_paths) {
             const file = Deno.readTextFileSync(path);
             const fileName = `${MD5(file)}.${format.toLowerCase()}`;
-            await zipWriter.add(fileName, new TextReader(file));
+            try {
+              await zipWriter.add(fileName, new TextReader(file));
+            } catch (e) {
+              console.log(e) 
+            }
         }
         for (const [path, format] of spr.sound_paths) {
             const file = Deno.readTextFileSync(path);
             const fileName = `${MD5(file)}.${format.toLowerCase()}`;
-            await zipWriter.add(fileName, new TextReader(file));
+            try {
+              await zipWriter.add(fileName, new TextReader(file));
+            } catch (e) {
+              console.log(e) 
+            }
         }
     }
 
     await zipWriter.close();
+    logger.end(LogLevel.INFO, "creating zip")
 
     // Retrieves the Blob object containing the zip content into `zipFileBlob`. It
     // is also returned by zipWriter.close() for more convenience.

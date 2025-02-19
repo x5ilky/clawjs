@@ -14,6 +14,11 @@ type TempInstr = {
   type: "TempInstr";
   name: string;
 };
+type CloneInstr = {
+  type: "CloneInstr";
+  target: string;
+  value: string;
+};
 type SetInstr = {
   type: "SetInstr";
   target: string;
@@ -106,6 +111,7 @@ export type IR =
   | RetInstr
   | CallInstr
   | CallValueInstr
+  | CloneInstr
   | IntrinsicInstr
   | GetChildOfInstr
   | CreateLabelInstr;
@@ -328,8 +334,8 @@ export class Flattener {
         const k = {
             type: "CallInstr",
             args,
-            location: -1
-        } satisfies CallInstr
+            location: -1,
+        } as CallInstr
         const j = {
           type: "JumpInstr",
           ip: -1
@@ -556,6 +562,7 @@ export class Flattener {
         if (node.target !== undefined) {
           const name = this.convertValue(node.assignee);
           const value = this.convertValue(node.value);
+          const temp = "temp-assign" + this.reserve();
           const k = {
             type: "JumpInstr",
             ip: -1
@@ -563,16 +570,24 @@ export class Flattener {
           const j = {
             type: "CallInstr",
             location: -1,
-            args: [name.variableName, value.variableName]
-          } satisfies IR;
-          this.push(j, k) 
+            args: [name.variableName, value.variableName],
+            comment: "call ass"
+          } as CallInstr;
+          this.push({
+            type: "TempInstr",
+            name: temp
+          }, j, k) 
           const impl = this.insertImplementation(node.target);
           j.location = impl;
           k.ip = this.output.length;
           this.push({
             type: "SetInstr",
-            target: name.variableName,
+            target: temp,
             value: RET_VAR_NAME
+          }, {
+            type: "SetInstr",
+            target: name.variableName,
+            value: temp
           });
         } else {
           const name = this.convertValue(node.assignee);

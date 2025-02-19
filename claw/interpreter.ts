@@ -1,4 +1,5 @@
 import { IlNode } from "../ir/types.ts";
+import { irBuild } from "../src/ir.ts";
 import { ChainMap } from "./chainmap.ts";
 import { IntrinsicInstr, IR } from "./flattener.ts";
 
@@ -88,6 +89,7 @@ export class Interpreter {
         return `CL_${this.counter++}`
     }
     interpret(ir: IR[]) {
+        let ticks = 0;
         while (this.ip < ir.length) {
             const DEBUG_FLAG = false;
             if (DEBUG_FLAG) {
@@ -214,6 +216,10 @@ export class Interpreter {
                 })
                 this.ip++;
             } break;
+            case "CloneInstr": {
+                this.setValue(ir.target, structuredClone(this.getValue(ir.value)))
+                this.ip++;
+            } break;
         }
     }
     doIntrinsic(int: IntrinsicInstr) {
@@ -335,6 +341,7 @@ export class Interpreter {
                 if (k.type !== "string") throw new Error(`key not string`);
                 const v = this.getValue(valueId);
                 t.value[k.value] = ClawValueToObject(v)
+                // console.log("set", t.value, "[", k.value, "] =", ClawValueToObject(v), v)
                 return {
                     type: "void"
                 }

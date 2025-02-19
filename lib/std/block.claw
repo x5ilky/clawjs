@@ -32,11 +32,12 @@ impl Runtime for BinaryOperation {
 
 impl<T + Runtime, U + Runtime> Add<U, BinaryOperation> for T {
     fn add(left: T, right: U) BinaryOperation {
-        return BinaryOperation::{
+        v := BinaryOperation::{
             left: left:to_scratch_value(),
             right: right:to_scratch_value(),
             oper: "Add"
         }
+        return v
     }
 }
 
