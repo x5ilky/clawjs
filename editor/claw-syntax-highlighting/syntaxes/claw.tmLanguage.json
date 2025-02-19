@@ -65,7 +65,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.claw",
-				"match": "\\b(if|while|for|return|if!|while!|for!|return|export|impl)\\b"
+				"match": "\\b(if|while|for|return|if!|while!|for!|return|export|impl|interface)\\b"
 			}]
 		},
 		"strings": {

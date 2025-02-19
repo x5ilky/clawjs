@@ -1610,6 +1610,7 @@ export class Typechecker {
     const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
     const fn = new FunctionClawType(node.name, ta, node, args, returnValue, { nodes: [node.nodes], args: args.map(a => a[0]) });
     this.scope.set(fn.name, fn);
+    this.scope.push();
     for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg[1]);
 
     this.addGenericImplementations(ta);
@@ -1622,6 +1623,7 @@ export class Typechecker {
       }
     }
     this.removeGenericImplementations(ta)
+    this.scope.pop();
 
     this.gcm.pop();
     this.ti.types.pop();
@@ -1635,7 +1637,9 @@ export class Typechecker {
       for (const k of fn.generics) {
         this.ti.types.set(k.name, k)
       }
+      console.log(node.fp, node.start)
       for (const [k, v] of fn.args) {
+        console.log("setting args", k, v.toDisplay())
         this.scope.set(k, v);
       }
       try {
@@ -1713,6 +1717,8 @@ export class Typechecker {
           fn = this.evaluateMethodOf(node.callee); 
         else
           fn = this.evaluateTypeFromValue(node.callee);
+        if (node.callee.fp.includes("var.claw")) 
+          console.log(node, fn.toDisplay(), this.scope.get("value")?.toDisplay())
 
         if (!(fn instanceof FunctionClawType)) {
           this.errorAt(node, `Callee is not a function`);
@@ -1998,7 +2004,7 @@ export class Typechecker {
           const v = methods.get(extension)![0];
           return v;
         } else {
-          this.errorAt(base.loc, `${base.toDisplay()} has no method/variable ${extension}`);
+          this.errorAt(loc, `${base.toDisplay()} has no (.) method/variable ${extension}`);
           throw new TypecheckerError();
         }
       }
@@ -2029,7 +2035,7 @@ export class Typechecker {
         const v = methods.get(extension)![0];
         return v;
       } else {
-        this.errorAt(base.loc, `${base.toDisplay()} has no method/variable ${extension}`);
+        this.errorAt(loc, `${base.toDisplay()} has no method/variable ${extension}`);
         throw new TypecheckerError();
       }
     } else if (base instanceof FunctionClawType) {
@@ -2043,7 +2049,7 @@ export class Typechecker {
         const v = methods.get(extension)![0];
         return v;
       } else {
-        this.errorAt(base.loc, `${base.toDisplay()} has no method/variable ${extension}`);
+        this.errorAt(loc, `${base.toDisplay()} has no method/variable ${extension}`);
         throw new TypecheckerError();
       }
     }

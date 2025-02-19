@@ -93,7 +93,7 @@ export class Interpreter {
         while (this.ip < ir.length) {
             const DEBUG_FLAG = false;
             if (DEBUG_FLAG) {
-                console.log(this.ip, ir.slice(this.ip, this.ip+3))
+                console.log(this.ip, ir.slice(this.ip, this.ip+3).map(a => `${a.type} ${Object.entries(a).filter(([k, v]) => k !== "type").map(([k, v]) => `${k} = ${v}`).join(", ")}`))
                 console.log(this.callStack, this.variables)
                 this.interpretOne(ir[this.ip]);
                 console.log(this.ip)
@@ -405,7 +405,8 @@ export class Interpreter {
                 if (k.type !== "string") throw new Error(`key not string`);
                 const v = this.getValue(valueId);
                 t.value[k.value] = ClawValueToObject(v)
-                // console.log("set", t.value, "[", k.value, "] =", ClawValueToObject(v), v)
+                // console.log("set", t.value, "[", k.value, "] =", ClawValueToObject(v), valueId)
+                // prompt()
                 return {
                     type: "void"
                 }

@@ -20,6 +20,7 @@ export class ChainMap<K, V> {
         return undefined;
     }
     set(k: K, v: V) {
+        if (k === "value") console.log("value", v.toDisplay(), new Error().stack)
         this.__inner[this.__inner.length-1].set(k, v);
     }
 

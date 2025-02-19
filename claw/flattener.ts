@@ -161,9 +161,9 @@ export class Flattener {
   }
   convertScope(nodes: Node[]) {
     this.scope.push();
-    this.scopes[this.scopes.length-1]++;
+    this.scopes[this.scopes.length - 1]++;
     for (const node of nodes) this.convertStatement(node);
-    this.scopes[this.scopes.length-1]--;
+    this.scopes[this.scopes.length - 1]--;
     this.scope.pop();
   }
   insertImplementation(id: string): number {
@@ -306,7 +306,7 @@ export class Flattener {
         const name = this.reserve();
         const values = new Map();
         for (const k in node.members) {
-            values.set(k, this.convertValue(node.members[k]).variableName);
+          values.set(k, this.convertValue(node.members[k]).variableName);
         }
         this.push({
           type: "TempInstr",
@@ -317,7 +317,7 @@ export class Flattener {
           values
         });
         return {
-            variableName: name
+          variableName: name
         };
       }
       case NodeKind.CallNode: {
@@ -330,11 +330,11 @@ export class Flattener {
         for (const j of node.arguments) {
           args.push(this.convertValue(j).variableName);
         }
-        
+
         const k = {
-            type: "CallInstr",
-            args,
-            location: -1,
+          type: "CallInstr",
+          args,
+          location: -1,
         } as CallInstr
         const j = {
           type: "JumpInstr",
@@ -350,15 +350,15 @@ export class Flattener {
         }
         j.ip = this.output.length;
         this.push({
-            type: "TempInstr",
-            name
+          type: "TempInstr",
+          name
         }, {
-            type: "SetInstr",
-            target: name,
-            value: RET_VAR_NAME
+          type: "SetInstr",
+          target: name,
+          value: RET_VAR_NAME
         });
         return {
-            variableName: name
+          variableName: name
         }
       }
       case NodeKind.ChildOfNode: {
@@ -398,12 +398,12 @@ export class Flattener {
           }
         }
       }
-        
+
       case NodeKind.MethodOfNode: {
         // nah
         throw new Error("unreachable")
       }
-        /* falls through */
+      /* falls through */
       case NodeKind.Grouping: {
         return this.convertValue(node.value);
       }
@@ -412,7 +412,7 @@ export class Flattener {
           type: "PushScope"
         });
         this.scope.push();
-        this.scopes[this.scopes.length-1]++;
+        this.scopes[this.scopes.length - 1]++;
         const scopeName = `$scope-${this.reserve()}`;
         this.scope.set(`$scope`, scopeName);
         this.push({
@@ -423,7 +423,7 @@ export class Flattener {
           target: scopeName
         });
         this.convertScope(node.nodes);
-        this.scopes[this.scopes.length-1]--;
+        this.scopes[this.scopes.length - 1]--;
         this.scope.pop();
         this.push({
           type: "PopScope"
@@ -537,7 +537,7 @@ export class Flattener {
 
       case NodeKind.BlockNode:
         {
-            this.convertScope(node.nodes);
+          this.convertScope(node.nodes);
         } break;
       case NodeKind.ReturnNode:
         {
@@ -546,14 +546,14 @@ export class Flattener {
             target: RET_VAR_NAME,
             value: this.convertValue(node.value).variableName
           })
-          for (let i = 0; i < this.scopes[this.scopes.length-1]; i++) {
+          for (let i = 0; i < this.scopes[this.scopes.length - 1]; i++) {
             this.push({
               type: "PopScope"
             })
           }
           this.push({
             type: "RetInstr"
-          }) 
+          })
         } break
       case NodeKind.CallNode: {
         this.convertValue(node);
@@ -576,7 +576,7 @@ export class Flattener {
           this.push({
             type: "TempInstr",
             name: temp
-          }, j, k) 
+          }, j, k)
           const impl = this.insertImplementation(node.target);
           j.location = impl;
           k.ip = this.output.length;
@@ -775,7 +775,7 @@ export class Flattener {
     const [col, _row] = sh.getColRow(location.start);
     logger.error(
       Ansi.yellow + "note: " + Ansi.reset + message +
-        ` (${location.fp}:${col + 1})`,
+      ` (${location.fp}:${col + 1})`,
     );
 
     for (const line of lines) {

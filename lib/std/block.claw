@@ -70,5 +70,4 @@ export fn forever(l: label) void {
     js:set("label", $.label_get_name(l))
     $.label_push_object($scope, js)
     $.set_label(l)
-    
 }

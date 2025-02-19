@@ -1,17 +1,20 @@
 import "std"
 
-i := make_number!()
-
 cat := make_sprite("Cat", false)
 pop := make_costume("svg", "pop.svg")
 background := make_costume("svg", "background.svg")
+
+i := make_number!()
+list := make_list!<number!>()
 
 stage:add_costume(background)
 
 cat:add_costume(pop)
 cat:on_flag(!{
+    i:set(0)
     forever(!{
-        goto(i + 10, i)
-        i += 10
+        list:push_single(i)
+        print_raw($scope)
+        print_raw(i:to_scratch_value())
     })
 })
