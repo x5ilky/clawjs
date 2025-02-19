@@ -1,3 +1,4 @@
+import { notDeepEqual } from "node:assert";
 import { Ansi } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ChainMap } from "./chainmap.ts";
@@ -551,12 +552,35 @@ export class Flattener {
         this.convertValue(node);
       } break;
       case NodeKind.AssignmentNode: {
-        const name = this.convertValue(node.assignee);
-        this.push({
-          type: "SetInstr",
-          target: name.variableName,
-          value: this.convertValue(node.value).variableName
-        })
+        if (node.target !== undefined) {
+          const name = this.convertValue(node.assignee);
+          const value = this.convertValue(node.value);
+          const k = {
+            type: "JumpInstr",
+            ip: -1
+          } satisfies IR;
+          const j = {
+            type: "CallInstr",
+            location: -1,
+            args: [name.variableName, value.variableName]
+          } satisfies IR;
+          this.push(j, k) 
+          const impl = this.insertImplementation(node.target);
+          j.location = impl;
+          k.ip = this.output.length;
+          this.push({
+            type: "SetInstr",
+            target: name.variableName,
+            value: RET_VAR_NAME
+          });
+        } else {
+          const name = this.convertValue(node.assignee);
+          this.push({
+            type: "SetInstr",
+            target: name.variableName,
+            value: this.convertValue(node.value).variableName
+          })
+        }
       } break;
       case NodeKind.ConstDeclarationNode: {
         const name = node.name + `$` + this.reserve();
