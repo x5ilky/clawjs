@@ -1,0 +1,25 @@
+{
+  "name": "claw-syntax-highlighting",
+  "displayName": "Claw Syntax Highlighting",
+  "description": "Basic syntax highlighting for claw",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "claw",
+      "aliases": ["Claw", "claw"],
+      "extensions": [".claw"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "claw",
+      "scopeName": "source.claw",
+      "path": "./syntaxes/claw.tmLanguage.json"
+    }]
+  }
+}
