@@ -338,6 +338,7 @@ export class Flattener {
         if (node.target !== undefined) {
           k.location = this.insertImplementation(node.target)
         } else {
+          console.log(node)
           this.errorAt(node, `Target is undefined, this shouldn't really be possible, this is a bug in the typechecker`);
           throw new Error()
         }
