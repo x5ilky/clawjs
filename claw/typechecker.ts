@@ -1056,12 +1056,13 @@ export class Typechecker {
       case NodeKind.AssignmentNode: {
         const value = this.evaluateTypeFromValue(node.assignee);
         
+        const type = this.evaluateTypeFromValue(node.value);
 
         const assignment = 
           this.ti.getTypeInterfaceImplementations(
             value, 
             this.ti.getInterfaceFromName("Assign")!, 
-            [this.ti.getTypeFromName("any")!]
+            [type]
           );
         if (assignment.length > 1) {
           this.errorAt(node, `Cannot have multiple competeting assignment implementations`);
@@ -1074,7 +1075,6 @@ export class Typechecker {
           return node;
         }
 
-        const type = this.evaluateTypeFromValue(node.value);
         if (!value.eq(type)) {
           this.errorAt(node, `variable type and assigned type are different:`);
           this.errorNoteAt(node.assignee, `expected: ${value.toDisplay()}`);

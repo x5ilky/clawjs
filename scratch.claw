@@ -12,6 +12,6 @@ cat:add_costume(pop)
 cat:on_flag(!{
     forever(!{
         goto(10 + i, i)
-        i = 10 + i
+        i += 10
     })
 })
