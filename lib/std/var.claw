@@ -43,8 +43,8 @@ impl Runtime for number! {
         return obj
     }
 }
-impl Assign<number> for number! {
-    fn assign(num: Self, to: number) number! {
+impl<T + Runtime> Assign<T> for number! {
+    fn assign(num: Self, to: T) number! {
         num:set(to)
         return num
     }

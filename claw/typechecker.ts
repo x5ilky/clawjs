@@ -2,7 +2,7 @@ import * as path from "jsr:@std/path";
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { AssignmentNode, BinaryOperation, BinaryOperationType, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
+import { AssignmentNode, BinaryOperation, BinaryOperationType, CallNode, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -1625,9 +1625,13 @@ export class Typechecker {
     return node;
   }
 
-  doFunctionBody(node: BinaryOperation | UnaryOperation | AssignmentNode, fn: FunctionClawType) {
+  doFunctionBody(node: BinaryOperation | UnaryOperation | AssignmentNode | CallNode, fn: FunctionClawType) {
     if (fn.body !== null) {
       this.scope.push();
+      this.ti.types.push();
+      for (const k of fn.generics) {
+        this.ti.types.set(k.name, k)
+      }
       for (const [k, v] of fn.args) {
         this.scope.set(k, v);
       }
@@ -1639,6 +1643,7 @@ export class Typechecker {
           throw new TypecheckerError()
         }
       }
+      this.ti.types.pop();
       this.scope.pop()
       
       node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
@@ -1786,26 +1791,8 @@ export class Typechecker {
         }
 
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
-        if (fn.body !== null) {
-          this.scope.push();
-          for (const [k, v] of arrzip(fn.args.map(a => a[0]), mapped)) {
-            this.scope.set(k, v);
-          }
-          try {
-            this.typecheckForReturn(fn.body.nodes);
-          } catch (e) {
-            if (e instanceof TypecheckerError) {
-              this.errorNoteAt(node, `Error arrised from this call`)
-              throw new TypecheckerError()
-            }
-          }
-          this.scope.pop()
-          
-          node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-          this.implementations.set(node.target, fn.body!);
-
-          return out;
-        } 
+        this.doFunctionBody(node, fn)
+        
         this.gcm.pop();
         return out;
       }
