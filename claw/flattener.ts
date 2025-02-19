@@ -276,6 +276,7 @@ export class Flattener {
           ip: -1
         } satisfies JumpInstr
         this.push(d, j);
+        console.log(node, node.target)
         const a = this.insertImplementation(node.target!);
         d.location = a;
         const name = this.reserve();

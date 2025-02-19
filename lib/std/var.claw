@@ -45,7 +45,7 @@ impl Runtime for number! {
 }
 impl Assign<number> for number! {
     fn assign(num: Self, to: number) number! {
-
+        num:set(to)
         return num
     }
 }

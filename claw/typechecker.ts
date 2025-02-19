@@ -1892,7 +1892,6 @@ export class Typechecker {
         fn = this.ti.substituteRawSingle(fn, impl.gcm, []) as FunctionClawType
         
         this.doFunctionBody(node, fn)
-
         this.gcm.pop();
 
         
