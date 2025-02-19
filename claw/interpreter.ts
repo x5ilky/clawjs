@@ -238,7 +238,23 @@ export class Interpreter {
                     value: !l.value
                 };
             } break;
-            case "$ibop-Add-int-int": {
+            case "$iuop-Negate-number-number": {
+                const [left] = int.args;
+                const [l] = [this.getValue(left)];
+                if (l.type === "number") return {
+                    type: "number",
+                    value: -l.value
+                };
+            } break;
+            case "$iuop-BitwiseNot-number-number": {
+                const [left] = int.args;
+                const [l] = [this.getValue(left)];
+                if (l.type === "number") return {
+                    type: "number",
+                    value: ~l.value
+                };
+            } break;
+            case "$ibop-Add-number-number": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -246,7 +262,7 @@ export class Interpreter {
                     value: l.value + r.value
                 };
             } break;
-            case "$ibop-Sub-int-int": {
+            case "$ibop-Sub-number-number": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -254,7 +270,7 @@ export class Interpreter {
                     value: l.value - r.value
                 };
             } break;
-            case "$ibop-Mul-int-int": {
+            case "$ibop-Mul-number-number": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -262,7 +278,7 @@ export class Interpreter {
                     value: l.value * r.value
                 };
             } break;
-            case "$ibop-Div-int-int": {
+            case "$ibop-Div-number-number": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -270,7 +286,15 @@ export class Interpreter {
                     value: l.value / r.value
                 };
             } break;
-            case "$ibop-Lt-int-bool": {
+            case "$ibop-Mod-number-number": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value % r.value
+                };
+            } break;
+            case "$ibop-Lt-number-bool": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -278,7 +302,7 @@ export class Interpreter {
                     value: l.value < r.value
                 };
             } break;
-            case "$ibop-Gt-int-bool": {
+            case "$ibop-Gt-number-bool": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -286,7 +310,7 @@ export class Interpreter {
                     value: l.value > r.value
                 };
             } break;
-            case "$ibop-Lte-int-bool": {
+            case "$ibop-Lte-number-bool": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
@@ -294,12 +318,52 @@ export class Interpreter {
                     value: l.value <= r.value
                 };
             } break;
-            case "$ibop-Gte-int-bool": {
+            case "$ibop-Gte-number-bool": {
                 const [left, right] = int.args;
                 const [l, r] = [this.getValue(left), this.getValue(right)];
                 if (l.type === "number" && r.type === "number") return {
                     type: "boolean",
                     value: l.value >= r.value
+                };
+            } break;
+            case "$ibop-Eq-number-bool": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "boolean",
+                    value: l.value == r.value
+                };
+            } break;
+            case "$ibop-Neq-number-bool": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "boolean",
+                    value: l.value != r.value
+                };
+            } break;
+            case "$ibop-BitwiseXor-number-number": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value ^ r.value
+                };
+            } break;
+            case "$ibop-BitwiseAnd-number-number": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value & r.value
+                };
+            } break;
+            case "$ibop-BitwiseOr-number-number": {
+                const [left, right] = int.args;
+                const [l, r] = [this.getValue(left), this.getValue(right)];
+                if (l.type === "number" && r.type === "number") return {
+                    type: "number",
+                    value: l.value | r.value
                 };
             } break;
             default: {

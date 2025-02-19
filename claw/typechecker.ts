@@ -951,18 +951,18 @@ export class Typechecker {
     addBinaryInterface("Sub", "sub", num(), num());
     addBinaryInterface("Mul", "mul", num(), num());
     addBinaryInterface("Div", "div", num(), num());
+    addBinaryInterface("Mod", "modulo", num(), num());
     addBinaryInterface("BitwiseXor", "bitwise_xor", num(), num());
     addBinaryInterface("BitwiseOr", "bitwise_or", num(), num());
     addBinaryInterface("BitwiseAnd", "bitwise_and", num(), num());
     addBinaryInterface("And", "and", num(), bool());
     addBinaryInterface("Or", "or", num(), bool());
-    addBinaryInterface("Mod", "modulo", num(), bool());
     addBinaryInterface("Eq", "eq", num(), bool());
-    addBinaryInterface("NEq", "neq", num(), bool());
+    addBinaryInterface("Neq", "neq", num(), bool());
     addBinaryInterface("Gt", "gt", num(), bool());
     addBinaryInterface("Gte", "gte", num(), bool());
     addBinaryInterface("Lt", "lt", num(), bool());
-    addBinaryInterface("Lt", "lte", num(), bool());
+    addBinaryInterface("Lte", "lte", num(), bool());
     addUnaryInterface("Negate", "neg", num(), num());
     addUnaryInterface("BitwiseNot", "bnot", num(), num());
     addUnaryInterface("Not", "not", bool(), bool());
@@ -1817,7 +1817,7 @@ export class Typechecker {
         const itfName = OPER_TO_TRAIT[node.oper];
         const itf = this.ti.getInterfaceFromName(itfName);
         if (itf === undefined) {
-          this.errorAt(node, `Internal error, no trait for builtin binary operation`);
+          this.errorAt(node, `Internal error, no trait for builtin unary operation`);
           throw new TypecheckerError();
         }
         const leftType = this.evaluateTypeFromValue(node.value);
