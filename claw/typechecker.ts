@@ -1401,14 +1401,15 @@ export class Typechecker {
           }
         } else {
           const PATH_MAP = {
-            "std": "std.claw",
-            "binding": "binding.claw",
-            "intrin": "intrin.claw",
-            "sprite": "sprite.claw",
-            "option": "option.claw",
-            "costume": "costume.claw",
-            "var": "var.claw",
-            "block": "block.claw",
+            "std": "std/mod.claw",
+            "std/binding": "std/binding.claw",
+            "std/intrin": "std/intrin.claw",
+            "std/sprite": "std/sprite.claw",
+            "std/option": "std/option.claw",
+            "std/costume": "std/costume.claw",
+            "std/var": "std/var.claw",
+            "std/block": "std/block.claw",
+            "std/display": "std/display.claw",
           };
           const mapped = PATH_MAP?.[node.string as keyof typeof PATH_MAP];
           if (mapped === undefined) {

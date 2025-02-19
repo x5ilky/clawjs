@@ -1,0 +1,10 @@
+import "std/binding"
+import "std/intrin"
+import "std/sprite"
+import "std/option"
+import "std/costume"
+import "std/var"
+import "std/block"
+import "std/display"
+
+export stage := make_sprite("Stage", true)

@@ -1,11 +1,3 @@
-import "intrin"
-import "binding"
-import "sprite"
-
-export fn test() void {
-
-}
-
 interface Display {
     fn display(self: Self) void
 }
@@ -43,5 +35,3 @@ export fn print_raw<T>(value: T) void {
     write_raw(value)
     write("\n")
 }
-
-export stage := make_sprite("Stage", true)

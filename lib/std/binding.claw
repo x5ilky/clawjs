@@ -1,4 +1,4 @@
-import "intrin"
+import "std/intrin"
 
 impl Runtime for number {
     fn sizeof() number {

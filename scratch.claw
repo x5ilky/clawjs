@@ -1,7 +1,4 @@
 import "std"
-import "sprite"
-import "var"
-import "block"
 
 i := make_number!()
 

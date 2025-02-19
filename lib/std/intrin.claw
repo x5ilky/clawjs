@@ -1,4 +1,4 @@
-import "option"
+import "std/option"
 
 impl JsObject {
     fn set<T>(self: Self, key: string, value: T) void {

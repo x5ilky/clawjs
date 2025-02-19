@@ -1,4 +1,4 @@
-import "costume"
+import "std/costume"
 struct Sprite {
     id: string,
     name: string,

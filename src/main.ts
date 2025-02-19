@@ -103,6 +103,8 @@ async function main() {
     smap.set(inputFile, await Deno.readTextFile(inputFile));
     const beforeParse = performance.now();
     const config = new ClawConfig();
+    config.stdlibPath = path.join(import.meta.dirname!, "..", "lib")
+    config.skipDeepCheck = true;
 
     const lexer = new Lexer(inputFile, smap);
     const tokens = lexer.lex();
@@ -115,8 +117,6 @@ async function main() {
     const afterParse = performance.now();
     config.timers.parsing += afterParse - beforeParse;
 
-    config.stdlibPath = path.join(import.meta.dirname!, "..", "lib", "std")
-    config.skipDeepCheck = true;
     console.profile("test")
     const tc = new Typechecker(smap, config);
     try {
