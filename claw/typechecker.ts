@@ -1655,8 +1655,9 @@ export class Typechecker {
       this.ti.types.restore(tito);
       this.scope.restore(to);
       
-      node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-      this.implementations.set(node.target, fn.body!);
+      node.target = { nodes: structuredClone(fn.body.nodes), args: fn.args.map(a => a[0]) };
+      // `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+      // this.implementations.set(node.target, fn.body!);
     } 
   }
 
@@ -1808,7 +1809,7 @@ export class Typechecker {
         }
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
         const f = this.ti.substituteRawSingle(fn, this.gcm, errorStack, false);
-        if (fn.name === "to_scratch_value") console.log(f.toDisplay(), f.loc.start)
+        // if (fn.name === "to_scratch_value") console.log(f.toDisplay(), node.fp, node.start, node.callee, this.scope.get("amount").toDisplay())
         this.doFunctionBody(node, f as FunctionClawType);
 
         this.ti.types.restore(tito)
@@ -1910,8 +1911,7 @@ export class Typechecker {
         const child = this.getTypeChild(node.base, baseValue, node.extension);
         if (child instanceof FunctionClawType) {
           const fn = child;
-          node.target = `${fn.name}-${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-          this.implementations.set(node.target, fn.body!);
+          node.target = { nodes: structuredClone(fn.body!.nodes), args: [] }
         }
         return child;
       }
@@ -1976,8 +1976,9 @@ export class Typechecker {
       throw new TypecheckerError();
     }
     const fn = child;
-    node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
-    this.implementations.set(node.target, fn.body!);
+    // node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
+    if (fn.body !== null) node.target = { nodes: structuredClone(fn.body!.nodes), args: fn.args.map(a => a[0]) };
+    // this.implementations.set(node.target, fn.body!);
     return new FunctionClawType(
       child.name, 
       child.generics, 

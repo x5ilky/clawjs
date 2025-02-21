@@ -1,5 +1,4 @@
 import { IlNode } from "../ir/types.ts";
-import { irBuild } from "../src/ir.ts";
 import { ChainMap } from "./chainmap.ts";
 import { IntrinsicInstr, IR } from "./flattener.ts";
 
@@ -89,7 +88,6 @@ export class Interpreter {
         return `CL_${this.counter++}`
     }
     interpret(ir: IR[]) {
-        let ticks = 0;
         while (this.ip < ir.length) {
             const DEBUG_FLAG = false;
             if (DEBUG_FLAG) {
@@ -184,7 +182,7 @@ export class Interpreter {
                 for (let i = 0; i < ir.args.length; i++) {
                     this.setValue(`$internal-arg-${i}`, this.getValue(ir.args[i]));
                 }
-                // if (ir.comment.includes("to_scratch_value")) console.log("call", ir.comment)
+                // if (ir.comment.includes("to_scratch_value") || ir.comment.includes("set")) console.log("call", ir.comment)
                 this.callStack.push(this.ip);
                 this.ip = ir.location;
             } break;

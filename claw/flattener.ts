@@ -2,9 +2,10 @@ import { notDeepEqual } from "node:assert";
 import { Ansi } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { ChainMap } from "./chainmap.ts";
-import { Node, NodeKind } from "./nodes.ts";
+import { Node, NodeKind, TargetAr } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
+import { Target } from "../ir/types.ts";
 
 type LetInstr = {
   type: "LetInstr";
@@ -166,22 +167,16 @@ export class Flattener {
     this.scopes[this.scopes.length - 1]--;
     this.scope.restore(to);
   }
-  insertImplementation(id: string): number {
-    if (this.implMap.has(id)) return this.implMap.get(id)!;
+  insertImplementation(l: TargetAr): number {
 
-    const impl = this.implementations.get(id);
-    if (impl === undefined || impl === null) {
-      throw new Error(`no implementation: "${id}", this is internal bug`)
-    }
-    const idd = this.output.length;
-    this.implMap.set(id, idd);
     const to = this.scope.push();
+    const idd = this.output.length;
     this.push({
       type: "PushScope",
     });
     this.scopes.push(0);
-    for (let i = 0; i < impl.args.length; i++) {
-      const arg = `$arg-${impl.args[i]}-${this.reserve()}`;
+    for (let i = 0; i < l.args.length; i++) {
+      const arg = `$arg-${l.args[i]}-${this.reserve()}`;
       this.push({
         type: "LetInstr",
         name: arg,
@@ -190,9 +185,9 @@ export class Flattener {
         target: arg,
         count: i,
       });
-      this.scope.set(impl.args[i], arg)
+      this.scope.set(l.args[i], arg)
     }
-    for (const node of impl.nodes) this.convertStatement(node);
+    for (const node of l.nodes) this.convertStatement(node);
     this.scopes.pop();
     this.push({
       type: "PopScope",

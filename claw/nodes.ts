@@ -84,6 +84,8 @@ export enum NodeKind {
     ExportNode,
     UseInterfaceNode
 }
+export type TargetAr = { args: string[], nodes: Node[] }
+
 export type NumberNode = {
     readonly type: NodeKind.NumberNode,
     readonly value: number
@@ -109,26 +111,26 @@ export type ChildOfNode = {
     readonly type: NodeKind.ChildOfNode,
     readonly base: Node,
     readonly extension: string,
-    target?: string
+    target?: TargetAr
 } & Loc;
 export type MethodOfNode = {
     readonly type: NodeKind.MethodOfNode,
     readonly base: Node,
     readonly extension: string,
-    target?: string
+    target?: TargetAr
 } & Loc;
 export type CallNode = {
     readonly type: NodeKind.CallNode,
     readonly callee: Node,
     readonly typeArguments: TypeNode[] | null,
     readonly arguments: Node[],
-    target?: string
+    target?: TargetAr
 } & Loc;
 export type AssignmentNode = {
     readonly type: NodeKind.AssignmentNode,
     readonly assignee: Node,
     readonly value: Node,
-    target?: string // target if custom assignment
+    target?: TargetAr // target if custom assignment
 } & Loc;
 export type DeclarationNode = {
     readonly type: NodeKind.DeclarationNode,
@@ -204,7 +206,7 @@ export type UnaryOperation = {
     readonly type: NodeKind.UnaryOperation,
     readonly oper: UnaryOperationType,
     readonly value: Node,
-    target?: string
+    target?: TargetAr
 } & Loc;
 export enum BinaryOperationType {
     Add,
@@ -229,7 +231,7 @@ export type BinaryOperation = {
     readonly oper: BinaryOperationType,
     readonly left: Node,
     readonly right: Node,
-    target?: string
+    target?: TargetAr
 } & Loc;
 export type Grouping = {
     readonly type: NodeKind.Grouping,

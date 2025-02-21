@@ -11,7 +11,7 @@ stage:add_costume(background)
 
 cat:add_costume(pop)
 cat:on_flag(!{
-    i = 0
+    i:set(0)
     forever(!{
         list:push_single(i)
         i = i + 1
