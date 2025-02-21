@@ -1,4 +1,3 @@
-import "std/display"
 useinterface Runtime
 
 struct number! {
@@ -20,8 +19,6 @@ impl number! {
         js:set("type", "Set")
         js:set("target", num.id)
         js:set("value", amount:to_scratch_value())
-        print_raw(js)
-        print_raw(amount)
 
         $.label_push_object($scope, js)
     }
