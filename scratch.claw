@@ -11,10 +11,9 @@ stage:add_costume(background)
 
 cat:add_costume(pop)
 cat:on_flag(!{
-    i:set(0)
+    i = 0
     forever(!{
         list:push_single(i)
-        print_raw($scope)
-        print_raw(i:to_scratch_value())
+        i = i + 1
     })
 })

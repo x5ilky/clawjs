@@ -148,7 +148,7 @@ export class Flattener {
   }
 
   convertAll(nodes: Node[]) {
-    this.scope.push();
+    const to = this.scope.push();
     this.push({
       type: "PushScope",
     });
@@ -156,15 +156,15 @@ export class Flattener {
     this.push({
       type: "PopScope",
     });
-    this.scope.pop();
+    this.scope.restore(to);
     return this.output;
   }
   convertScope(nodes: Node[]) {
-    this.scope.push();
+    const to = this.scope.push();
     this.scopes[this.scopes.length - 1]++;
     for (const node of nodes) this.convertStatement(node);
     this.scopes[this.scopes.length - 1]--;
-    this.scope.pop();
+    this.scope.restore(to);
   }
   insertImplementation(id: string): number {
     if (this.implMap.has(id)) return this.implMap.get(id)!;
@@ -175,7 +175,7 @@ export class Flattener {
     }
     const idd = this.output.length;
     this.implMap.set(id, idd);
-    this.scope.push();
+    const to = this.scope.push();
     this.push({
       type: "PushScope",
     });
@@ -200,7 +200,7 @@ export class Flattener {
     this.push({
       type: "RetInstr",
     });
-    this.scope.pop();
+    this.scope.restore(to);
     return idd;
   }
 
@@ -335,6 +335,7 @@ export class Flattener {
           type: "CallInstr",
           args,
           location: -1,
+          comment: node.target
         } as CallInstr
         const j = {
           type: "JumpInstr",
@@ -411,7 +412,7 @@ export class Flattener {
         this.push({
           type: "PushScope"
         });
-        this.scope.push();
+        const to = this.scope.push();
         this.scopes[this.scopes.length - 1]++;
         const scopeName = `$scope-${this.reserve()}`;
         this.scope.set(`$scope`, scopeName);
@@ -424,7 +425,7 @@ export class Flattener {
         });
         this.convertScope(node.nodes);
         this.scopes[this.scopes.length - 1]--;
-        this.scope.pop();
+        this.scope.restore(to);
         this.push({
           type: "PopScope"
         });

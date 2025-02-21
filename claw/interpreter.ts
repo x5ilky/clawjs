@@ -184,6 +184,7 @@ export class Interpreter {
                 for (let i = 0; i < ir.args.length; i++) {
                     this.setValue(`$internal-arg-${i}`, this.getValue(ir.args[i]));
                 }
+                // if (ir.comment.includes("to_scratch_value")) console.log("call", ir.comment)
                 this.callStack.push(this.ip);
                 this.ip = ir.location;
             } break;

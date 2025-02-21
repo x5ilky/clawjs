@@ -6,13 +6,18 @@ export class ChainMap<K, V> {
     }
 
     push() {
+        const v = this.__inner.length;
         this.__inner.push(new Map())        
+        return v;
+    }
+    pop() {
+        this.__inner.pop();
     }
 
-    pop() {
-        this.__inner.pop()
+    restore(to: number) {
+        this.__inner = this.__inner.slice(0, to)
     }
-    
+
     get(k: K) {
         for (const layer of this.__inner.toReversed()) {
             if (layer.has(k)) return layer.get(k);
@@ -20,7 +25,6 @@ export class ChainMap<K, V> {
         return undefined;
     }
     set(k: K, v: V) {
-        if (k === "value") console.log("value", v.toDisplay(), new Error().stack)
         this.__inner[this.__inner.length-1].set(k, v);
     }
 

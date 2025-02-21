@@ -20,6 +20,9 @@ impl number! {
         js:set("type", "Set")
         js:set("target", num.id)
         js:set("value", amount:to_scratch_value())
+        print_raw(js)
+        print_raw(amount)
+
         $.label_push_object($scope, js)
     }
     fn change<T + Runtime>(num: Self, amount: T) void {
@@ -82,7 +85,6 @@ impl<T + Runtime> List!<T> {
         inner := $.create_js_object()
         inner:set("key", "Push")
         inner:set("value", value:to_scratch_value())
-        print_raw(value:to_scratch_value())
 
         js:set("oper", inner)
         $.label_push_object($scope, js)

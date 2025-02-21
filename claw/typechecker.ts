@@ -1015,18 +1015,23 @@ export class Typechecker {
   typecheckForReturn(nodes: Node[]): [Node[], TCReturnValue[]] {
     const out = [];
     let returnVals: TCReturnValue[] = [];
-    this.scope.push();
+    const to = this.scope.push();
     for (const node of nodes) {
       try {
         out.push(this.typecheckSingle(node));
       } catch (e) {
-        if (e instanceof Error) throw e;
-        else if (Array.isArray(e)) {
+        if (e instanceof Error) {
+          this.scope.restore(to);
+          throw e;
+        } else if (Array.isArray(e)) {
           returnVals = returnVals.concat(e);
-        } else throw e;
+        } else {
+          this.scope.restore(to);
+          throw e;
+        }
       }
     }
-    this.scope.pop();
+    this.scope.restore(to);
     if (returnVals.length === 0) {
       returnVals.push(new TCReturnValue(this.ti.getTypeFromName("void")!));
     }
@@ -1093,14 +1098,14 @@ export class Typechecker {
       }
 
       case NodeKind.BlockNode: {
-        this.scope.push();
+        const to = this.scope.push();
 
         const [_nodes, retVals] = this.typecheckForReturn(node.nodes);
         if (retVals.length) {
           throw retVals;
         }
 
-        this.scope.pop();
+        this.scope.restore(to);
         return {
           ...node,
           nodes: _nodes
@@ -1178,13 +1183,13 @@ export class Typechecker {
       case NodeKind.StructDefinitionNode: {
         const name = node.name;
         const generics = this.resolveTypeGenerics(node.generics);
-        this.ti.types.push();
+        const to = this.ti.types.push();
         for (const t of generics) this.ti.types.set(t.name, t);
         const newMap = new Map();
         for (const [k, v] of node.members) {
           newMap.set(k, this.resolveTypeNode(v, this.gcm));
         }
-        this.ti.types.pop();
+        this.ti.types.restore(to);
 
         this.ti.types.set(name, new StructureClawType(name, generics, node, newMap));
         return node;
@@ -1192,7 +1197,7 @@ export class Typechecker {
       case NodeKind.DataStructDefinitionNode: {
         const name = node.name;
         const generics = this.resolveTypeGenerics(node.generics);
-        this.ti.types.push();
+        const to = this.ti.types.push();
         for (const t of generics) this.ti.types.set(t.name, t);
         const newMap: Map<string, ClawType> = new Map();
         for (const [k, v] of node.members) {
@@ -1203,7 +1208,7 @@ export class Typechecker {
             this.errorAt(v.loc, `(${k}): ${v.toDisplay()} does not implement Runtime, cannot be a data struct`);
           }
         }
-        this.ti.types.pop();
+        this.ti.types.restore(to);
 
         this.ti.types.set(name, new StructureClawType(name, generics, node, newMap));
         return node;
@@ -1211,12 +1216,12 @@ export class Typechecker {
       }
       case NodeKind.InterfaceNode: {
         const name = node.name;
-        this.ti.types.push();
+        const to = this.ti.types.push();
         const ta = this.resolveTypeGenerics(node.typeArguments);
         for (const t of ta) this.ti.types.set(t.name, t);
         const map = new Map<string, FunctionClawType>();
         for (const def of node.defs) {
-          this.ti.types.push();
+          const to = this.ti.types.push();
           const ta = this.resolveTypeGenerics(def.typeArgs);
           for (const t of ta) this.ti.types.set(t.name, t);
           this.ti.types.set("Self", new GenericClawType("Self", BUILTIN_LOC, []))
@@ -1227,9 +1232,9 @@ export class Typechecker {
             args.push([_n, this.resolveTypeNode(arg, this.gcm)] as [string, ClawType]);
           }
           map.set(def.name, new FunctionClawType(def.name, ta, def, args, retType, { nodes: [def.nodes], args: args.map(a => a[0]) }));
-          this.ti.types.pop();
+          this.ti.types.restore(to);
         }
-        this.ti.types.pop();
+        this.ti.types.restore(to);
         const int = new ClawInterface(name, ta, map);
         this.ti.interfaces.set(name, int)
         this.imported.interface.get(node.fp)!.push(name)
@@ -1240,7 +1245,7 @@ export class Typechecker {
       case NodeKind.ImplBaseNode: {
         this.gcm.push();
         const tas = this.resolveTypeGenerics(node.generics);
-        this.ti.types.push();
+        const to = this.ti.types.push();
         for (const ta of tas) this.ti.types.set(ta.name, ta);
         for (const ta of tas) this.gcm.set(ta, ta);
         const tt = this.resolveTypeNode(node.targetType, this.gcm);
@@ -1248,7 +1253,7 @@ export class Typechecker {
 
         const map = new Map<string, FunctionClawType>();
         for (const def of node.defs) {
-          this.ti.types.push();
+          const to = this.ti.types.push();
           const ta = this.resolveTypeGenerics(def.typeArgs);
           for (const t of ta) this.ti.types.set(t.name, t);
           for (const t of ta) this.gcm.set(t, t);
@@ -1268,7 +1273,7 @@ export class Typechecker {
           this.removeGenericImplementations(ta)
           this.removeGenericImplementations(tas)
           map.set(def.name, v);
-          this.ti.types.pop();
+          this.ti.types.restore(to);
         }
         this.ti.baseImplementations.push({
           generics: tas,
@@ -1294,7 +1299,7 @@ export class Typechecker {
         }
         for (const def of node.defs) {
           const f = map.get(def.name)!;
-          this.scope.push();
+          const to = this.scope.push();
           for (const [k, v] of f.args) {
             this.scope.set(k, v); 
           }
@@ -1311,16 +1316,16 @@ export class Typechecker {
             }
           }
           this.removeGenericImplementations(f.generics as GenericClawType[])
-          this.scope.pop();
+          this.scope.restore(to);
         }
-        this.ti.types.pop();
+        this.ti.types.restore(to);
         this.gcm.pop();
         return node;
       }
 
       case NodeKind.ImplTraitNode: {
         this.gcm.push();
-        this.ti.types.push();
+        const to = this.ti.types.push();
         const tas = this.resolveTypeGenerics(node.generics);
           for (const ta of tas) this.ti.types.set(ta.name, ta);
           for (const ta of tas) this.gcm.set(ta, ta);
@@ -1341,7 +1346,7 @@ export class Typechecker {
             this.errorAt(def, `Interface ${trait.name} has no method ${def.name}`);
             return node;
           }
-          this.ti.types.push();
+          const to = this.ti.types.push();
           const ta = this.resolveTypeGenerics(def.typeArgs);
           for (const t of ta) this.ti.types.set(t.name, t);
           this.addGenericImplementations(tas)
@@ -1379,10 +1384,10 @@ export class Typechecker {
           this.removeGenericImplementations(ta)
           this.removeGenericImplementations(tas)
           map.set(def.name, v);
-          this.ti.types.pop();
+          this.ti.types.restore(to);
         }
         this.gcm.pop();
-        this.ti.types.pop();
+        this.ti.types.restore(to);
         trait.specificImplementations.push({
           generics: tas,
           target: tt,
@@ -1595,7 +1600,7 @@ export class Typechecker {
 
   typecheckFunction(node: FunctionDefinitionNode) {
     const ta = this.resolveTypeGenerics(node.typeArgs);
-    this.ti.types.push();
+    const tito = this.ti.types.push();
     for (const t of ta) this.ti.types.set(t.name, t);
     this.gcm.push();
     for (const t of ta) this.gcm.set(t, t);
@@ -1609,8 +1614,8 @@ export class Typechecker {
 
     const returnValue = this.resolveTypeNode(node.returnType, this.gcm);
     const fn = new FunctionClawType(node.name, ta, node, args, returnValue, { nodes: [node.nodes], args: args.map(a => a[0]) });
-    this.scope.set(fn.name, fn);
-    this.scope.push();
+    this.scope.__inner[0].set(fn.name, fn);
+    const to = this.scope.push();
     for (const [narg, arg] of arrzip(node.args, args)) this.scope.set(narg[0], arg[1]);
 
     this.addGenericImplementations(ta);
@@ -1623,35 +1628,32 @@ export class Typechecker {
       }
     }
     this.removeGenericImplementations(ta)
-    this.scope.pop();
-
+    this.scope.restore(to);
     this.gcm.pop();
-    this.ti.types.pop();
+    this.ti.types.restore(tito);
     return node;
   }
 
   doFunctionBody(node: BinaryOperation | UnaryOperation | AssignmentNode | CallNode, fn: FunctionClawType) {
     if (fn.body !== null) {
-      this.scope.push();
-      this.ti.types.push();
+      const to = this.scope.push();
+      const tito = this.ti.types.push();
       for (const k of fn.generics) {
         this.ti.types.set(k.name, k)
       }
-      console.log(node.fp, node.start)
       for (const [k, v] of fn.args) {
-        console.log("setting args", k, v.toDisplay())
         this.scope.set(k, v);
       }
       try {
         this.typecheckForReturn(fn.body.nodes);
       } catch (e) {
         if (e instanceof TypecheckerError) {
-          this.errorNoteAt(node, `Error arrised from this call`)
+          this.errorNoteAt(node, `Error arrised from this call`);
           throw new TypecheckerError()
         }
       }
-      this.ti.types.pop();
-      this.scope.pop()
+      this.ti.types.restore(tito);
+      this.scope.restore(to);
       
       node.target = `${fn.toDisplay()}@${fn.loc.fp}:${fn.loc.start}`;
       this.implementations.set(node.target, fn.body!);
@@ -1717,8 +1719,6 @@ export class Typechecker {
           fn = this.evaluateMethodOf(node.callee); 
         else
           fn = this.evaluateTypeFromValue(node.callee);
-        if (node.callee.fp.includes("var.claw")) 
-          console.log(node, fn.toDisplay(), this.scope.get("value")?.toDisplay())
 
         if (!(fn instanceof FunctionClawType)) {
           this.errorAt(node, `Callee is not a function`);
@@ -1801,16 +1801,17 @@ export class Typechecker {
           }
         }
 
-        this.ti.types.push()
+        const tito = this.ti.types.push()
         for (const [k, v] of arrzip(fn.generics, generics)) {
           this.ti.types.set(k.name, k);
           this.gcm.set(k as GenericClawType, v);
         }
         const out = this.ti.substituteRawSingle(fn.output, this.gcm, errorStack, false);
         const f = this.ti.substituteRawSingle(fn, this.gcm, errorStack, false);
+        if (fn.name === "to_scratch_value") console.log(f.toDisplay(), f.loc.start)
         this.doFunctionBody(node, f as FunctionClawType);
 
-        this.ti.types.pop()
+        this.ti.types.restore(tito)
         
         this.gcm.pop();
         return out;
@@ -1915,9 +1916,9 @@ export class Typechecker {
         return child;
       }
       case NodeKind.LabelNode: {
-        this.scope.push()
+        const to = this.scope.push()
         this.typecheck(node.nodes);
-        this.scope.pop();
+        this.scope.restore(to);
         return this.ti.getTypeFromName("label")!;
       } 
       case NodeKind.MethodOfNode: {
