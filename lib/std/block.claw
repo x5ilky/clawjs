@@ -41,6 +41,42 @@ impl<T + Runtime, U + Runtime> Add<U, BinaryOperation> for T {
     }
 }
 
+export fn move_steps<T + Runtime>(steps: T) void {
+    js := $.create_js_object()
+    js:set("type", "MoveSteps")
+    js:set("value", steps:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn point_direction<T + Runtime>(deg: T) void {
+    js := $.create_js_object()
+    js:set("type", "PointDirection")
+    js:set("value", deg:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn setx<T + Runtime>(x: T) void {
+    js := $.create_js_object()
+    js:set("type", "SetX")
+    js:set("value", x:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn sety<T + Runtime>(y: T) void {
+    js := $.create_js_object()
+    js:set("type", "SetY")
+    js:set("value", y:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn changex<T + Runtime>(x: T) void {
+    js := $.create_js_object()
+    js:set("type", "ChangeX")
+    js:set("value", x:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn changey<T + Runtime>(y: T) void {
+    js := $.create_js_object()
+    js:set("type", "ChangeY")
+    js:set("value", y:to_scratch_value())
+    $.label_push_object($scope, js)
+}
 export fn goto<T + Runtime, U + Runtime>(x: T, y: U) void {
     js := $.create_js_object()
     // | { type: "GotoXY"; x: IlValue; y: IlValue }
@@ -70,4 +106,39 @@ export fn forever(l: label) void {
     js:set("label", $.label_get_name(l))
     $.label_push_object($scope, js)
     $.set_label(l)
+}
+
+export fn switch_costume<T + Runtime>(value: T) void {
+    js := $.create_js_object()
+    js:set("type", "SwitchCostume")
+    js:set("value", value:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn next_costume() void {
+    js := $.create_js_object()
+    js:set("type", "NextCostume")
+    $.label_push_object($scope, js)
+}
+export fn switch_backdrop<T + Runtime>(value: T) void {
+    js := $.create_js_object()
+    js:set("type", "SwitchBackdrop")
+    js:set("value", value:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn next_backdrop() void {
+    js := $.create_js_object()
+    js:set("type", "NextBackdrop")
+    $.label_push_object($scope, js)
+}
+export fn set_size<T + Runtime>(value: T) void {
+    js := $.create_js_object()
+    js:set("type", "SetSize")
+    js:set("value", value:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn change_size<T + Runtime>(value: T) void {
+    js := $.create_js_object()
+    js:set("type", "ChangeSize")
+    js:set("value", value:to_scratch_value())
+    $.label_push_object($scope, js)
 }
