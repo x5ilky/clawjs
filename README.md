@@ -9,8 +9,10 @@
 | Lexer                 | ☑          |
 | Parser                | ☑          |
 | Typechecker           | ☑          |
-| Transpiler            | ☐          |
+| Transpiler            | ☑          |
 | Full standard library | ☐          |
+> Typecheck is way too slow right now though because of some `structuredClone` shanenigans
+> Trying to fix that right now
 
 ## Documentation
 
