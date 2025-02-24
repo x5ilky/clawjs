@@ -229,7 +229,7 @@ export class Lexer {
     }
     this.pushToken({
       type: "NumericLiteral",
-      value: parseInt(buffer),
+      value: parseFloat(buffer),
     });
   }
 

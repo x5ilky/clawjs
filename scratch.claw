@@ -4,16 +4,28 @@ cat := make_sprite("Cat", false)
 pop := make_costume("svg", "pop.svg")
 background := make_costume("svg", "background.svg")
 
-i := make_number!()
-list := make_list!<number!>()
+x := make_number!()
+y := make_number!()
+vx := make_number!()
+vy := make_number!()
 
 stage:add_costume(background)
 
 cat:add_costume(pop)
 cat:on_flag(!{
-    i = 0
+    x = 0
+    y = 0
+    vx = 10
+    vy = 0
     forever(!{
-        list:push_single(i)
-        i += 1
+        x += vx
+        y += vy
+        vy -= 0.2
+        vx *= 0.98
+        vy *= 0.98
+        runtime_if(y < -180, !{
+            vy *= -1
+        })
+        goto(x, y)
     })
 })

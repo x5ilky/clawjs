@@ -1,3 +1,5 @@
+import "std/display"
+
 impl Sprite {
     fn on_flag(spr: Self, l: label) void {
         // | { type: "Flag"; target: string; label: string }
@@ -23,9 +25,9 @@ impl Runtime for BinaryOperation {
         js := $.create_js_object()
         // | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }
         js:set("key", "BinaryOperation")
-        js:set("oper", "Add")
+        js:set("oper", bo.oper)
         js:set("left", bo.left)
-        js:set("right", bo.right)
+         js:set("right", bo.right)
         return js
     } 
 }
@@ -40,7 +42,91 @@ impl<T + Runtime, U + Runtime> Add<U, BinaryOperation> for T {
         return v
     }
 }
+impl<T + Runtime, U + Runtime> Sub<U, BinaryOperation> for T {
+    fn sub(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Sub"
+        }
+        return v
+    }
+}
+impl<T + Runtime, U + Runtime> Mul<U, BinaryOperation> for T {
+    fn mul(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Mul"
+        }
+        return v
+    }
+}
 
+impl<T + Runtime, U + Runtime> Div<U, BinaryOperation> for T {
+    fn div(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Div"
+        }
+        return v
+    }
+}
+
+impl<T + Runtime, U + Runtime> Lt<U, BinaryOperation> for T {
+    fn lt(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Lt"
+        }
+        return v
+    }
+}
+
+impl<T + Runtime, U + Runtime> Gt<U, BinaryOperation> for T {
+    fn gt(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Gt"
+        }
+        return v
+    }
+}
+
+impl<T + Runtime, U + Runtime> Lte<U, BinaryOperation> for T {
+    fn lte(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Lte"
+        }
+        return v
+    }
+}
+impl<T + Runtime, U + Runtime> Gte<U, BinaryOperation> for T {
+    fn gte(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Gte"
+        }
+        return v
+    }
+}
+
+impl<T + Runtime, U + Runtime> Gt<U, BinaryOperation> for T {
+    fn gt(left: T, right: U) BinaryOperation {
+        v := BinaryOperation::{
+            left: left:to_scratch_value(),
+            right: right:to_scratch_value(),
+            oper: "Gt"
+        }
+        return v
+    }
+}
 export fn move_steps<T + Runtime>(steps: T) void {
     js := $.create_js_object()
     js:set("type", "MoveSteps")
@@ -140,5 +226,45 @@ export fn change_size<T + Runtime>(value: T) void {
     js := $.create_js_object()
     js:set("type", "ChangeSize")
     js:set("value", value:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+
+export fn show() void {
+    js := $.create_js_object()
+    js:set("type", "Show")
+    $.label_push_object($scope, js)
+}
+export fn hide() void {
+    js := $.create_js_object()
+    js:set("type", "Hide")
+    $.label_push_object($scope, js)
+}
+export fn set_layer_front() void {
+    js := $.create_js_object()
+    js:set("type", "GotoLayer")
+    js:set("value", true)
+    $.label_push_object($scope, js)
+}
+export fn set_layer_back() void {
+    js := $.create_js_object()
+    js:set("type", "GotoLayer")
+    js:set("value", false)
+    $.label_push_object($scope, js)
+}
+// todo: sound
+
+
+export fn wait<T + Runtime>(seconds: T) void {
+    js := $.create_js_object()
+    js:set("type", "Wait")
+    js:set("value", seconds:to_scratch_value())
+    $.label_push_object($scope, js)
+}
+export fn runtime_if<T + Runtime>(predicate: T, block: label) void {
+    js := $.create_js_object()
+    js:set("type", "If")
+    js:set("predicate", predicate:to_scratch_value())
+    js:set("label", $.label_get_name(block))
+    $.set_label(block)
     $.label_push_object($scope, js)
 }
