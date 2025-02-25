@@ -176,17 +176,20 @@ export type IfRuntimeNode = {
     readonly type: NodeKind.IfRuntimeNode,
     readonly predicate: Node,
     readonly body: Node,
+    target?: TargetAr
 } & Loc;
 export type IfElseRuntimeNode = {
     readonly type: NodeKind.IfElseRuntimeNode,
     readonly predicate: Node,
     readonly body: Node,
     readonly elseBody: Node,
+    target?: TargetAr
 } & Loc;
 export type WhileRuntimeNode = {
     readonly type: NodeKind.WhileRuntimeNode,
     readonly predicate: Node,
     readonly body: Node,
+    target?: TargetAr
 } & Loc;
 export type ForRuntimeNode = {
     readonly type: NodeKind.ForRuntimeNode,
@@ -194,6 +197,7 @@ export type ForRuntimeNode = {
     readonly predicate: Node,
     readonly post: Node,
     readonly body: Node,
+    target?: TargetAr
 } & Loc;
 
 

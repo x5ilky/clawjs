@@ -671,7 +671,20 @@ export class Flattener {
         })
         k.ip = this.output.length;
       } break;
-      case NodeKind.IfRuntimeNode:
+      case NodeKind.IfRuntimeNode: {
+        this.convertStatement({
+          ...node,
+          type: NodeKind.CallNode,
+          arguments: [node.predicate, node.body],
+          callee: {
+            ...node,
+            type: NodeKind.VariableNode,
+            name: "runtime_if"
+          },
+          typeArguments: null,
+          target: node.target
+        })
+      } break;
       case NodeKind.IfElseRuntimeNode:
       case NodeKind.WhileRuntimeNode:
       case NodeKind.ForRuntimeNode:

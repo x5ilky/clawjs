@@ -2,7 +2,7 @@ import * as path from "jsr:@std/path";
 import { logger } from "../src/main.ts";
 import { ChainArray, ChainCustomMap, ChainMap, MultiMap } from "./chainmap.ts";
 import { Ansi, arreq, arrjoinwith, arrzip } from "../SkOutput.ts";
-import { AssignmentNode, BinaryOperation, BinaryOperationType, CallNode, FunctionDefinitionNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
+import { AssignmentNode, BinaryOperation, BinaryOperationType, CallNode, FunctionDefinitionNode, LabelNode, MethodOfNode, Node, NormalTypeNode, UnaryOperation } from "./nodes.ts";
 import { NodeKind } from "./nodes.ts";
 import { SourceMap } from "./sourcemap.ts";
 import { SourceHelper } from "./sourceUtil.ts";
@@ -1114,19 +1114,49 @@ export class Typechecker {
       case NodeKind.ReturnNode: {
         throw [new TCReturnValue(this.evaluateTypeFromValue(node.value))];
       }
-      case NodeKind.IfRuntimeNode:
       case NodeKind.IfNode: {
-        const name = node.type === NodeKind.IfNode ? "bool" : "bool!";
         const predValue = this.evaluateTypeFromValue(node.predicate);
-        if (!predValue.eq(this.ti.getTypeFromName(name)!)) {
-          this.errorAt(node.predicate, `Predicate has to be a ${name}`);
+        if (!predValue.eq(this.ti.getTypeFromName("bool")!)) {
+          this.errorAt(node.predicate, `Predicate has to be a bool`);
         }
         const [_nodes, body] = this.typecheckForReturn([node.body]);
         if (body.length) {
           throw body;
         }
         return node;
-          ;
+      }
+      case NodeKind.IfRuntimeNode: {
+        const predValue = this.evaluateTypeFromValue(node.predicate);
+        if (this.ti.getAllTypeInterfaceImplementations(predValue, this.ti.getInterfaceFromName("Runtime")!, this.gcm).length <= 0) {
+          this.errorAt(node.predicate, `Predicate has to implement Runtime`);
+        }
+
+        if (node.body.type !== NodeKind.LabelNode) {
+          this.errorAt(node.body, `Body has to be of type label`);
+        }
+        const fn = this.scope.get("runtime_if") as FunctionClawType;
+        if (fn === undefined) {
+          this.errorAt(node.body, `No function called runtime_if`);
+        }
+
+        const fakeNode = {
+          ...node,
+          type: NodeKind.CallNode,
+          arguments: [node.predicate, node.body],
+          typeArguments: null,
+          callee: {
+            ...node,
+            type: NodeKind.VariableNode,
+            name: "runtime_if"
+          }
+        } satisfies CallNode;
+        this.typecheckSingle(fakeNode);
+        node.target = fakeNode.target;
+        const [_nodes, body] = this.typecheckForReturn((node.body as LabelNode).nodes);
+        if (body.length) {
+          throw body;
+        }
+        return node;
       }
       case NodeKind.IfElseRuntimeNode:
       case NodeKind.IfElseNode: {
@@ -1954,7 +1984,7 @@ export class Typechecker {
       case NodeKind.WhileRuntimeNode:
       case NodeKind.ForRuntimeNode:
       case NodeKind.ReturnNode:
-        logger.error(`${NodeKind[node.type]} cannot be used as value`);
+        this.errorAt(node, `${NodeKind[node.type]} cannot be used as value`);
         throw new TypecheckerError();
     }
   }

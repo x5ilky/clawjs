@@ -23,9 +23,9 @@ cat:on_flag(!{
         vy -= 0.2
         vx *= 0.98
         vy *= 0.98
-        runtime_if(y < -180, !{
+        if! y < -180 !{
             vy *= -1
-        })
+        }
         goto(x, y)
     })
 })
