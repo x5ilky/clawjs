@@ -62,6 +62,62 @@ export fn make_number!() number! {
     return v
 }
 
+struct string! {
+    id: string
+}
+
+impl string! {
+    fn js_object(str: Self) JsObject {
+        js := $.create_js_object()
+        // | { type: "CreateVar"; name: string }
+        js:set("type", "CreateVar")
+        js:set("name", str.id)
+        return js
+    }
+
+    fn set<T + Runtime>(str: Self, amount: T) void {
+        // | { type: "Set"; target: string; value: IlValue }
+        js := $.create_js_object()
+        js:set("type", "Set")
+        js:set("target", str.id)
+        js:set("value", amount:to_scratch_value())
+
+        $.label_push_object($scope, js)
+    }
+}
+
+impl Runtime for string! {
+    fn sizeof() number {
+        return 1
+    }
+    
+    fn to_scratch_value(str: Self) JsObject {
+        obj := $.create_js_object()
+        // | { key: "Variable", name: string }
+        obj:set("key", "Variable")
+        obj:set("name", str.id)
+
+        return obj
+    }
+}
+
+impl<T + Runtime> Assign<T> for string! {
+    fn assign(str: Self, to: T) string! {
+        str:set(to)
+        return str
+    }
+}
+
+export fn make_string!() string! {
+    v := string!::{
+        id: $.reserve()
+    }
+    $.label_push_object(stat_label, v:js_object())
+    return v
+}
+
+
+
 struct List!<T + Runtime> {
     id: string
 }

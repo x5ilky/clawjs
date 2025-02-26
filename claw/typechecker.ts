@@ -978,7 +978,7 @@ export class Typechecker {
                 [], 
                 BUILTIN_LOC, 
                 [["self", Self]], 
-                this.ti.getTypeFromName("JsObject")!, 
+                this.ti.getTypeFromName("JsObject")!,
                 null)],
         ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
       ])

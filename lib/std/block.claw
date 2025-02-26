@@ -27,7 +27,7 @@ impl Runtime for BinaryOperation {
         js:set("key", "BinaryOperation")
         js:set("oper", bo.oper)
         js:set("left", bo.left)
-         js:set("right", bo.right)
+        js:set("right", bo.right)
         return js
     } 
 }
