@@ -60,7 +60,8 @@ export class Sprite {
                 type: "Flag",
                 label: b.name,
                 target: this.id
-            })
+            });
+            $.labels.push(b);
         }
     }
 } 
@@ -90,5 +91,63 @@ export interface SingleValue {
 export interface Serializable {
     sizeof(): number;
     toSerialized(): IlValue[];
-    fromSerialized(target: Serializable, values: IlValue[]): void;
+    fromSerialized(targets: string[], values: IlValue[]): IlNode[];
+}
+
+export type Valuesque = SingleValue | number | string;
+export function toScratchValue(value: Valuesque): IlValue {
+    if (typeof value === "number") {
+        return {
+            key: "Float",
+            value
+        } 
+    } else if (typeof value === "string") {
+        return {
+            key: "String",
+            value
+        } 
+    } else return value.toScratchValue();
+}
+
+export class Num implements SingleValue, Serializable {
+    id: string;
+    constructor() {
+        this.id = reserveCount();
+    }
+    sizeof(): number {
+      return 1
+    }
+    toScratchValue(): IlValue {
+      return {
+        key: "Variable",
+        name: this.id
+      }
+    }
+
+    toSerialized(): IlValue[] {
+      return [this.toScratchValue()];
+    }
+    fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+        return [{
+            type: "Set",
+            target: targets.shift()!,
+            value: values.shift()!
+        }]
+    }
+
+    set(value: Valuesque) {
+        $.scope?.push({
+            type: "Set",
+            target: this.id,
+            value: toScratchValue(value)
+        })
+    }
+}
+
+export function goto(x: Valuesque, y: Valuesque) {
+    $.scope?.push({
+        type: "GotoXY",
+        x: toScratchValue(x),
+        y: toScratchValue(y)
+    });
 }
