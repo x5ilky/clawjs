@@ -89,6 +89,24 @@ export class Sprite {
             $.labels.push(b);
         }
     }
+
+    clone() {
+        $.scope?.push({
+            type: "Clone",
+            target: this.id
+        })
+    }
+    onClone(body: Body) {
+        const b = labelify(body);
+        if (b.nodes.length) {
+            statLabel.push({
+                type: "WhenClone",
+                label: b.name,
+                target: this.id
+            });
+            $.labels.push(b);
+        }
+    }
 } 
 export class Costume {
     name: string;
