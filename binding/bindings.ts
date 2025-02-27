@@ -521,3 +521,24 @@ export function changeVolume(amount: Valuesque) {
 export function setVolume(amount: Valuesque) {
     $.scope?.push({ type: "SetVolumeTo", value: toScratchValue(amount) });
 }
+export function wait(amount: Valuesque) {
+    $.scope?.push({ type: "Wait", time: toScratchValue(amount) });
+}
+export function forever(body: Body) {
+    const label = labelify(body);
+    $.labels.push(label);
+    $.scope?.push({ type: "Forever", label: label.name });
+}
+export function if$(predicate: Valuesque, body: Body, elseBody?: Body) {
+    if (elseBody === undefined) {
+        const label = labelify(body);
+        $.labels.push(label);
+        $.scope?.push({ type: "If", label: label.name, predicate: toScratchValue(predicate) });
+    } else {
+        const label = labelify(body);
+        const elseLabel = labelify(elseBody);
+        $.labels.push(label);
+        $.labels.push(elseLabel);
+        $.scope?.push({ type: "IfElse", label: label.name, label2: elseLabel.name, predicate: toScratchValue(predicate) });
+    }
+}
