@@ -1,4 +1,7 @@
+// deno-lint-ignore-file no-explicit-any
+import { stat } from "node:fs";
 import { FileFormat, IlNode, IlValue } from "../ir/types.ts";
+import { timeStamp } from "node:console";
 
 export class Label {
     constructor(
@@ -93,7 +96,6 @@ export interface Serializable {
     toSerialized(): IlValue[];
     fromSerialized(targets: string[], values: IlValue[]): IlNode[];
 }
-
 export type Valuesque = SingleValue | number | string;
 export function toScratchValue(value: Valuesque): IlValue {
     if (typeof value === "number") {
@@ -109,10 +111,23 @@ export function toScratchValue(value: Valuesque): IlValue {
     } else return value.toScratchValue();
 }
 
+export class IlWrapper implements SingleValue {
+    constructor(private value: IlValue) {
+
+    }
+
+    toScratchValue(): IlValue {
+      return this.value
+    }
+}
 export class Num implements SingleValue, Serializable {
     id: string;
     constructor() {
         this.id = reserveCount();
+        statLabel.push({
+            type: "CreateVar",
+            name: this.id
+        })
     }
     sizeof(): number {
       return 1
@@ -141,6 +156,174 @@ export class Num implements SingleValue, Serializable {
             target: this.id,
             value: toScratchValue(value)
         })
+    }
+}
+export class Str implements SingleValue, Serializable {
+    id: string;
+    constructor() {
+        this.id = reserveCount();
+        statLabel.push({
+            type: "CreateVar",
+            name: this.id
+        })
+    }
+    sizeof(): number {
+      return 1
+    }
+    toScratchValue(): IlValue {
+      return {
+        key: "Variable",
+        name: this.id
+      }
+    }
+
+    toSerialized(): IlValue[] {
+      return [this.toScratchValue()];
+    }
+    fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+        return [{
+            type: "Set",
+            target: targets.shift()!,
+            value: values.shift()!
+        }]
+    }
+
+    set(value: Valuesque) {
+        $.scope?.push({
+            type: "Set",
+            target: this.id,
+            value: toScratchValue(value)
+        })
+    }
+}
+export class List<T extends Serializable> {
+    id: string;
+    constructor() {
+        this.id = reserveCount();
+        statLabel.push({
+            type: "CreateList",
+            name: this.id
+        });
+    }
+    
+    push(value: T) {
+        for (const v of value.toSerialized()) {
+            $.scope?.push({
+                type: "ListOper",
+                list: this.id,
+                oper: {
+                    key: "Push",
+                    value: v
+                }
+            });
+        }    
+    }
+    insert(value: T, index: Valuesque) {
+        for (const v of value.toSerialized().toReversed()) {
+            $.scope?.push({
+                type: "ListOper",
+                list: this.id,
+                oper: {
+                    key: "Insert",
+                    index: toScratchValue(index),
+                    value: v
+                }
+            });
+        }
+    }
+    replace(value: T, index: Valuesque) {
+        const serd = value.toSerialized();
+        for (let i = 0; i < serd.length; i++) {
+            $.scope?.push({
+                type: "ListOper",
+                list: this.id,
+                oper: {
+                    key: "Replace",
+                    index: toScratchValue(index),
+                    value: add(new IlWrapper(serd[i]), i)
+                }
+            });
+        }
+    }
+    clear() {
+        $.scope?.push({
+            type: "ListOper",
+            list: this.id,
+            oper: {
+                key: "Clear"
+            }
+        })
+    }
+    removeAt(index: Valuesque) {
+        $.scope?.push({
+            type: "ListOper",
+            list: this.id,
+            oper: {
+                key: "RemoveIndex",
+                index: toScratchValue(index)
+            }
+        });
+    }
+
+}
+
+// deno-lint-ignore ban-types
+export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): T & { new (...args: any[]): Serializable } {
+    return class extends cl implements Serializable {
+        sizeof(): number {
+            let out = 0;
+            for (const key in this) {
+                const v = this[key] as any;
+                if (typeof(v) !== "object") {
+                    throw new Error("Class member not serializable");
+                }
+                if (!("sizeof" in v)) {
+                    throw new Error("Class member not serializable");
+                }
+                out += v.sizeof();
+            } 
+            return out;
+        }
+        toSerialized(): IlValue[] {
+            const out: IlValue[] = []
+            for (const key in this) {
+                const v = this[key] as any;
+                if (typeof(v) !== "object") {
+                    throw new Error("Class member not serializable");
+                }
+                if (!("toSerialized" in v)) {
+                    throw new Error("Class member not serializable");
+                }
+                out.push(...v.toSerialized());
+            } 
+            return out;
+        }
+        fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+            const out: IlNode[] = []
+            for (const key in this) {
+                const v = this[key] as any;
+                if (typeof(v) !== "object") {
+                    throw new Error("Class member not serializable");
+                }
+                if (!("fromSerialized" in v)) {
+                    throw new Error("Class member not serializable");
+                }
+                out.push(...v.fromSerialized(targets, values));
+            } 
+            return out;
+        }
+        constructor(...args: any[]) {
+            super(...args)
+        }
+    } 
+}
+
+export function add(left: Valuesque, right: Valuesque): IlValue {
+    return {
+        key: "BinaryOperation",
+        oper: "Add",
+        left: toScratchValue(left),
+        right: toScratchValue(right)
     }
 }
 
