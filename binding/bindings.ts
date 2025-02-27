@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import { FileFormat, IlNode, IlValue } from "../ir/types.ts";
+import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
     constructor(
         public name: string,
@@ -315,14 +315,43 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): T & { 
     } 
 }
 
-export function add(left: Valuesque, right: Valuesque): IlValue {
-    return {
-        key: "BinaryOperation",
-        oper: "Add",
-        left: toScratchValue(left),
-        right: toScratchValue(right)
+function makeBinaryOperatorFunction(name: BinaryOperation) {
+    return (left: Valuesque, right: Valuesque): IlValue => {
+        return {
+            key: "BinaryOperation",
+            oper: name,
+            left: toScratchValue(left),
+            right: toScratchValue(right)
+        }
     }
 }
+export const add = makeBinaryOperatorFunction("Add");
+export const sub = makeBinaryOperatorFunction("Sub");
+export const mul = makeBinaryOperatorFunction("Mul");
+export const div = makeBinaryOperatorFunction("Div");
+export const eq = makeBinaryOperatorFunction("Eq");
+export const gt = makeBinaryOperatorFunction("Gt");
+export const lt = makeBinaryOperatorFunction("Lt");
+export const gte = makeBinaryOperatorFunction("Gte");
+export const lte = makeBinaryOperatorFunction("Lte");
+export const mod = makeBinaryOperatorFunction("Mod");
+export const join = makeBinaryOperatorFunction("Join");
+export const letterOf = makeBinaryOperatorFunction("LetterOf");
+export const stringContains = makeBinaryOperatorFunction("Contains");
+export const random = makeBinaryOperatorFunction("Random");
+
+function makeUnaryOperatorFunction(name: UnaryOperation) {
+    return (left: Valuesque): IlValue => {
+        return {
+            key: "UnaryOperation",
+            oper: name,
+            value: toScratchValue(left)
+        }
+    }
+}
+export const not = makeUnaryOperatorFunction("Not");
+export const stringLength = makeUnaryOperatorFunction("Length");
+export const round = makeUnaryOperatorFunction("Round");
 
 export function goto(x: Valuesque, y: Valuesque) {
     $.scope?.push({
