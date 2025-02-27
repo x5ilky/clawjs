@@ -1,41 +1,56 @@
 // deno-lint-ignore-file no-explicit-any
-import { $, Costume, DataClass, goto, List, Num, Serializable, Sprite } from "./binding/bindings.ts";
-import { IlNode, IlValue } from "./ir/types.ts";
-
-const Vec2 = DataClass(class {
-    x: Num;
-    y: Num;
-
-    constructor() {
-        this.x = new Num();
-        this.y = new Num();
-    }
-});
-export type Vec2 = InstanceType<typeof Vec2>;
-const Test = DataClass(class {
-    test: Num;
-    pos: Vec2;
-
-    constructor() {
-        this.test = new Num();
-        this.pos = new Vec2();
-    }
-})
-export type Test = InstanceType<typeof Test>;
-
-const list = new List<Num>();
+import {
+  BlobWriter,
+  TextReader,
+  ZipWriter,
+} from "https://deno.land/x/zipjs/index.js";
+import { $, Costume, goto, Sprite } from "./binding/bindings.ts";
+import { Convertor } from "./ir/convertor.ts";
+import { IlNode } from "./ir/types.ts";
+import { LogLevel } from "./SkOutput.ts";
+import { logger } from "./src/main.ts";
+import { MD5 } from "./external/md5.js";
 
 const cat = new Sprite();
 const pop = new Costume("SVG", "pop.svg", 50, 50);
 cat.addCostume(pop);
 
 cat.onFlag(() => {
-    const t = new Test();
-    list.push(t.pos.x)
     goto(10, 20)
 });
 
+const convertor = new Convertor($.labels.map(a => <IlNode>{type: "Label", value: [a.name, a.nodes]}), "resources", logger);
+const project = convertor.create()
+logger.start(LogLevel.INFO, "creating zip")
+const zipFileWriter = new BlobWriter();
+const zipWriter = new ZipWriter(zipFileWriter);
+await zipWriter.add("project.json", new TextReader(project.toJsonStringified()));
 
+for (const [_, spr] of convertor.sprites) {
+    for (const [path, format] of spr.costume_paths) {
+        const file = Deno.readTextFileSync(path);
+        const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+        try {
+            await zipWriter.add(fileName, new TextReader(file));
+        } catch (e) {
+            console.log(e) 
+        }
+    }
+    for (const [path, format] of spr.sound_paths) {
+        const file = Deno.readTextFileSync(path);
+        const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+        try {
+            await zipWriter.add(fileName, new TextReader(file));
+        } catch (e) {
+            console.log(e) 
+        }
+    }
+}
 
+await zipWriter.close();
+logger.end(LogLevel.INFO, "creating zip")
 
-console.log($.labels)
+// Retrieves the Blob object containing the zip content into `zipFileBlob`. It
+// is also returned by zipWriter.close() for more convenience.
+const zipFileBlob = await zipFileWriter.getData();
+await Deno.writeFile("out.sb3", await zipFileBlob.bytes())

@@ -63,6 +63,7 @@
     }
   },
   "redirects": {
+    "https://deno.land/x/zipjs/index.d.ts": "https://deno.land/x/zipjs@v2.7.57/index.d.ts",
     "https://deno.land/x/zipjs/index.js": "https://deno.land/x/zipjs@v2.7.53/index.js"
   },
   "remote": {

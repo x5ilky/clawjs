@@ -1,8 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import { stat } from "node:fs";
 import { FileFormat, IlNode, IlValue } from "../ir/types.ts";
-import { timeStamp } from "node:console";
-
 export class Label {
     constructor(
         public name: string,
