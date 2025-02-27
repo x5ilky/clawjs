@@ -299,9 +299,13 @@ export class Parser {
 
         const pre = this.parseStatement();
         if (pre === null) this.errorAt(forKeyword, `Expected pre statement`);
+        const semi1 = this.expectSymbol(";");
+        if (semi1 === null) this.errorAt(forKeyword, `expected semicolon`);
 
         const value = this.parseValue();
         if (value === null) this.errorAt(forKeyword, `Expected predicate`);
+        const semi2 = this.expectSymbol(";");
+        if (semi2 === null) this.errorAt(forKeyword, `expected semicolon`);
 
         const post = this.parseStatement();
         if (post === null) this.errorAt(forKeyword, `Expected post statement`);

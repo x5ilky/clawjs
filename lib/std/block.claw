@@ -18,9 +18,6 @@ struct BinaryOperation {
     oper: string
 }
 impl Runtime for BinaryOperation {
-    fn sizeof() number {
-        return 1
-    }
     fn to_scratch_value(bo: Self) JsObject {
         js := $.create_js_object()
         // | { key: "BinaryOperation", oper: BinaryOperation, left: IlValue, right: IlValue }

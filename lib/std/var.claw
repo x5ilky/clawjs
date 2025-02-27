@@ -33,10 +33,6 @@ impl number! {
 }
 
 impl Runtime for number! {
-    fn sizeof() number {
-        return 1
-    }
-    
     fn to_scratch_value(num: Self) JsObject {
         obj := $.create_js_object()
         // | { key: "Variable", name: string }
@@ -87,10 +83,6 @@ impl string! {
 }
 
 impl Runtime for string! {
-    fn sizeof() number {
-        return 1
-    }
-    
     fn to_scratch_value(str: Self) JsObject {
         obj := $.create_js_object()
         // | { key: "Variable", name: string }
@@ -141,6 +133,12 @@ impl<T + Runtime> List!<T> {
 
         js:set("oper", inner)
         $.label_push_object($scope, js)
+    }
+    fn push<U + Serialize>(list: Self<T>, value: U) void {
+        values := value:to_serialized()
+        for i := 0 ; i < values:len() ; i += 1 {
+            list:push_single(values:get(i))
+        }
     }
     
     fn clear() void {

@@ -980,10 +980,33 @@ export class Typechecker {
                 [["self", Self]], 
                 this.ti.getTypeFromName("JsObject")!,
                 null)],
-        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)]
       ])
     );
     this.ti.interfaces.set("Runtime", RuntimeInterface);
+    const SerializeInterface = new ClawInterface(
+      "Serialize",
+      [],
+      new Map([
+        ["to_serialized", 
+            new FunctionClawType(
+                "to_serialized", 
+                [], 
+                BUILTIN_LOC, 
+                [["self", Self]], 
+                new VariableClawType("array", [this.ti.getTypeFromName("JsObject")!], BUILTIN_LOC, this.ti.getTypeFromName("array")!),
+                null)],
+        ["sizeof", new FunctionClawType("sizeof", [], BUILTIN_LOC, [], num(), null)],
+        ["from_serialized", 
+            new FunctionClawType(
+                "from_serialized", 
+                [], 
+                BUILTIN_LOC, 
+                [["values", new VariableClawType("array", [this.ti.getTypeFromName("any")!], BUILTIN_LOC, this.ti.getTypeFromName("array")!)]],
+                Self,
+                null)],
+      ])
+    );
+    this.ti.interfaces.set("Serialize", SerializeInterface);
     const AssignInterface = new ClawInterface(
       "Assign",
       [new GenericClawType("T", BUILTIN_LOC, [])],
