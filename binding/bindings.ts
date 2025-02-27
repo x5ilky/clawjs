@@ -542,3 +542,8 @@ export function if$(predicate: Valuesque, body: Body, elseBody?: Body) {
         $.scope?.push({ type: "IfElse", label: label.name, label2: elseLabel.name, predicate: toScratchValue(predicate) });
     }
 }
+export function repeat$(times: Valuesque, body: Body) {
+    const label = labelify(body);
+    $.labels.push(label);
+    $.scope?.push({ type: "Repeat", label: label.name, amount: toScratchValue(times) });
+}
