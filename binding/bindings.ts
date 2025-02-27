@@ -157,6 +157,9 @@ export interface Serializable {
     toSerialized(): IlValue[];
     fromSerialized(targets: string[], values: IlValue[]): IlNode[];
 }
+export interface Variable {
+    setInner(ids: IlValue[]): void;
+}
 export type Valuesque = SingleValue | number | string;
 export function toScratchValue(value: Valuesque): IlValue {
     if (typeof value === "number") {
