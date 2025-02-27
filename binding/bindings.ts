@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { StopType } from "../ir/types.ts";
 import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
     constructor(
@@ -15,7 +16,8 @@ export class Label {
 export const $ = {
     COUNTER: 0,
     labels: new Array<Label>(new Label("stat", [])),
-    scope: null as Label | null
+    scope: null as Label | null,
+    currentFunc: null as string | null
 };
 const statLabel = $.labels.find(a => a.name === "stat")!;
 
@@ -58,6 +60,29 @@ export class Sprite {
         if (b.nodes.length) {
             statLabel.push({
                 type: "Flag",
+                label: b.name,
+                target: this.id
+            });
+            $.labels.push(b);
+        }
+    }
+    onKeypress(key: string, body: Body) {
+        const b = labelify(body);
+        if (b.nodes.length) {
+            statLabel.push({
+                type: "Keypress",
+                key,
+                label: b.name,
+                target: this.id
+            });
+            $.labels.push(b);
+        }
+    }
+    onClicked(body: Body) {
+        const b = labelify(body);
+        if (b.nodes.length) {
+            statLabel.push({
+                type: "Clicked",
                 label: b.name,
                 target: this.id
             });
@@ -546,4 +571,11 @@ export function repeat$(times: Valuesque, body: Body) {
     const label = labelify(body);
     $.labels.push(label);
     $.scope?.push({ type: "Repeat", label: label.name, amount: toScratchValue(times) });
+}
+
+export function return$(value: Valuesque) {
+    $.scope?.push({ type: "Return", func: $.currentFunc!, value: toScratchValue(value) });
+}
+export function stop(type: StopType) {
+    $.scope?.push({ type: "Stop", stopType: type });
 }
