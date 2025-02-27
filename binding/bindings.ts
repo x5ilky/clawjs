@@ -30,6 +30,14 @@ function labelify(body: Body) {
     $.scope = oldScope;
     return v;
 }
+
+export class Broadcast {
+    id: string;
+
+    constructor() {
+        this.id = reserveCount();
+    }
+}
 export class Sprite {
     id: string;
     isStage: boolean;
@@ -103,6 +111,19 @@ export class Sprite {
                 type: "WhenClone",
                 label: b.name,
                 target: this.id
+            });
+            $.labels.push(b);
+        }
+    }
+
+    onBroadcast(broadcast: Broadcast, body: Body) {
+        const b = labelify(body);
+        if (b.nodes.length) {
+            statLabel.push({
+                type: "WhenBroadcast",
+                label: b.name,
+                target: this.id,
+                name: broadcast.id
             });
             $.labels.push(b);
         }
@@ -597,3 +618,38 @@ export function return$(value: Valuesque) {
 export function stop(type: StopType) {
     $.scope?.push({ type: "Stop", stopType: type });
 }
+
+export function broadcast(value: Valuesque): void;
+export function broadcast(value: Broadcast): void;
+export function broadcast(value: Valuesque | Broadcast) {
+    if (value instanceof Broadcast) {
+        $.scope?.push({
+            type: "Broadcast",
+            value: {
+                key: "String",
+                value: value.id
+            }
+        })
+    } else $.scope?.push({
+        type: "Broadcast",
+        value: toScratchValue(value)
+    });
+}
+
+export function broadcastWait(value: Valuesque): void;
+export function broadcastWait(value: Broadcast): void;
+export function broadcastWait(value: Valuesque | Broadcast) {
+    if (value instanceof Broadcast) {
+        $.scope?.push({
+            type: "BroadcastWait",
+            value: {
+                key: "String",
+                value: value.id
+            }
+        })
+    } else $.scope?.push({
+        type: "BroadcastWait",
+        value: toScratchValue(value)
+    });
+}
+
