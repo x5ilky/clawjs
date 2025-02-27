@@ -1,11 +1,33 @@
-import { FileFormat, IlNode } from "../ir/types.ts";
+import { FileFormat, IlNode, IlValue } from "../ir/types.ts";
 
+export class Label {
+    constructor(
+        public name: string,
+        public nodes: IlNode[],
+    ) {
+
+    }
+
+    push(node: IlNode) {
+        this.nodes.push(node);
+    }
+}
 export const $ = {
     COUNTER: 0,
-    labels: new Map<string, IlNode[]>(),
+    labels: new Array<Label>(new Label("stat", [])),
+    scope: null as Label | null
 };
-const statLabel = $.labels.set("stat", []).get("stat")!;
+const statLabel = $.labels.find(a => a.name === "stat")!;
 
+export type Body = () => void;
+function labelify(body: Body) {
+    const oldScope = $.scope;
+    $.scope = new Label(reserveCount(), []);
+    body();
+    const v = $.scope;
+    $.scope = oldScope;
+    return v;
+}
 export class Sprite {
     id: string;
     isStage: boolean;
@@ -30,6 +52,17 @@ export class Sprite {
             id: this.id
         })
     }
+
+    onFlag(body: Body) {
+        const b = labelify(body);
+        if (b.nodes.length) {
+            statLabel.push({
+                type: "Flag",
+                label: b.name,
+                target: this.id
+            })
+        }
+    }
 } 
 export class Costume {
     name: string;
@@ -49,4 +82,13 @@ export const stage = new Sprite(true);
 
 export function reserveCount() {
     return "BC_" + ($.COUNTER++).toString()
+}
+
+export interface SingleValue {
+    toScratchValue(): IlValue;
+}
+export interface Serializable {
+    sizeof(): number;
+    toSerialized(): IlValue[];
+    fromSerialized(target: Serializable, values: IlValue[]): void;
 }
