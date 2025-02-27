@@ -353,10 +353,171 @@ export const not = makeUnaryOperatorFunction("Not");
 export const stringLength = makeUnaryOperatorFunction("Length");
 export const round = makeUnaryOperatorFunction("Round");
 
+export function steps(steps: Valuesque) {
+    $.scope?.push({
+        type: "MoveSteps",
+        value: toScratchValue(steps),
+    });
+}
+export function turnRight(degrees: Valuesque) {
+    $.scope?.push({
+        type: "TurnRight",
+        degrees: toScratchValue(degrees),
+    });
+}
+export function turnLeft(degrees: Valuesque) {
+    $.scope?.push({
+        type: "TurnLeft",
+        degrees: toScratchValue(degrees),
+    });
+}
+
 export function goto(x: Valuesque, y: Valuesque) {
     $.scope?.push({
         type: "GotoXY",
         x: toScratchValue(x),
         y: toScratchValue(y)
     });
+}
+
+export function setRotation(degrees: Valuesque) {
+    $.scope?.push({
+        type: "PointDirection",
+        value: toScratchValue(degrees),
+    });
+}
+export function setX(x: Valuesque) {
+    $.scope?.push({
+        type: "SetX",
+        value: toScratchValue(x),
+    });
+}
+export function setY(y: Valuesque) {
+    $.scope?.push({
+        type: "SetY",
+        value: toScratchValue(y),
+    });
+}
+export function changeX(value: Valuesque) {
+    $.scope?.push({
+        type: "ChangeX",
+        value: toScratchValue(value),
+    });
+}
+
+export function changeY(value: Valuesque) {
+    $.scope?.push({
+        type: "ChangeY",
+        value: toScratchValue(value),
+    });
+}
+
+export function say(message: Valuesque) {
+    $.scope?.push({
+        type: "Say",
+        value: toScratchValue(message),
+    });
+}
+
+export function sayFor(message: Valuesque, secs: Valuesque) {
+    $.scope?.push({
+        type: "SayFor",
+        value: toScratchValue(message),
+        secs: toScratchValue(secs),
+    });
+}
+
+export function think(message: Valuesque) {
+    $.scope?.push({
+        type: "Think",
+        value: toScratchValue(message),
+    });
+}
+
+export function thinkFor(message: Valuesque, secs: Valuesque) {
+    $.scope?.push({
+        type: "ThinkFor",
+        value: toScratchValue(message),
+        secs: toScratchValue(secs),
+    });
+}
+
+export function switchCostume(costume: Valuesque) {
+    $.scope?.push({
+        type: "SwitchCostume",
+        value: toScratchValue(costume),
+    });
+}
+
+export function nextCostume() {
+    $.scope?.push({
+        type: "NextCostume" });
+}
+
+export function switchBackdrop(backdrop: Valuesque) {
+    $.scope?.push({
+        type: "SwitchBackdrop",
+        value: toScratchValue(backdrop),
+    });
+}
+
+export function nextBackdrop() {
+    $.scope?.push({
+        type: "NextBackdrop" });
+}
+
+export function changeSize(value: Valuesque) {
+    $.scope?.push({
+        type: "ChangeSize",
+        value: toScratchValue(value),
+    });
+}
+
+export function setSize(value: Valuesque) {
+    $.scope?.push({
+        type: "SetSize",
+        value: toScratchValue(value),
+    });
+}
+
+export function show() {
+    $.scope?.push({ type: "Show" });
+}
+
+export function hide() {
+    $.scope?.push({ type: "Hide" });
+}
+
+export function playSound(sound: Valuesque) {
+    $.scope?.push({
+        type: "Play",
+        sound: toScratchValue(sound),
+    });
+}
+
+export function playSoundUntilDone(sound: Valuesque) {
+    $.scope?.push({
+        type: "PlayUntilDone",
+        sound: toScratchValue(sound),
+    });
+}
+
+export function stopAllSounds() {
+    $.scope?.push({ type: "StopAllSounds" });
+}
+
+export function changeEffect(effect: "PAN" | "PITCH", amount: Valuesque) {
+    $.scope?.push({ type: "ChangeEffectBy", effect, amount: toScratchValue(amount) });
+}
+export function setEffect(effect: "PAN" | "PITCH", amount: Valuesque) {
+    $.scope?.push({ type: "SetEffectTo", effect, amount: toScratchValue(amount) });
+}
+export function clearEffects() {
+    $.scope?.push({ type: "ClearEffects" });
+}
+export function changeVolume(amount: Valuesque) {
+    $.scope?.push({ type: "ChangeVolumeBy", value: toScratchValue(amount) });
+}
+export function setVolume(amount: Valuesque) {
+    $.scope?.push({ type: "SetVolumeTo", value: toScratchValue(amount) });
 }
