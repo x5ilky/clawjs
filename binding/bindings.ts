@@ -1,5 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-import { FORBIDDEN_VARIABLE_NAME_PREFIX } from "../ir/convertor.ts";
 import { ScratchArgumentType, StopType } from "../ir/types.ts";
 import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
