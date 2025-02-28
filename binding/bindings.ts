@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { Serializer } from "node:v8";
 import { StopType } from "../ir/types.ts";
 import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
@@ -186,6 +187,7 @@ export class IlWrapper implements SingleValue {
 }
 export class Num implements SingleValue, Serializable {
     id: string;
+    
     constructor() {
         this.id = reserveCount();
         statLabel.push({
@@ -260,6 +262,34 @@ export class Str implements SingleValue, Serializable {
         })
     }
 }
+export class Argument implements SingleValue, Serializable {
+    index: number;
+    constructor(index: number, private funcName: string) {
+        this.index = index;
+    }
+
+    toScratchValue(): IlValue {
+      return {
+        key: "Argument",
+        funcName: this.funcName,
+        index: this.index
+      }
+    }
+
+    fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+      targets.shift();
+      values.shift();
+      return [];
+    }
+
+    toSerialized(): IlValue[] {
+      return [this.toScratchValue()];
+    }
+    sizeof(): number {
+      return 1;
+    }
+}
+
 export class List<T extends Serializable> {
     id: string;
     constructor() {
@@ -380,6 +410,31 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): T & { 
             super(...args)
         }
     } 
+}
+
+export type Argumentify<T extends Serializable> = 
+      T extends Num ? Argument
+    : T extends Str ? Argument
+    : T extends (...inputs: any[]) => any ? T
+    : T & { [k in keyof T]: T[k] extends Serializable ? Argumentify<T[k]> : T[k] };
+
+export function Argumentify<T extends Serializable>(value: T): Argumentify<T> {
+    return ArgumentifyRaw(value, 0)[0];
+}
+export function ArgumentifyRaw<T extends Serializable>(value: T, index: number): [Argumentify<T>, number] {
+    const newValue = value as any;
+    if (value instanceof Num) {
+        return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
+    }
+    if (value instanceof Str) {
+        return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
+    }
+    for (const k in value) {
+        if (value[k] instanceof Num) [newValue[k], index] = ArgumentifyRaw(value[k], index);
+        else if (value[k] instanceof Str) [newValue[k], index] = ArgumentifyRaw(value[k], index);
+        else [newValue[k], index] = ArgumentifyRaw(value[k] as Serializable, index);
+    }
+    return [newValue, index];
 }
 
 function makeBinaryOperatorFunction(name: BinaryOperation) {
