@@ -1,5 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-import { VariableClawType } from "../claw/typechecker.ts";
 import { DropOperation, ScratchArgumentType, StopType } from "../ir/types.ts";
 import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
@@ -657,6 +656,148 @@ export const log = makeDropOperatorFunction("Log");
 export const epower = makeDropOperatorFunction("EPower");
 export const tenpower = makeDropOperatorFunction("TenPower");
 
+export const isTouchingObject = (target: Valuesque | Sprite) => {
+    if (target instanceof Sprite)
+        return new IlWrapper({
+            key: "SensingOperation",
+            oper: {
+                type: "TouchingObject",
+                target: {
+                    key: "String",
+                    value: target.id
+                }
+            }
+        });
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "TouchingObject",
+            target: toScratchValue(target)
+        }
+    });
+}
+export const isTouchingColor = (color: Valuesque) => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "TouchingColor",
+            color: toScratchValue(color)
+        }
+    });
+}
+export const ColorIsTouchingColor = (color: Valuesque, color2: Valuesque) => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "ColorIsTouchingColor",
+            color1: toScratchValue(color),
+            color2: toScratchValue(color2)
+        }
+    });
+}
+export const distanceTo = (target: Valuesque | Sprite) => {
+    if (target instanceof Sprite)
+        return new IlWrapper({
+            key: "SensingOperation",
+            oper: {
+                type: "DistanceTo",
+                target: {
+                    key: "String",
+                    value: target.id
+                }
+            }
+        });
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "DistanceTo",
+            target: toScratchValue(target)
+        }
+    });
+}
+export const keyPressed = (key: Valuesque) => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "KeyPressed",
+            key: toScratchValue(key)
+        }
+    });
+}
+export const mouse = {
+    down: () => {
+        return new IlWrapper({
+            key: "SensingOperation",
+            oper: {
+                type: "MouseDown",
+            }
+        });
+    },
+    x: () => {
+        return new IlWrapper({
+            key: "SensingOperation",
+            oper: {
+                type: "MouseX",
+            }
+        });
+    },
+    y: () => {
+        return new IlWrapper({
+            key: "SensingOperation",
+            oper: {
+                type: "MouseY",
+            }
+        });
+    }
+}
+export const loudness = () => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "Loudness",
+        }
+    });
+}
+export const timer = () => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "Timer",
+        }
+    });
+}
+export const propertyOf = (property: string, object: Valuesque | Sprite) => {
+    const obj = object instanceof Sprite ?
+        {
+            key: "String",
+            value: object.id
+        } satisfies IlValue : toScratchValue(object);
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "Of",
+            property,
+            object: obj
+        }
+    });
+}
+export const daysSince2000 = () => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "DaysSince2000",
+        }
+    });
+}
+export const username = () => {
+    return new IlWrapper({
+        key: "SensingOperation",
+        oper: {
+            type: "Username",
+        }
+    });
+}
+
 export function steps(steps: Valuesque) {
     $.scope?.push({
         type: "MoveSteps",
@@ -683,7 +824,6 @@ export function goto(x: Valuesque, y: Valuesque) {
         y: toScratchValue(y)
     });
 }
-
 export function setRotation(degrees: Valuesque) {
     $.scope?.push({
         type: "PointDirection",
