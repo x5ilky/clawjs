@@ -177,7 +177,7 @@ export interface Variable {
 }
 export type Valuesque = SingleValue | number | string | IlValue;
 export function toScratchValue(value: Valuesque): IlValue {
-    if (typeof value === "object" && "type" in value) return value as IlValue;
+    if (typeof value === "object" && "key" in value) return value as IlValue;
     if (typeof value === "number") {
         return {
             key: "Float",
