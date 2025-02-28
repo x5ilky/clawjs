@@ -2,7 +2,7 @@ import { sub } from "./binding/bindings.ts";
 import { mul } from "./binding/bindings.ts";
 import { if$ } from "./binding/bindings.ts";
 import { lt } from "./binding/bindings.ts";
-import { $, add, Costume, DataClass, def, forever, goto, Num, return$, say, Sprite } from "./binding/bindings.ts";
+import { add, Costume, DataClass, forever, goto, Num, Sprite } from "./binding/bindings.ts";
 import { build } from "./binding/buildHelper.ts";
 const cat = new Sprite();
 const pop = new Costume("SVG", "pop.svg", 50, 50);
