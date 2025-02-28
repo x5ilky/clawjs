@@ -19,7 +19,8 @@ export const $ = {
     labels: new Array<Label>(new Label("stat", [])),
     scope: null as Label | null,
     currentFunc: null as string | null,
-    currentSprite: null as Sprite | null
+    currentSprite: null as Sprite | null,
+    returnValue: null as Variable | null
 };
 const statLabel = $.labels.find(a => a.name === "stat")!;
 
@@ -172,10 +173,11 @@ export interface Serializable {
     fromSerialized(targets: string[], values: IlValue[]): IlNode[];
 }
 export interface Variable {
-    setInner(ids: IlValue[]): void;
+    set(...args: any[]): void;
 }
-export type Valuesque = SingleValue | number | string;
+export type Valuesque = SingleValue | number | string | IlValue;
 export function toScratchValue(value: Valuesque): IlValue {
+    if (typeof value === "object" && "type" in value) return value as IlValue;
     if (typeof value === "number") {
         return {
             key: "Float",
@@ -186,7 +188,7 @@ export function toScratchValue(value: Valuesque): IlValue {
             key: "String",
             value
         } 
-    } else return value.toScratchValue();
+    } else return (value as SingleValue).toScratchValue();
 }
 
 export class IlWrapper implements SingleValue {
@@ -198,7 +200,7 @@ export class IlWrapper implements SingleValue {
       return this.value
     }
 }
-export class Num implements SingleValue, Serializable {
+export class Num implements SingleValue, Serializable, Variable {
     id: string;
     
     constructor() {
@@ -237,7 +239,7 @@ export class Num implements SingleValue, Serializable {
         })
     }
 }
-export class Str implements SingleValue, Serializable {
+export class Str implements SingleValue, Serializable, Variable {
     id: string;
     constructor() {
         this.id = reserveCount();
@@ -374,9 +376,19 @@ export class List<T extends Serializable> {
 
 }
 
+type DataclassOutput<T> = T & { new (...args: any[]): Serializable & Variable }
 // deno-lint-ignore ban-types
-export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): T & { new (...args: any[]): Serializable } {
-    return class extends cl implements Serializable {
+export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): DataclassOutput<T> {
+    return class extends cl implements Serializable, Variable {
+        set(value: InstanceType<DataclassOutput<T>>): void {
+            for (const key in value) {
+                const v = value[key] as any;
+                if (typeof(v) !== "object") {
+                    throw new Error("Class member not serializable");
+                }
+                (this[key as keyof typeof this] as any).set(v);
+            } 
+        }
         sizeof(): number {
             let out = 0;
             for (const key in this) {
@@ -449,17 +461,35 @@ export function ArgumentifyRaw<T extends Serializable>(value: T, index: number):
     }
     return [newValue, index];
 }
-export function def<const T extends (new () => Serializable)[]>(argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void) {
+export function def
+    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
+    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R) {
+    return defRaw(argTypes, fn, returnType, false);
+}
+export function warp
+    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
+    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R) {
+    return defRaw(argTypes, fn, returnType, true);
+}
+function defRaw
+    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
+    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType: R | undefined, warp: boolean) {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
 
+    const oldrv = $.returnValue;
+    let ret = null;
+    if (returnType !== undefined) {
+        ret = new returnType();
+        $.returnValue = ret;
+    }
     const out = {
         type: "Def",
         label: "",
         argAmount: 0,
         args: [] as ScratchArgumentType[],
         id: $.currentFunc,
-        warp: false
+        warp
     } satisfies IlNode;
     const args: any = [];
     let totalSize = 0;
@@ -482,6 +512,7 @@ export function def<const T extends (new () => Serializable)[]>(argTypes: T, fn:
     statLabel.push(out);
 
     $.currentFunc = oldFunc;
+    $.returnValue = oldrv;
     return (...args: { [K in keyof T]: InstanceType<T[K]> }) => {
         if (!$.currentSprite?.implementedFunctions.has(id)) {
             $.currentSprite?.implementedFunctions.add(id);
@@ -497,10 +528,7 @@ export function def<const T extends (new () => Serializable)[]>(argTypes: T, fn:
             argAmount: totalSize,
             args: args.map(a => a.toSerialized()).flat()
         } satisfies IlNode);
-        return {
-            key: "Variable",
-            name: `${FORBIDDEN_VARIABLE_NAME_PREFIX}${id}`
-        } satisfies IlValue
+        return ret as InstanceType<R>
     }
 }
 
@@ -737,14 +765,10 @@ export function repeat$(times: Valuesque, body: Body) {
     $.scope?.push({ type: "Repeat", label: label.name, amount: toScratchValue(times) });
 }
 
-export function return$(value: Valuesque) {
-    $.scope?.push(
-        { 
-            type: "Return", 
-            func: $.currentFunc!, 
-            value: toScratchValue(value) 
-        }
-    );
+export function return$(value: Variable | string | number) {
+    if (typeof value === "number") $.returnValue?.set(value)
+    else if (typeof value === "string") $.returnValue?.set(value)
+    else $.returnValue?.set(value);
 }
 export function stop(type: StopType) {
     $.scope?.push({ type: "Stop", stopType: type });
