@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-import { Serializer } from "node:v8";
-import { StopType } from "../ir/types.ts";
+import { FORBIDDEN_VARIABLE_NAME_PREFIX } from "../ir/convertor.ts";
+import { ScratchArgumentType, StopType } from "../ir/types.ts";
 import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
     constructor(
@@ -18,15 +18,16 @@ export const $ = {
     COUNTER: 0,
     labels: new Array<Label>(new Label("stat", [])),
     scope: null as Label | null,
-    currentFunc: null as string | null
+    currentFunc: null as string | null,
+    currentSprite: null as Sprite | null
 };
 const statLabel = $.labels.find(a => a.name === "stat")!;
 
-export type Body = () => void;
-function labelify(body: Body) {
+export type Body = (...args: any[]) => void;
+function labelify(body: Body, ...args: any[]) {
     const oldScope = $.scope;
     $.scope = new Label(reserveCount(), []);
-    body();
+    body(...args);
     const v = $.scope;
     $.scope = oldScope;
     return v;
@@ -43,11 +44,13 @@ export class Sprite {
     id: string;
     isStage: boolean;
     costumes: Costume[];
+    implementedFunctions: Set<string>;
 
     constructor(isStage = false) {
         this.isStage = isStage;
         this.costumes = [];
         this.id = reserveCount();
+        this.implementedFunctions = new Set();
         statLabel.push({
             type: "CreateSpr",
             isStage,
@@ -65,7 +68,9 @@ export class Sprite {
     }
 
     onFlag(body: Body) {
+        $.currentSprite = this;
         const b = labelify(body);
+        $.currentSprite = null;
         if (b.nodes.length) {
             statLabel.push({
                 type: "Flag",
@@ -76,7 +81,9 @@ export class Sprite {
         }
     }
     onKeypress(key: string, body: Body) {
+        $.currentSprite = this;
         const b = labelify(body);
+        $.currentSprite = null;
         if (b.nodes.length) {
             statLabel.push({
                 type: "Keypress",
@@ -88,7 +95,9 @@ export class Sprite {
         }
     }
     onClicked(body: Body) {
+        $.currentSprite = this;
         const b = labelify(body);
+        $.currentSprite = null;
         if (b.nodes.length) {
             statLabel.push({
                 type: "Clicked",
@@ -106,7 +115,9 @@ export class Sprite {
         })
     }
     onClone(body: Body) {
+        $.currentSprite = this;
         const b = labelify(body);
+        $.currentSprite = null;
         if (b.nodes.length) {
             statLabel.push({
                 type: "WhenClone",
@@ -118,7 +129,9 @@ export class Sprite {
     }
 
     onBroadcast(broadcast: Broadcast, body: Body) {
+        $.currentSprite = this;
         const b = labelify(body);
+        $.currentSprite = null;
         if (b.nodes.length) {
             statLabel.push({
                 type: "WhenBroadcast",
@@ -436,6 +449,60 @@ export function ArgumentifyRaw<T extends Serializable>(value: T, index: number):
     }
     return [newValue, index];
 }
+export function def<const T extends (new () => Serializable)[]>(argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void) {
+    const oldFunc = $.currentFunc;
+    const id = $.currentFunc = reserveCount();
+
+    const out = {
+        type: "Def",
+        label: "",
+        argAmount: 0,
+        args: [] as ScratchArgumentType[],
+        id: $.currentFunc,
+        warp: false
+    } satisfies IlNode;
+    const args: any = [];
+    let totalSize = 0;
+    for (const arg of argTypes) {
+        const a = new arg();
+        const size = a.sizeof();
+
+        totalSize += size;
+
+        for (let i = 0; i < size; i++) {
+            out.args.push("Any");
+        }
+        out.argAmount += size;
+        args.push(Argumentify(a));
+    }
+
+    const label = labelify(fn, ...args);
+    $.labels.push(label);
+    out.label = label.name;
+    statLabel.push(out);
+
+    $.currentFunc = oldFunc;
+    return (...args: { [K in keyof T]: InstanceType<T[K]> }) => {
+        if (!$.currentSprite?.implementedFunctions.has(id)) {
+            $.currentSprite?.implementedFunctions.add(id);
+            statLabel.push({
+                type: "InsertDef",
+                func: id,
+                sprites: [$.currentSprite!.id]
+            })
+        }
+        $.scope?.nodes.push({
+            type: "Run",
+            id,
+            argAmount: totalSize,
+            args: args.map(a => a.toSerialized()).flat()
+        } satisfies IlNode);
+        return {
+            key: "Variable",
+            name: `${FORBIDDEN_VARIABLE_NAME_PREFIX}${id}`
+        } satisfies IlValue
+    }
+}
 
 function makeBinaryOperatorFunction(name: BinaryOperation) {
     return (left: Valuesque, right: Valuesque): IlValue => {
@@ -671,7 +738,13 @@ export function repeat$(times: Valuesque, body: Body) {
 }
 
 export function return$(value: Valuesque) {
-    $.scope?.push({ type: "Return", func: $.currentFunc!, value: toScratchValue(value) });
+    $.scope?.push(
+        { 
+            type: "Return", 
+            func: $.currentFunc!, 
+            value: toScratchValue(value) 
+        }
+    );
 }
 export function stop(type: StopType) {
     $.scope?.push({ type: "Stop", stopType: type });
