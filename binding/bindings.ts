@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-import { ScratchArgumentType, StopType } from "../ir/types.ts";
+import { VariableClawType } from "../claw/typechecker.ts";
+import { DropOperation, ScratchArgumentType, StopType } from "../ir/types.ts";
 import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
     constructor(
@@ -55,11 +56,12 @@ export class Sprite {
             type: "CreateSpr",
             isStage,
             id: this.id,
-            name: this.id
+            name: isStage ? "Stage" : this.id
         })
     }
 
     addCostume(costume: Costume) {
+        this.costumes.push(costume)
         statLabel.push({
             type: "AddSprCostume",
             ...costume,
@@ -169,7 +171,7 @@ export interface SingleValue {
 export interface Serializable {
     sizeof(): number;
     toSerialized(): IlValue[];
-    fromSerialized(targets: string[], values: IlValue[]): IlNode[];
+    fromSerialized(values: IlValue[]): IlNode[];
 }
 export interface Variable {
     set(...args: any[]): void;
@@ -222,10 +224,10 @@ export class Num implements SingleValue, Serializable, Variable {
     toSerialized(): IlValue[] {
       return [this.toScratchValue()];
     }
-    fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+    fromSerialized(values: IlValue[]): IlNode[] {
         return [{
             type: "Set",
-            target: targets.shift()!,
+            target: this.id,
             value: values.shift()!
         }]
     }
@@ -260,10 +262,10 @@ export class Str implements SingleValue, Serializable, Variable {
     toSerialized(): IlValue[] {
       return [this.toScratchValue()];
     }
-    fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+    fromSerialized(values: IlValue[]): IlNode[] {
         return [{
             type: "Set",
-            target: targets.shift()!,
+            target: this.id,
             value: values.shift()!
         }]
     }
@@ -290,8 +292,7 @@ export class Argument implements SingleValue, Serializable {
       }
     }
 
-    fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
-      targets.shift();
+    fromSerialized(values: IlValue[]): IlNode[] {
       values.shift();
       return [];
     }
@@ -304,9 +305,12 @@ export class Argument implements SingleValue, Serializable {
     }
 }
 
-export class List<T extends Serializable> {
+export class List<T extends new () => Serializable & Variable> {
     id: string;
-    constructor() {
+
+    type: T;
+    constructor(type: T) {
+        this.type = type;
         this.id = reserveCount();
         statLabel.push({
             type: "CreateList",
@@ -314,7 +318,7 @@ export class List<T extends Serializable> {
         });
     }
     
-    push(value: T) {
+    push(value: InstanceType<T>) {
         for (const v of value.toSerialized()) {
             $.scope?.push({
                 type: "ListOper",
@@ -326,7 +330,7 @@ export class List<T extends Serializable> {
             });
         }    
     }
-    insert(value: T, index: Valuesque) {
+    insert(value: InstanceType<T>, index: Valuesque) {
         for (const v of value.toSerialized().toReversed()) {
             $.scope?.push({
                 type: "ListOper",
@@ -339,7 +343,7 @@ export class List<T extends Serializable> {
             });
         }
     }
-    replace(value: T, index: Valuesque) {
+    replace(value: InstanceType<T>, index: Valuesque) {
         const serd = value.toSerialized();
         for (let i = 0; i < serd.length; i++) {
             $.scope?.push({
@@ -348,7 +352,7 @@ export class List<T extends Serializable> {
                 oper: {
                     key: "Replace",
                     index: toScratchValue(index),
-                    value: add(new IlWrapper(serd[i]), i)
+                    value: add(new IlWrapper(serd[i]), i).toScratchValue()
                 }
             });
         }
@@ -373,6 +377,65 @@ export class List<T extends Serializable> {
         });
     }
 
+    length() {
+        return new IlWrapper({
+            key: "ListValue",
+            list: this.id,
+            value: {
+                key: "Length"
+            }
+        });
+    }
+    at(index: Valuesque) {
+        return new IlWrapper({
+            key: "ListValue",
+            list: this.id,
+            value: {
+                key: "Index",
+                index: toScratchValue(index)
+            }
+        });
+    }
+    containsSingle(item: Valuesque) {
+        return new IlWrapper({
+            key: "ListValue",
+            list: this.id,
+            value: {
+                key: "Contains",
+                value: toScratchValue(item)
+            }
+        });
+    }
+    indexOf(item: Valuesque) {
+        return new IlWrapper({
+            key: "ListValue",
+            list: this.id,
+            value: {
+                key: "Find",
+                value: toScratchValue(item)
+            }
+        });
+    }
+
+    pop(): InstanceType<T> {
+        // 1,2 3,4 5,6 7,8
+        // length: 8
+        // sizeof: 2
+
+        const v = new this.type();
+        const size = v.sizeof();
+        const s = v.toSerialized();
+        const values = [];
+        for (let i = 0; i < s.length; i++) {
+            values.push(this.at(add(sub(this.length(), size), i+1)).toScratchValue());
+        }
+        const nodes = v.fromSerialized(values);
+        $.scope?.nodes.push(...nodes);
+        for (let i = 0; i < s.length; i++) {
+            this.removeAt(this.length())
+        }
+        return v as InstanceType<T>;
+    }
 }
 
 type DataclassOutput<T> = T & { new (...args: any[]): Serializable & Variable }
@@ -416,7 +479,7 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): Datacl
             } 
             return out;
         }
-        fromSerialized(targets: string[], values: IlValue[]): IlNode[] {
+        fromSerialized(values: IlValue[]): IlNode[] {
             const out: IlNode[] = []
             for (const key in this) {
                 const v = this[key] as any;
@@ -426,7 +489,7 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): Datacl
                 if (!("fromSerialized" in v)) {
                     throw new Error("Class member not serializable");
                 }
-                out.push(...v.fromSerialized(targets, values));
+                out.push(...v.fromSerialized(values));
             } 
             return out;
         }
@@ -532,13 +595,13 @@ function defRaw
 }
 
 function makeBinaryOperatorFunction(name: BinaryOperation) {
-    return (left: Valuesque, right: Valuesque): IlValue => {
-        return {
+    return (left: Valuesque, right: Valuesque): IlWrapper => {
+        return new IlWrapper({
             key: "BinaryOperation",
             oper: name,
             left: toScratchValue(left),
             right: toScratchValue(right)
-        }
+        })
     }
 }
 export const add = makeBinaryOperatorFunction("Add");
@@ -557,17 +620,42 @@ export const stringContains = makeBinaryOperatorFunction("Contains");
 export const random = makeBinaryOperatorFunction("Random");
 
 function makeUnaryOperatorFunction(name: UnaryOperation) {
-    return (left: Valuesque): IlValue => {
-        return {
+    return (left: Valuesque): IlWrapper => {
+        return new IlWrapper({
             key: "UnaryOperation",
             oper: name,
             value: toScratchValue(left)
-        }
+        })
     }
 }
 export const not = makeUnaryOperatorFunction("Not");
 export const stringLength = makeUnaryOperatorFunction("Length");
 export const round = makeUnaryOperatorFunction("Round");
+
+function makeDropOperatorFunction(name: DropOperation) {
+    return (left: Valuesque): IlWrapper => {
+        return new IlWrapper({
+            key: "DropOperation",
+            oper: name,
+            value: toScratchValue(left)
+        })
+    }
+}
+
+export const abs = makeDropOperatorFunction("Abs");
+export const floor = makeDropOperatorFunction("Floor");
+export const ceiling = makeDropOperatorFunction("Ceiling");
+export const sqrt = makeDropOperatorFunction("Sqrt");
+export const sin = makeDropOperatorFunction("Sin");
+export const cos = makeDropOperatorFunction("Cos");
+export const tan = makeDropOperatorFunction("Tan");
+export const asin = makeDropOperatorFunction("Asin");
+export const acos = makeDropOperatorFunction("Acos");
+export const atan = makeDropOperatorFunction("Atan");
+export const ln = makeDropOperatorFunction("Ln");
+export const log = makeDropOperatorFunction("Log");
+export const epower = makeDropOperatorFunction("EPower");
+export const tenpower = makeDropOperatorFunction("TenPower");
 
 export function steps(steps: Valuesque) {
     $.scope?.push({

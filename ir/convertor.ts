@@ -591,7 +591,7 @@ export class Convertor {
                                 "ITEM": this.convertValue(blocks, v.value, spr)
                             }
                         }
-                    }),
+                    })(),
                     fields: {
                         "LIST": [
                             list,

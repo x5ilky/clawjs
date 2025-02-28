@@ -8,14 +8,28 @@ import { IlNode } from "../ir/types.ts";
 import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { MD5 } from "../external/md5.js";
-import { $ } from "./bindings.ts";
+import { $, stage } from "./bindings.ts";
 
 export type BuildOptions = {
-    resourceFolder: string
+    resourceFolder: string,
+    logBuildInfo?: boolean,
+    dumpProjectJson?: string | null
 };
 export async function build(options: BuildOptions) {
+    if (stage.costumes.length === 0) {
+        logger.error("Stage has no backdrops, you have to add one");
+        return;
+    }
+    options.logBuildInfo ??= false;
+
+    if (options.logBuildInfo) logger.info(`${$.labels.length} labels`)
+    if (options.logBuildInfo) logger.start(LogLevel.INFO, "converting") 
     const convertor = new Convertor($.labels.map(a => <IlNode>{type: "Label", value: [a.name, a.nodes]}), options.resourceFolder, logger);
     const project = convertor.create()
+    if (typeof options.dumpProjectJson === "string") {
+        Deno.writeTextFileSync(options.dumpProjectJson, project.toJsonStringified());
+    }
+    if (options.logBuildInfo) logger.end(LogLevel.INFO, "converting") 
     logger.start(LogLevel.INFO, "creating zip")
     const zipFileWriter = new BlobWriter();
     const zipWriter = new ZipWriter(zipFileWriter);
