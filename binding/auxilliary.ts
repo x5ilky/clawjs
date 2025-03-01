@@ -1,4 +1,5 @@
-import { add, atan, DataClass, div, eq, if$, mul, not, Num, sqrt, sub } from "./bindings.ts";
+import { IlValue, IlNode } from "../ir/types.ts";
+import { add, atan, DataClass, div, eq, if$, mul, not, Num, Serializable, sqrt, sub, Variable } from "./bindings.ts";
 
 export const Vec2 = DataClass(class {
     x: Num;
@@ -82,3 +83,48 @@ export const Vec2 = DataClass(class {
     }
 });
 export type Vec2 = InstanceType<typeof Vec2>;
+
+export class SizedList<T extends new () => Serializable & Variable, Size extends number> implements Serializable, Variable {
+    type: T;
+    size: Size;
+    values: InstanceType<T>[];
+    
+    constructor(type: T, size: Size) {
+        this.type = type;
+        this.size = size;
+        this.values = [];
+        for (let i = 0; i < size; i++) {
+            this.values.push(new type() as InstanceType<T>)
+        }
+    }
+
+    sizeof(): number {
+      return this.size;
+    }
+    
+    set(values: SizedList<T, Size>): void {
+        for (let i = 0; i < values.size; i++) {
+            this.values[i].set(values.values[i]);
+        }
+    }
+
+    nth(count: number) {
+        return this.values[count];
+    }
+
+    fromSerialized(values: IlValue[]): IlNode[] {
+        const out = [];
+        for (let i = 0; i < this.size; i++) { 
+            out.push(...this.values[i].fromSerialized(values));
+        }
+        return out;
+    }
+
+    toSerialized(): IlValue[] {
+        const out = [];
+        for (let i = 0; i < this.size; i++) { 
+            out.push(...this.values[i].toSerialized());
+        }
+        return out;
+    }
+}

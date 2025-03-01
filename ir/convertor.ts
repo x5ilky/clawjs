@@ -841,6 +841,7 @@ export class Convertor {
                 node.type === "If" ||
                 node.type === "IfElse" ||
                 node.type === "Repeat" ||
+                node.type === "RepeatUntil" ||
                 node.type === "Forever" ||
                 node.type === "Clone" ||
                 node.type === "CloneMyself"
