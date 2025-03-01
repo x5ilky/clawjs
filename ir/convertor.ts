@@ -337,6 +337,7 @@ export class Convertor {
                 const calculation = this.reserveBC();
                 const lft = this.convertValue(blocks, left, spr);
                 const rght = this.convertValue(blocks, right, spr);
+                // if (rght[0] === 3) console.log(rght, right)
                 const inputs = ((oper: BinaryOperation) => {
                     switch (oper) {
                     case "Add":

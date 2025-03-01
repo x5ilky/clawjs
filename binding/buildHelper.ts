@@ -9,6 +9,7 @@ import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { MD5 } from "../external/md5.js";
 import { $, stage } from "./bindings.ts";
+import { Optimizer } from "../ir/optimizer.ts";
 
 export type BuildOptions = {
     resourceFolder: string,
@@ -22,13 +23,17 @@ export async function build(options: BuildOptions) {
         return;
     }
     options.logBuildInfo ??= false;
+
+    const labelData = $.labels.map(a => <IlNode>{type: "Label", value: [a.name, a.nodes]});
+    const optimizer = new Optimizer(labelData);
+    optimizer.optimize()
     if (options.dumpBC) {
-        Deno.writeTextFileSync(options.dumpBC, JSON.stringify($.labels))
+        Deno.writeTextFileSync(options.dumpBC, JSON.stringify(labelData))
     }
 
     if (options.logBuildInfo) logger.info(`${$.labels.length} labels`)
     if (options.logBuildInfo) logger.start(LogLevel.INFO, "converting") 
-    const convertor = new Convertor($.labels.map(a => <IlNode>{type: "Label", value: [a.name, a.nodes]}), options.resourceFolder, logger);
+    const convertor = new Convertor(labelData, options.resourceFolder, logger);
     const project = convertor.create()
     if (typeof options.dumpProjectJson === "string") {
         Deno.writeTextFileSync(options.dumpProjectJson, project.toJsonStringified());
