@@ -1,3 +1,4 @@
 test*.*
 out.sb3
 clawjs-*-debug-dump.**
+scratch.ts

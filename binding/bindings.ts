@@ -1046,3 +1046,57 @@ export function broadcastWait(value: Valuesque | Broadcast) {
     });
 }
 
+export const pen = {
+    clear: () => {
+        $.scope?.push({
+            type: "PenEraseAll",
+        })
+    },
+    stamp: () => {
+        $.scope?.push({
+            type: "PenStamp",
+        })
+    },
+    down: () => {
+        $.scope?.push({
+            type: "PenDown",
+        })
+    },
+    up: () => {
+        $.scope?.push({
+            type: "PenUp",
+        })
+    },
+    setColor: (value: Valuesque) => {
+        $.scope?.push({
+            type: "PenSetPenColor",
+            color: toScratchValue(value)
+        })
+    },
+    setParam: (param: Valuesque, amount: Valuesque) => {
+        $.scope?.push({
+            type: "PenSetValue",
+            value: toScratchValue(param),
+            amount: toScratchValue(amount),
+        })
+    },
+    changeParam: (param: Valuesque, amount: Valuesque) => {
+        $.scope?.push({
+            type: "PenChangeValue",
+            value: toScratchValue(param),
+            amount: toScratchValue(amount),
+        })
+    },
+    changeSize: (amount: Valuesque) => {
+        $.scope?.push({
+            type: "PenChangeSize",
+            value: toScratchValue(amount),
+        })
+    },
+    setSize: (amount: Valuesque) => {
+        $.scope?.push({
+            type: "PenSetSize",
+            value: toScratchValue(amount),
+        })
+    }
+}
