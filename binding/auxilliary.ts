@@ -1,5 +1,5 @@
 import { IlValue, IlNode } from "../ir/types.ts";
-import { add, atan, DataClass, div, eq, if$, mul, not, Num, Serializable, sqrt, sub, Variable } from "./bindings.ts";
+import { abs, add, atan, DataClass, div, eq, if$, mul, not, Num, Serializable, SingleValue, sqrt, sub, Valuesque, Variable } from "./bindings.ts";
 
 export const Vec2 = DataClass(class {
     x: Num;
@@ -128,3 +128,6 @@ export class SizedList<T extends new () => Serializable & Variable, Size extends
         return out;
     }
 }
+
+export const litMax = (a: Valuesque, b: Valuesque) => div(add(add(a, b), abs(sub(a, b))), 2)
+export const litMin = (a: Valuesque, b: Valuesque) => div(sub(add(a, b), abs(sub(a, b))), 2)

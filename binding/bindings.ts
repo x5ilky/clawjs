@@ -19,7 +19,8 @@ export const $ = {
     scope: null as Label | null,
     currentFunc: null as string | null,
     currentSprite: null as Sprite | null,
-    returnValue: null as Variable | null
+    returnValue: null as Variable | null,
+    functionsToAdd: [] as string[]
 };
 const statLabel = $.labels.find(a => a.name === "stat")!;
 
@@ -238,6 +239,13 @@ export class Num implements SingleValue, Serializable, Variable {
             value: toScratchValue(value)
         })
     }
+    change(value: Valuesque) {
+        $.scope?.push({
+            type: "Change",
+            target: this.id,
+            value: toScratchValue(value)
+        })
+    }
 }
 export class Str implements SingleValue, Serializable, Variable {
     id: string;
@@ -329,6 +337,16 @@ export class List<T extends new () => Serializable & Variable> {
             });
         }    
     }
+    pushRaw(value: Valuesque) {
+        $.scope?.push({
+            type: "ListOper",
+            list: this.id,
+            oper: {
+                key: "Push",
+                value: toScratchValue(value)
+            }
+        });
+    }
     insert(value: InstanceType<T>, index: Valuesque) {
         for (const v of value.toSerialized().toReversed()) {
             $.scope?.push({
@@ -350,8 +368,8 @@ export class List<T extends new () => Serializable & Variable> {
                 list: this.id,
                 oper: {
                     key: "Replace",
-                    index: toScratchValue(index),
-                    value: add(new IlWrapper(serd[i]), i).toScratchValue()
+                    index: add(mul(toScratchValue(index), value.sizeof()), i+1).toScratchValue(),
+                    value: serd[i]
                 }
             });
         }
@@ -394,6 +412,17 @@ export class List<T extends new () => Serializable & Variable> {
                 index: toScratchValue(index)
             }
         });
+    }
+    nth(index: Valuesque): InstanceType<T> {
+        const value = new this.type() as InstanceType<T>;
+        const values = [];
+        for (let i = 0; i < value.sizeof(); i++) {
+            values.push(this.at(add(mul(index, value.sizeof()), i + 1)).toScratchValue())
+        }
+        const nodes = value.fromSerialized(values);
+        $.scope?.nodes.push(...nodes);
+
+        return value;
     }
     containsSingle(item: Valuesque) {
         return new IlWrapper({
@@ -504,10 +533,7 @@ export type Argumentify<T extends Serializable> =
     : T extends (...inputs: any[]) => any ? T
     : T & { [k in keyof T]: T[k] extends Serializable ? Argumentify<T[k]> : T[k] };
 
-export function Argumentify<T extends Serializable>(value: T): Argumentify<T> {
-    return ArgumentifyRaw(value, 0)[0];
-}
-export function ArgumentifyRaw<T extends Serializable>(value: T, index: number): [Argumentify<T>, number] {
+export function Argumentify<T extends Serializable>(value: T, index: number): [Argumentify<T>, number] {
     const newValue = value as any;
     if (value instanceof Num) {
         return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
@@ -516,9 +542,9 @@ export function ArgumentifyRaw<T extends Serializable>(value: T, index: number):
         return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
     }
     for (const k in value) {
-        if (value[k] instanceof Num) [newValue[k], index] = ArgumentifyRaw(value[k], index);
-        else if (value[k] instanceof Str) [newValue[k], index] = ArgumentifyRaw(value[k], index);
-        else [newValue[k], index] = ArgumentifyRaw(value[k] as Serializable, index);
+        if (value[k] instanceof Num) [newValue[k], index] = Argumentify(value[k], index);
+        else if (value[k] instanceof Str) [newValue[k], index] = Argumentify(value[k], index);
+        else [newValue[k], index] = Argumentify(value[k] as Serializable, index);
     }
     return [newValue, index];
 }
@@ -554,6 +580,7 @@ function defRaw
     } satisfies IlNode;
     const args: any = [];
     let totalSize = 0;
+    let index = 1;
     for (const arg of argTypes) {
         const a = new arg();
         const size = a.sizeof();
@@ -564,7 +591,9 @@ function defRaw
             out.args.push("Any");
         }
         out.argAmount += size;
-        args.push(Argumentify(a));
+        const [ag, newi] = Argumentify(a, index)
+        index = newi;
+        args.push(ag);
     }
 
     const label = labelify(fn, ...args);
@@ -575,14 +604,20 @@ function defRaw
     $.currentFunc = oldFunc;
     $.returnValue = oldrv;
     return (...args: { [K in keyof T]: InstanceType<T[K]> }) => {
-        if (!$.currentSprite?.implementedFunctions.has(id)) {
-            $.currentSprite?.implementedFunctions.add(id);
-            statLabel.push({
-                type: "InsertDef",
-                func: id,
-                sprites: [$.currentSprite!.id]
-            })
-        }
+        $.functionsToAdd.push(id);
+        if ($.currentSprite !== null) {
+            for (const id of $.functionsToAdd) 
+                if (!$.currentSprite?.implementedFunctions.has(id)) {
+                    $.currentSprite?.implementedFunctions.add(id);
+                    statLabel.push({
+                        type: "InsertDef",
+                        func: id,
+                        sprites: [$.currentSprite!.id]
+                    })
+                };
+            $.functionsToAdd = [];
+        }            
+
         $.scope?.nodes.push({
             type: "Run",
             id,
@@ -617,6 +652,8 @@ export const join = makeBinaryOperatorFunction("Join");
 export const letterOf = makeBinaryOperatorFunction("LetterOf");
 export const stringContains = makeBinaryOperatorFunction("Contains");
 export const random = makeBinaryOperatorFunction("Random");
+export const and = makeBinaryOperatorFunction("And");
+export const or = makeBinaryOperatorFunction("Or");
 
 function makeUnaryOperatorFunction(name: UnaryOperation) {
     return (left: Valuesque): IlWrapper => {
@@ -1001,6 +1038,11 @@ export function repeat$(times: Valuesque, body: Body) {
     const label = labelify(body);
     $.labels.push(label);
     $.scope?.push({ type: "Repeat", label: label.name, amount: toScratchValue(times) });
+}
+export function while$(predicate: Valuesque, body: Body) {
+    const label = labelify(body);
+    $.labels.push(label);
+    $.scope?.push({ type: "RepeatUntil", label: label.name, predicate: not(predicate).toScratchValue() });
 }
 
 export function return$(value: Variable | string | number) {

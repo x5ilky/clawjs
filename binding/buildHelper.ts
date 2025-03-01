@@ -13,7 +13,8 @@ import { $, stage } from "./bindings.ts";
 export type BuildOptions = {
     resourceFolder: string,
     logBuildInfo?: boolean,
-    dumpProjectJson?: string | null
+    dumpProjectJson?: string | null,
+    dumpBC?: string | null
 };
 export async function build(options: BuildOptions) {
     if (stage.costumes.length === 0) {
@@ -21,6 +22,9 @@ export async function build(options: BuildOptions) {
         return;
     }
     options.logBuildInfo ??= false;
+    if (options.dumpBC) {
+        Deno.writeTextFileSync(options.dumpBC, JSON.stringify($.labels))
+    }
 
     if (options.logBuildInfo) logger.info(`${$.labels.length} labels`)
     if (options.logBuildInfo) logger.start(LogLevel.INFO, "converting") 
@@ -41,8 +45,8 @@ export async function build(options: BuildOptions) {
             const fileName = `${MD5(file)}.${format.toLowerCase()}`;
             try {
                 await zipWriter.add(fileName, new TextReader(file));
-            } catch (e) {
-                console.log(e) 
+            } catch {
+                //
             }
         }
         for (const [path, format] of spr.sound_paths) {
@@ -50,8 +54,8 @@ export async function build(options: BuildOptions) {
             const fileName = `${MD5(file)}.${format.toLowerCase()}`;
             try {
                 await zipWriter.add(fileName, new TextReader(file));
-            } catch (e) {
-                console.log(e) 
+            } catch {
+                //
             }
         }
     }
