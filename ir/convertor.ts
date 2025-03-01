@@ -630,7 +630,8 @@ export class Convertor {
                         blocks.set(calc2.toString(), {
                             opcode: opcodeMenu,
                             inputs: {},
-                            fields: f,                            shadow: true,
+                            fields: f,                            
+                            shadow: true,
                             topLevel: false,
                             next: null,
                             parent: calculation.toString()
@@ -1757,7 +1758,119 @@ export class Convertor {
                         parent: null
                     }
                 )
-            }
+            } break;
+
+            case "PenEraseAll": {
+                add({
+                    opcode: "pen_clear",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break
+            case "PenStamp": { add({
+                    opcode: "pen_stamp",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break
+            case "PenDown": { add({
+                    opcode: "pen_penDown",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break
+            case "PenUp": { 
+                add({
+                    opcode: "pen_penUp",
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break
+            case "PenSetPenColor": { 
+                add({
+                    opcode: "pen_setPenColorToColor",
+                    inputs: {
+                        "COLOR": this.convertValue(blocks, node.color, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "PenSetValue":
+            case "PenChangeValue": { 
+                const opcode = node.type === "PenChangeValue" ? "pen_changePenColorParamBy" : "pen_setPenColorParamTo";
+                const menu = this.reserveBC();
+
+                if (node.value.key === "String") {
+                    blocks.set(menu, {
+                        opcode: "pen_menu_colorParam",
+                        inputs: {},
+                        fields: { "colorParam": [node.value.value, null] },
+                        shadow: false,
+                        topLevel: false
+                    })
+                    add({
+                        opcode,
+                        inputs: {
+                            "VALUE": this.convertValue(blocks, node.amount, spr),
+                            "COLOR_PARAM": [1, menu]
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+                } else {
+                    blocks.set(menu, {
+                        opcode: "pen_menu_colorParam",
+                        inputs: {},
+                        fields: { "colorParam": ["color", null] },
+                        shadow: false,
+                        topLevel: false
+                    })
+                    add({
+                        opcode,
+                        inputs: {
+                            "VALUE": this.convertValue(blocks, node.amount, spr),
+                            "COLOR_PARAM": this.convertValue(blocks, node.value, spr)
+                        },
+                        fields: {},
+                        shadow: false,
+                        topLevel: false,
+                    })
+
+                }
+            } break
+            case "PenChangeSize": { 
+                add({
+                    opcode: "pen_changePenSizeBy",
+                    inputs: {
+                        "SIZE": this.convertValue(blocks, node.value, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
+            case "PenSetSize": { 
+                add({
+                    opcode: "pen_setPenSizeTo",
+                    inputs: {
+                        "SIZE": this.convertValue(blocks, node.value, spr)
+                    },
+                    fields: {},
+                    shadow: false,
+                    topLevel: false,
+                })
+            } break;
         }
     }
 

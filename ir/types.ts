@@ -317,4 +317,14 @@ export type IlNode =
   | { type: "AskAndWait", prompt: IlValue }
   | { type: "SetDragMode", mode: string }
   | { type: "ResetTimer" }
+  // pen extension
+  | { type: "PenEraseAll" }
+  | { type: "PenStamp" }
+  | { type: "PenDown" }
+  | { type: "PenUp" }
+  | { type: "PenSetPenColor", color: IlValue }
+  | { type: "PenChangeValue", value: IlValue, amount: IlValue }
+  | { type: "PenSetValue", value: IlValue, amount: IlValue }
+  | { type: "PenChangeSize", value: IlValue }
+  | { type: "PenSetSize", value: IlValue }
 ;

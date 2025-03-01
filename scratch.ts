@@ -1,5 +1,5 @@
 import { Vec2 } from "./binding/auxilliary.ts";
-import { add, Costume, List, repeat$, say, Sprite, stage, wait } from "./binding/bindings.ts";
+import { $, add, Costume, List, repeat$, say, Sprite, stage, wait } from "./binding/bindings.ts";
 import { build } from "./binding/buildHelper.ts";
 const cat = new Sprite();
 const pop = new Costume("SVG", "pop.svg", 50, 50);
@@ -25,7 +25,6 @@ cat.onFlag(() => {
         say(v.x);
         wait(1)
     })
-
 });
 build({
     resourceFolder: "resources",

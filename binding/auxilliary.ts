@@ -1,4 +1,4 @@
-import { add, DataClass, div, eq, if$, mul, not, Num, sqrt, sub } from "./bindings.ts";
+import { add, atan, DataClass, div, eq, if$, mul, not, Num, sqrt, sub } from "./bindings.ts";
 
 export const Vec2 = DataClass(class {
     x: Num;
@@ -68,6 +68,17 @@ export const Vec2 = DataClass(class {
         });
         
         return v;
+    }
+
+    dot(other: Vec2) {
+        return add(
+            mul(this.x, other.x),
+            mul(this.y, other.y)
+        )
+    }
+
+    direction() {
+        return atan(div(this.y, this.x))
     }
 });
 export type Vec2 = InstanceType<typeof Vec2>;
