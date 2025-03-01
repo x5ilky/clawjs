@@ -798,6 +798,17 @@ export const username = () => {
     });
 }
 
+export const position = {
+    x: () => new IlWrapper({ key: "Builtin", value: { key: "XPosition" } }),
+    y: () => new IlWrapper({ key: "Builtin", value: { key: "YPosition" } }),
+    direction: () => new IlWrapper({ key: "Builtin", value: { key: "Direction" } }),
+    size: () => new IlWrapper({ key: "Builtin", value: { key: "Size" } }),
+}
+export const costumeNumber = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: true }})
+export const costumeName = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: false }})
+export const backdropNumber = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: true }})
+export const backdropName = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: false }})
+
 export function steps(steps: Valuesque) {
     $.scope?.push({
         type: "MoveSteps",
