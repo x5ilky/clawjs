@@ -20,18 +20,21 @@ export const $ = {
     currentFunc: null as string | null,
     currentSprite: null as Sprite | null,
     returnValue: null as Variable | null,
-    functionsToAdd: [] as string[]
+    functionsToAdd: [] as string[],
+    breakVariable: null as Variable | null
 };
 const statLabel = $.labels.find(a => a.name === "stat")!;
 
 export type Body = (...args: any[]) => void;
 function labelify(body: Body, ...args: any[]) {
     const oldScope = $.scope;
-    $.scope = new Label(reserveCount(), []);
+    const oldBreak = $.breakVariable;
+    const newScope = new Label(reserveCount(), []);
+    $.scope = newScope;
     body(...args);
-    const v = $.scope;
     $.scope = oldScope;
-    return v;
+    $.breakVariable = oldBreak;
+    return newScope;
 }
 
 export class Broadcast {
@@ -158,6 +161,15 @@ export class Costume {
         this.anchorX = anchorX;
         this.anchorY = anchorY;
     }
+
+    static fromPath(path: string, anchorX?: number, anchorY?: number) {
+        let type: FileFormat;
+        if (path.endsWith(".svg")) type = "SVG";
+        else if (path.endsWith(".png")) type = "PNG";
+        else throw new Error("unknown file extension: " + path + ", please manually create a Costume");
+        
+        return new Costume(type, path, anchorX ?? 0, anchorY ?? 0);
+    }
 }
 export const stage = new Sprite(true);
 
@@ -245,6 +257,12 @@ export class Num implements SingleValue, Serializable, Variable {
             target: this.id,
             value: toScratchValue(value)
         })
+    }
+
+    static literal(value: Valuesque) {
+        const v = new Num();
+        v.set(value);
+        return v;
     }
 }
 export class Str implements SingleValue, Serializable, Variable {
@@ -661,7 +679,10 @@ const andRaw = makeBinaryOperatorFunction("And");
 export const and = (...values: Valuesque[]) => {
     return values.reduce((prev, cur) => andRaw(prev, cur))
 }
-export const or = makeBinaryOperatorFunction("Or");
+const orRaw = makeBinaryOperatorFunction("Or");
+export const or = (...values: Valuesque[]) => {
+    return values.reduce((prev, cur) => orRaw(prev, cur))
+}
 
 function makeUnaryOperatorFunction(name: UnaryOperation) {
     return (left: Valuesque): IlWrapper => {
@@ -690,28 +711,59 @@ export const abs = makeDropOperatorFunction("Abs");
 export const floor = makeDropOperatorFunction("Floor");
 export const ceiling = makeDropOperatorFunction("Ceiling");
 export const sqrt = makeDropOperatorFunction("Sqrt");
-export const sin = makeDropOperatorFunction("Sin");
-export const cos = makeDropOperatorFunction("Cos");
-export const tan = makeDropOperatorFunction("Tan");
-export const asin = makeDropOperatorFunction("Asin");
-export const acos = makeDropOperatorFunction("Acos");
-export const atan = makeDropOperatorFunction("Atan");
+
+export const trig = {
+    degrees: {
+        sin: makeDropOperatorFunction("Sin"),
+        cos: makeDropOperatorFunction("Cos"),
+        tan: makeDropOperatorFunction("Tan"),
+        asin: makeDropOperatorFunction("Asin"),
+        acos: makeDropOperatorFunction("Acos"),
+        atan: makeDropOperatorFunction("Atan"),
+        atan2: (y: Valuesque, x: Valuesque) => 
+            add(
+                mul(
+                    eq(x, 0), 
+                    add(
+                        mul(gt(y, 0), Math.PI/2),
+                        mul(lt(y, 0), -Math.PI/2)
+                    )
+                ),
+                add(
+                    mul(gt(x, 0), trig.degrees.atan(div(y, x))),
+                    mul(
+                        lt(x, 0), 
+                        add(
+                            mul(lt(y, 0), sub(trig.degrees.atan(div(y, x)), Math.PI)),
+                            mul(gt(y, 0), add(trig.degrees.atan(div(y, x)), Math.PI))
+                        )
+                    )
+                )
+            )
+    },
+    DEG2RAD: (deg: Valuesque) => mul(deg, Math.PI/180),
+    RAD2DEG: (rad: Valuesque) => mul(rad, 180/Math.PI),
+    radians: {
+        sin: (x: Valuesque) => trig.DEG2RAD(trig.degrees.sin(trig.RAD2DEG(x))),
+        cos: (x: Valuesque) => trig.DEG2RAD(trig.degrees.cos(trig.RAD2DEG(x))),
+        tan: (x: Valuesque) => trig.DEG2RAD(trig.degrees.tan(trig.RAD2DEG(x))),
+        asin: (x: Valuesque) => trig.DEG2RAD(trig.degrees.asin(trig.RAD2DEG(x))),
+        acos: (x: Valuesque) => trig.DEG2RAD(trig.degrees.acos(trig.RAD2DEG(x))),
+        atan: (x: Valuesque) => trig.DEG2RAD(trig.degrees.atan(trig.RAD2DEG(x))),
+        atan2: (y: Valuesque, x: Valuesque) => trig.DEG2RAD(trig.degrees.atan2(trig.RAD2DEG(y), trig.RAD2DEG(x))),
+    },
+}
+
 export const ln = makeDropOperatorFunction("Ln");
 export const log = makeDropOperatorFunction("Log");
 export const epower = makeDropOperatorFunction("EPower");
 export const tenpower = makeDropOperatorFunction("TenPower");
 
-export const atan2 = (y: Valuesque, x: Valuesque) => 
-    add(
-        mul(gte(x, 0), atan(div(y, x))),
-        mul(
-            lt(x, 0), 
-            add(
-                mul(lt(y, 0), sub(atan(div(y, x)), Math.PI)),
-                mul(gt(y, 0), add(atan(div(y, x)), Math.PI))
-            )
-        )
-    );
+/**
+ * @param y degrees
+ * @param x degrees
+ * @returns degrees
+ */
 
 export const isTouchingObject = (target: Valuesque | Sprite) => {
     if (target instanceof Sprite)
@@ -1054,15 +1106,56 @@ export function if$(predicate: Valuesque, body: Body, elseBody?: Body) {
         $.scope?.push({ type: "IfElse", label: label.name, label2: elseLabel.name, predicate: toScratchValue(predicate) });
     }
 }
+export function if_then_continue$(predicate: Valuesque, action?: Body) {
+    const newLabel = new Label(reserveCount(), []);
+    $.labels.push(newLabel)
+    if (action === undefined) {
+        $.scope?.push({ type: "If", label: newLabel.name, predicate: toScratchValue(not(predicate)) });
+    } else {
+        const ac = labelify(action);
+        $.labels.push(ac)
+        $.scope?.push({ type: "IfElse", label: ac.name, label2: newLabel.name, predicate: toScratchValue(predicate) });
+    }
+    $.scope = newLabel;
+}
 export function repeat$(times: Valuesque, body: Body) {
     const label = labelify(body);
     $.labels.push(label);
     $.scope?.push({ type: "Repeat", label: label.name, amount: toScratchValue(times) });
 }
 export function while$(predicate: Valuesque, body: Body) {
+    const toBreak = new Num();
+    toBreak.set(0);
+    $.breakVariable = toBreak;
     const label = labelify(body);
     $.labels.push(label);
-    $.scope?.push({ type: "RepeatUntil", label: label.name, predicate: not(predicate).toScratchValue() });
+    $.scope?.push({ type: "RepeatUntil", label: label.name, predicate: toScratchValue(or(not(predicate), eq(toBreak, 1))) });
+}
+export function for$<T>(
+    variable: T, 
+    initialiser: (v: T) => void, 
+    predicate: (v: T) => Valuesque, 
+    post: (v: T) => void, 
+    body: (v: T) => void
+) {
+    initialiser(variable);
+    while$(predicate(variable), () => {
+        if$(eq(1, 1), () => {
+            body(variable);
+        })
+
+        post(variable);
+    });
+}
+export function break$() {
+    if ($.breakVariable !== null) {
+        $.breakVariable.set(1);
+    } else throw new Error("no matching loop");
+}
+export function continue$() {
+    if ($.breakVariable !== null) {
+        $.breakVariable.set(1);
+    } else throw new Error("no matching loop");
 }
 
 export function return$(value: Variable | string | number) {

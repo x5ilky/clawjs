@@ -1378,7 +1378,7 @@ export class Convertor {
                     v => v.type === "Label" && v.value[0] === node.label
                 );
                 const hds = (() => {
-                    if (labelNode?.type !== "Label") throw "unreachable";
+                    if (labelNode?.type !== "Label") throw "should be unreachable, not label";
                     const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
                     for (const [k, node] of nodes) {
                         blocks.set(k, node);
@@ -1405,7 +1405,7 @@ export class Convertor {
                     v => v.type === "Label" && v.value[0] === node.label
                 );
                 const hds = (() => {
-                    if (labelNode?.type !== "Label") throw "unreachable";
+                    if (labelNode?.type !== "Label") throw "should be unreachable";
                     const [nodes, heads] = this.convertLabel(labelNode.value[1], labelNode.value[0], spr);
                     for (const [k, node] of nodes) {
                         blocks.set(k, node);
@@ -1416,7 +1416,7 @@ export class Convertor {
                     v => v.type === "Label" && v.value[0] === node.label2
                 );
                 const hds2 = (() => {
-                    if (labelNode2?.type !== "Label") throw "unreachable";
+                    if (labelNode2?.type !== "Label") throw "should be unreachable";
                     const [nodes, heads] = this.convertLabel(labelNode2.value[1], labelNode2.value[0], spr);
                     for (const [k, node] of nodes) {
                         blocks.set(k, node);

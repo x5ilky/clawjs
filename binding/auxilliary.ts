@@ -1,5 +1,5 @@
 import { IlValue, IlNode } from "../ir/types.ts";
-import { abs, add, atan, cos, DataClass, div, eq, if$, mul, not, Num, Serializable, sin, sqrt, sub, Valuesque, Variable } from "./bindings.ts";
+import { abs, add, DataClass, div, eq, if$, mul, not, Num, Serializable, sqrt, sub, trig, Valuesque, Variable } from "./bindings.ts";
 
 export const Vec2 = DataClass(class {
     x: Num;
@@ -78,19 +78,22 @@ export const Vec2 = DataClass(class {
         )
     }
 
+    directionRadians() {
+        return trig.radians.atan(div(this.y, this.x))
+    }
     direction() {
-        return atan(div(this.y, this.x))
+        return trig.degrees.atan(div(this.y, this.x))
     }
 
     rotate(angleDegrees: Valuesque) {
         const n = new Vec2();    
         n.x.set(sub(
-            mul(this.x, cos(angleDegrees)),
-            mul(this.y, sin(angleDegrees)),
+            mul(this.x, trig.degrees.cos(angleDegrees)),
+            mul(this.y, trig.degrees.sin(angleDegrees)),
         ))
         n.y.set(sub(
-            mul(this.x, sin(angleDegrees)),
-            mul(this.y, cos(angleDegrees)),
+            mul(this.x, trig.degrees.sin(angleDegrees)),
+            mul(this.y, trig.degrees.cos(angleDegrees)),
         ));
         return n;
     }
