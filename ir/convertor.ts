@@ -2095,10 +2095,10 @@ export class Blocks {
     has(key: string): boolean {
         return this.inner.has(key)
     }
-    get(key: string) {
+    get(key: string): Block | undefined {
         return this.inner.get(key)
     }
-    set(key: string, block: Block) {
+    set(key: string, block: Block): void {
         this.inner.set(key, block);
     }
     extract(): Map<string, Block> {

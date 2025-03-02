@@ -13,15 +13,24 @@ export class Label {
         this.nodes.push(node);
     }
 }
-export const $ = {
+export const $: {
+    COUNTER: number;
+    labels: Label[];
+    scope: Label | null;
+    currentFunc: string | null;
+    currentSprite: Sprite | null;
+    returnValue: Variable | null;
+    functionsToAdd: string[];
+    breakVariable: Variable | null
+} = {
     COUNTER: 0,
     labels: new Array<Label>(new Label("stat", [])),
-    scope: null as Label | null,
-    currentFunc: null as string | null,
-    currentSprite: null as Sprite | null,
-    returnValue: null as Variable | null,
-    functionsToAdd: [] as string[],
-    breakVariable: null as Variable | null
+    scope: null,
+    currentFunc: null,
+    currentSprite: null,
+    returnValue: null,
+    functionsToAdd: [],
+    breakVariable: null
 };
 const statLabel = $.labels.find(a => a.name === "stat")!;
 
@@ -162,7 +171,7 @@ export class Costume {
         this.anchorY = anchorY;
     }
 
-    static fromPath(path: string, anchorX?: number, anchorY?: number) {
+    static fromPath(path: string, anchorX?: number, anchorY?: number): Costume {
         let type: FileFormat;
         if (path.endsWith(".svg")) type = "SVG";
         else if (path.endsWith(".png")) type = "PNG";
@@ -171,9 +180,9 @@ export class Costume {
         return new Costume(type, path, anchorX ?? 0, anchorY ?? 0);
     }
 }
-export const stage = new Sprite(true);
+export const stage: Sprite = new Sprite(true);
 
-export function reserveCount() {
+export function reserveCount(): string {
     return "BC_" + ($.COUNTER++).toString()
 }
 
@@ -244,14 +253,14 @@ export class Num implements SingleValue, Serializable, Variable {
         }]
     }
 
-    set(value: Valuesque) {
+    set(value: Valuesque): void {
         $.scope?.push({
             type: "Set",
             target: this.id,
             value: toScratchValue(value)
         })
     }
-    change(value: Valuesque) {
+    change(value: Valuesque): void {
         $.scope?.push({
             type: "Change",
             target: this.id,
@@ -259,7 +268,7 @@ export class Num implements SingleValue, Serializable, Variable {
         })
     }
 
-    static literal(value: Valuesque) {
+    static literal(value: Valuesque): Num {
         const v = new Num();
         v.set(value);
         return v;
@@ -348,7 +357,7 @@ export class List<T extends new () => Serializable & Variable> {
         });
     }
     
-    push(value: InstanceType<T>) {
+    push(value: InstanceType<T>): void {
         for (const v of value.toSerialized()) {
             $.scope?.push({
                 type: "ListOper",
@@ -360,7 +369,7 @@ export class List<T extends new () => Serializable & Variable> {
             });
         }    
     }
-    pushRaw(value: Valuesque) {
+    pushRaw(value: Valuesque): void {
         $.scope?.push({
             type: "ListOper",
             list: this.id,
@@ -370,7 +379,7 @@ export class List<T extends new () => Serializable & Variable> {
             }
         });
     }
-    insert(value: InstanceType<T>, index: Valuesque) {
+    insert(value: InstanceType<T>, index: Valuesque): void {
         for (const v of value.toSerialized().toReversed()) {
             $.scope?.push({
                 type: "ListOper",
@@ -383,7 +392,7 @@ export class List<T extends new () => Serializable & Variable> {
             });
         }
     }
-    replace(value: InstanceType<T>, index: Valuesque) {
+    replace(value: InstanceType<T>, index: Valuesque): void {
         const serd = value.toSerialized();
         for (let i = 0; i < serd.length; i++) {
             $.scope?.push({
@@ -397,7 +406,7 @@ export class List<T extends new () => Serializable & Variable> {
             });
         }
     }
-    clear() {
+    clear(): void {
         $.scope?.push({
             type: "ListOper",
             list: this.id,
@@ -406,7 +415,7 @@ export class List<T extends new () => Serializable & Variable> {
             }
         })
     }
-    removeAt(index: Valuesque) {
+    removeAt(index: Valuesque): void {
         $.scope?.push({
             type: "ListOper",
             list: this.id,
@@ -417,7 +426,7 @@ export class List<T extends new () => Serializable & Variable> {
         });
     }
 
-    length() {
+    length(): IlWrapper {
         return new IlWrapper({
             key: "ListValue",
             list: this.id,
@@ -426,7 +435,7 @@ export class List<T extends new () => Serializable & Variable> {
             }
         });
     }
-    at(index: Valuesque) {
+    at(index: Valuesque): IlWrapper {
         return new IlWrapper({
             key: "ListValue",
             list: this.id,
@@ -447,7 +456,7 @@ export class List<T extends new () => Serializable & Variable> {
 
         return value;
     }
-    containsSingle(item: Valuesque) {
+    containsSingle(item: Valuesque): IlWrapper {
         return new IlWrapper({
             key: "ListValue",
             list: this.id,
@@ -457,7 +466,7 @@ export class List<T extends new () => Serializable & Variable> {
             }
         });
     }
-    indexOf(item: Valuesque) {
+    indexOf(item: Valuesque): IlWrapper {
         return new IlWrapper({
             key: "ListValue",
             list: this.id,
@@ -489,7 +498,7 @@ export class List<T extends new () => Serializable & Variable> {
     }
 }
 
-type DataclassOutput<T> = T & { new (...args: any[]): Serializable & Variable }
+export type DataclassOutput<T> = T & { new (...args: any[]): Serializable & Variable }
 // deno-lint-ignore ban-types
 export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): DataclassOutput<T> {
     return class extends cl implements Serializable, Variable {
@@ -573,17 +582,20 @@ export function Argumentify<T extends Serializable>(value: T, index: number): [A
 }
 export function def
     <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R) {
+    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R):
+        (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, false);
 }
 export function warp
     <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R) {
+    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R):
+        (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, true);
 }
 function defRaw
     <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType: R | undefined, warp: boolean) {
+    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType: R | undefined, warp: boolean):
+        (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
 
@@ -651,7 +663,7 @@ function defRaw
     }
 }
 
-function makeBinaryOperatorFunction(name: BinaryOperation) {
+function makeBinaryOperatorFunction(name: BinaryOperation): BinaryOperator {
     return (left: Valuesque, right: Valuesque): IlWrapper => {
         return new IlWrapper({
             key: "BinaryOperation",
@@ -661,30 +673,31 @@ function makeBinaryOperatorFunction(name: BinaryOperation) {
         })
     }
 }
-export const add = makeBinaryOperatorFunction("Add");
-export const sub = makeBinaryOperatorFunction("Sub");
-export const mul = makeBinaryOperatorFunction("Mul");
-export const div = makeBinaryOperatorFunction("Div");
-export const eq = makeBinaryOperatorFunction("Eq");
-export const gt = makeBinaryOperatorFunction("Gt");
-export const lt = makeBinaryOperatorFunction("Lt");
-export const gte = (left: Valuesque, right: Valuesque) => or(eq(left, right), gt(left, right));
-export const lte = (left: Valuesque, right: Valuesque) => or(eq(left, right), lt(left, right));
-export const mod = makeBinaryOperatorFunction("Mod");
-export const join = makeBinaryOperatorFunction("Join");
-export const letterOf = makeBinaryOperatorFunction("LetterOf");
-export const stringContains = makeBinaryOperatorFunction("Contains");
-export const random = makeBinaryOperatorFunction("Random");
-const andRaw = makeBinaryOperatorFunction("And");
-export const and = (...values: Valuesque[]) => {
+export type BinaryOperator = (left: Valuesque, right: Valuesque) => IlWrapper;
+export const add: BinaryOperator = makeBinaryOperatorFunction("Add");
+export const sub: BinaryOperator = makeBinaryOperatorFunction("Sub");
+export const mul: BinaryOperator = makeBinaryOperatorFunction("Mul");
+export const div: BinaryOperator = makeBinaryOperatorFunction("Div");
+export const eq: BinaryOperator = makeBinaryOperatorFunction("Eq");
+export const gt: BinaryOperator = makeBinaryOperatorFunction("Gt");
+export const lt: BinaryOperator = makeBinaryOperatorFunction("Lt");
+export const gte: (left: Valuesque, right: Valuesque) => Valuesque = (left: Valuesque, right: Valuesque) => or(eq(left, right), gt(left, right));
+export const lte: (left: Valuesque, right: Valuesque) => Valuesque = (left: Valuesque, right: Valuesque) => or(eq(left, right), lt(left, right));
+export const mod: BinaryOperator = makeBinaryOperatorFunction("Mod");
+export const join: BinaryOperator = makeBinaryOperatorFunction("Join");
+export const letterOf: BinaryOperator = makeBinaryOperatorFunction("LetterOf");
+export const stringContains: BinaryOperator = makeBinaryOperatorFunction("Contains");
+export const random: BinaryOperator = makeBinaryOperatorFunction("Random");
+const andRaw: BinaryOperator = makeBinaryOperatorFunction("And");
+export const and: (...values: Valuesque[]) => Valuesque = (...values: Valuesque[]) => {
     return values.reduce((prev, cur) => andRaw(prev, cur))
 }
-const orRaw = makeBinaryOperatorFunction("Or");
-export const or = (...values: Valuesque[]) => {
+const orRaw: BinaryOperator = makeBinaryOperatorFunction("Or");
+export const or: (...values: Valuesque[]) => Valuesque = (...values: Valuesque[]) => {
     return values.reduce((prev, cur) => orRaw(prev, cur))
 }
 
-function makeUnaryOperatorFunction(name: UnaryOperation) {
+function makeUnaryOperatorFunction(name: UnaryOperation): UnaryOperator {
     return (left: Valuesque): IlWrapper => {
         return new IlWrapper({
             key: "UnaryOperation",
@@ -693,9 +706,10 @@ function makeUnaryOperatorFunction(name: UnaryOperation) {
         })
     }
 }
-export const not = makeUnaryOperatorFunction("Not");
-export const stringLength = makeUnaryOperatorFunction("Length");
-export const round = makeUnaryOperatorFunction("Round");
+export type UnaryOperator = (left: Valuesque) => IlWrapper; 
+export const not: UnaryOperator = makeUnaryOperatorFunction("Not");
+export const stringLength: UnaryOperator = makeUnaryOperatorFunction("Length");
+export const round: UnaryOperator = makeUnaryOperatorFunction("Round");
 
 function makeDropOperatorFunction(name: DropOperation) {
     return (left: Valuesque): IlWrapper => {
@@ -713,7 +727,28 @@ export const floor: DropOperator = makeDropOperatorFunction("Floor");
 export const ceiling: DropOperator = makeDropOperatorFunction("Ceiling");
 export const sqrt: DropOperator = makeDropOperatorFunction("Sqrt");
 
-export const trig = {
+export const trig: {
+    degrees: {
+        sin: (left: Valuesque) => IlWrapper;
+        cos: (left: Valuesque) => IlWrapper;
+        tan: (left: Valuesque) => IlWrapper;
+        asin: (left: Valuesque) => IlWrapper;
+        acos: (left: Valuesque) => IlWrapper;
+        atan: (left: Valuesque) => IlWrapper;
+        atan2: (y: Valuesque, x: Valuesque) => IlWrapper;
+    };
+    DEG2RAD: (deg: Valuesque) => IlWrapper;
+    RAD2DEG: (rad: Valuesque) => IlWrapper;
+    radians: {
+        sin: (left: Valuesque) => IlWrapper;
+        cos: (left: Valuesque) => IlWrapper;
+        tan: (left: Valuesque) => IlWrapper;
+        asin: (left: Valuesque) => IlWrapper;
+        acos: (left: Valuesque) => IlWrapper;
+        atan: (left: Valuesque) => IlWrapper;
+        atan2: (y: Valuesque, x: Valuesque) => IlWrapper;
+    }
+} = {
     degrees: {
         sin: makeDropOperatorFunction("Sin"),
         cos: makeDropOperatorFunction("Cos"),
@@ -766,7 +801,7 @@ export const tenpower: DropOperator = makeDropOperatorFunction("TenPower");
  * @returns degrees
  */
 
-export const isTouchingObject = (target: Valuesque | Sprite) => {
+export const isTouchingObject: (target: Valuesque | Sprite) => IlWrapper = (target: Valuesque | Sprite) => {
     if (target instanceof Sprite)
         return new IlWrapper({
             key: "SensingOperation",
@@ -786,7 +821,7 @@ export const isTouchingObject = (target: Valuesque | Sprite) => {
         }
     });
 }
-export const isTouchingColor = (color: Valuesque) => {
+export const isTouchingColor: (color: Valuesque) => IlWrapper = (color: Valuesque) => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -795,7 +830,7 @@ export const isTouchingColor = (color: Valuesque) => {
         }
     });
 }
-export const ColorIsTouchingColor = (color: Valuesque, color2: Valuesque) => {
+export const ColorIsTouchingColor: (color: Valuesque, color2: Valuesque) => IlWrapper = (color: Valuesque, color2: Valuesque) => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -805,7 +840,7 @@ export const ColorIsTouchingColor = (color: Valuesque, color2: Valuesque) => {
         }
     });
 }
-export const distanceTo = (target: Valuesque | Sprite) => {
+export const distanceTo: (target: Valuesque | Sprite) => IlWrapper = (target: Valuesque | Sprite) => {
     if (target instanceof Sprite)
         return new IlWrapper({
             key: "SensingOperation",
@@ -825,7 +860,7 @@ export const distanceTo = (target: Valuesque | Sprite) => {
         }
     });
 }
-export const keyPressed = (key: Valuesque) => {
+export const keyPressed: (key: Valuesque) => IlWrapper = (key: Valuesque) => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -834,7 +869,11 @@ export const keyPressed = (key: Valuesque) => {
         }
     });
 }
-export const mouse = {
+export const mouse: {
+    down: () => IlWrapper;
+    x: () => IlWrapper;
+    y: () => IlWrapper;
+} = {
     down: () => {
         return new IlWrapper({
             key: "SensingOperation",
@@ -860,7 +899,7 @@ export const mouse = {
         });
     }
 }
-export const loudness = () => {
+export const loudness: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -868,7 +907,7 @@ export const loudness = () => {
         }
     });
 }
-export const timer = () => {
+export const timer: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -876,7 +915,7 @@ export const timer = () => {
         }
     });
 }
-export const propertyOf = (property: string, object: Valuesque | Sprite) => {
+export const propertyOf: (property: string, object: Valuesque | Sprite) => IlWrapper = (property: string, object: Valuesque | Sprite) => {
     const obj = object instanceof Sprite ?
         {
             key: "String",
@@ -891,7 +930,7 @@ export const propertyOf = (property: string, object: Valuesque | Sprite) => {
         }
     });
 }
-export const daysSince2000 = () => {
+export const daysSince2000: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -899,7 +938,7 @@ export const daysSince2000 = () => {
         }
     });
 }
-export const username = () => {
+export const username: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
@@ -908,16 +947,21 @@ export const username = () => {
     });
 }
 
-export const position = {
+export const position: {
+    x: () => IlWrapper;
+    y: () => IlWrapper;
+    direction: () => IlWrapper;
+    size: () => IlWrapper;
+} = {
     x: () => new IlWrapper({ key: "Builtin", value: { key: "XPosition" } }),
     y: () => new IlWrapper({ key: "Builtin", value: { key: "YPosition" } }),
     direction: () => new IlWrapper({ key: "Builtin", value: { key: "Direction" } }),
     size: () => new IlWrapper({ key: "Builtin", value: { key: "Size" } }),
 }
-export const costumeNumber = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: true }})
-export const costumeName = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: false }})
-export const backdropNumber = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: true }})
-export const backdropName = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: false }})
+export const costumeNumber: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: true }})
+export const costumeName: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: false }})
+export const backdropNumber: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: true }})
+export const backdropName: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: false }})
 
 export function steps(steps: Valuesque) {
     $.scope?.push({
@@ -1203,54 +1247,64 @@ export function broadcastWait(value: Valuesque | Broadcast) {
     });
 }
 
-export const pen = {
-    clear: () => {
+export const pen: {
+    clear: () => void;
+    stamp: () => void;
+    down: () => void;
+    up: () => void;
+    setColor: (value: Valuesque) => void;
+    setParam: (param: Valuesque, amount: Valuesque) => void;
+    changeParam: (param: Valuesque, amount: Valuesque) => void;
+    changeSize: (amount: Valuesque) => void;
+    setSize: (amount: Valuesque) => void;
+} = {
+    clear: (): void => {
         $.scope?.push({
             type: "PenEraseAll",
         })
     },
-    stamp: () => {
+    stamp: (): void => {
         $.scope?.push({
             type: "PenStamp",
         })
     },
-    down: () => {
+    down: (): void => {
         $.scope?.push({
             type: "PenDown",
         })
     },
-    up: () => {
+    up: (): void => {
         $.scope?.push({
             type: "PenUp",
         })
     },
-    setColor: (value: Valuesque) => {
+    setColor: (value: Valuesque): void => {
         $.scope?.push({
             type: "PenSetPenColor",
             color: toScratchValue(value)
         })
     },
-    setParam: (param: Valuesque, amount: Valuesque) => {
+    setParam: (param: Valuesque, amount: Valuesque): void => {
         $.scope?.push({
             type: "PenSetValue",
             value: toScratchValue(param),
             amount: toScratchValue(amount),
         })
     },
-    changeParam: (param: Valuesque, amount: Valuesque) => {
+    changeParam: (param: Valuesque, amount: Valuesque): void => {
         $.scope?.push({
             type: "PenChangeValue",
             value: toScratchValue(param),
             amount: toScratchValue(amount),
         })
     },
-    changeSize: (amount: Valuesque) => {
+    changeSize: (amount: Valuesque): void => {
         $.scope?.push({
             type: "PenChangeSize",
             value: toScratchValue(amount),
         })
     },
-    setSize: (amount: Valuesque) => {
+    setSize: (amount: Valuesque): void => {
         $.scope?.push({
             type: "PenSetSize",
             value: toScratchValue(amount),

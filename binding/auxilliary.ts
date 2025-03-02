@@ -1,7 +1,7 @@
 import type { IlValue, IlNode } from "../ir/types.ts";
-import { abs, add, DataClass, div, eq, if$, mul, not, Num, type Serializable, sqrt, sub, trig, type Valuesque, type Variable } from "./bindings.ts";
+import { abs, add, DataClass, type DataclassOutput, div, eq, if$, IlWrapper, mul, not, Num, type Serializable, sqrt, sub, trig, type Valuesque, type Variable } from "./bindings.ts";
 
-export const Vec2 = DataClass(class {
+class Vec2Raw {
     x: Num;
     y: Num;
     constructor() {
@@ -13,7 +13,7 @@ export const Vec2 = DataClass(class {
      * returns new variable
      * @param other other vector2
      */
-    add(other: Vec2) {
+    add(other: Vec2): Vec2 {
         const v = new Vec2();
         v.x.set(add(this.x, other.x));
         v.y.set(add(this.y, other.y));
@@ -23,7 +23,7 @@ export const Vec2 = DataClass(class {
      * returns new variable
      * @param other other vector2
      */
-    sub(other: Vec2) {
+    sub(other: Vec2): Vec2 {
         const v = new Vec2();
         v.x.set(sub(this.x, other.x));
         v.y.set(sub(this.y, other.y));
@@ -33,7 +33,7 @@ export const Vec2 = DataClass(class {
      * returns new variable
      * @param other other vector2
      */
-    mul(other: Vec2) {
+    mul(other: Vec2): Vec2 {
         const v = new Vec2();
         v.x.set(mul(this.x, other.x));
         v.y.set(mul(this.y, other.y));
@@ -43,7 +43,7 @@ export const Vec2 = DataClass(class {
      * returns new variable
      * @param other other vector2
      */
-    div(other: Vec2) {
+    div(other: Vec2): Vec2 {
         const v = new Vec2();
         v.x.set(div(this.x, other.x));
         v.y.set(div(this.y, other.y));
@@ -52,13 +52,13 @@ export const Vec2 = DataClass(class {
     /**
      * returns the magnitude/distance squared
      */
-    magnitudeSquared() {
+    magnitudeSquared(): IlWrapper {
         return add(mul(this.x, this.x), mul(this.y, this.y));
     }
-    magnitude() {
+    magnitude(): IlWrapper {
         return sqrt(this.magnitudeSquared())
     }
-    normalized() {
+    normalized(): Vec2 {
         const v = new Vec2();
         v.x.set(this.x)
         v.y.set(this.y)
@@ -71,21 +71,21 @@ export const Vec2 = DataClass(class {
         return v;
     }
 
-    dot(other: Vec2) {
+    dot(other: Vec2): IlWrapper {
         return add(
             mul(this.x, other.x),
             mul(this.y, other.y)
         )
     }
 
-    directionRadians() {
+    directionRadians(): IlWrapper {
         return trig.radians.atan(div(this.y, this.x))
     }
-    direction() {
+    direction(): IlWrapper {
         return trig.degrees.atan(div(this.y, this.x))
     }
 
-    rotate(angleDegrees: Valuesque) {
+    rotate(angleDegrees: Valuesque): Vec2 {
         const n = new Vec2();    
         n.x.set(sub(
             mul(this.x, trig.degrees.cos(angleDegrees)),
@@ -98,13 +98,14 @@ export const Vec2 = DataClass(class {
         return n;
     }
 
-    static literal(x: Valuesque, y: Valuesque) {
+    static literal(x: Valuesque, y: Valuesque): Vec2 {
         const v = new Vec2();
         v.x.set(x);
         v.y.set(y);
         return v;
     }
-});
+}
+export const Vec2: DataclassOutput<typeof Vec2Raw> = DataClass(Vec2Raw);
 export type Vec2 = InstanceType<typeof Vec2>;
 
 export class SizedList<T extends new () => Serializable & Variable, Size extends number> implements Serializable, Variable {
@@ -131,7 +132,7 @@ export class SizedList<T extends new () => Serializable & Variable, Size extends
         }
     }
 
-    nth(count: number) {
+    nth(count: number): InstanceType<T> {
         return this.values[count];
     }
 
@@ -152,5 +153,5 @@ export class SizedList<T extends new () => Serializable & Variable, Size extends
     }
 }
 
-export const litMax = (a: Valuesque, b: Valuesque) => div(add(add(a, b), abs(sub(a, b))), 2)
-export const litMin = (a: Valuesque, b: Valuesque) => div(sub(add(a, b), abs(sub(a, b))), 2)
+export const litMax: (a: Valuesque, b: Valuesque) => IlWrapper = (a: Valuesque, b: Valuesque) => div(add(add(a, b), abs(sub(a, b))), 2)
+export const litMin: (a: Valuesque, b: Valuesque) => IlWrapper = (a: Valuesque, b: Valuesque) => div(sub(add(a, b), abs(sub(a, b))), 2)

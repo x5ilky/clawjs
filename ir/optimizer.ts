@@ -26,7 +26,7 @@ export class Optimizer {
         }
     }
 
-    optimize() {
+    optimize(): void {
         const PASSES = 5;
         let prevLength = this.labels.length;
         while (true) {
@@ -50,7 +50,7 @@ export class Optimizer {
      * 
      *  say 1 + 1
      */
-    redundantOperationPass() {
+    redundantOperationPass(): void {
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
             const [_id, nodes] = label.value;
@@ -152,7 +152,7 @@ export class Optimizer {
      * 
      * this will not be transformed because list[0] can change
      */
-    redundantVariablePass() {
+    redundantVariablePass(): void {
         const redundantVars = this.countVariableAssignments();
         for (const [k, v] of redundantVars) {
             if (v.count > 1) continue;
@@ -199,7 +199,7 @@ export class Optimizer {
         }
     }
 
-    redundantControlFlowPass() {
+    redundantControlFlowPass(): void {
         for (const label of this.labels) {
             if (label.type !== 'Label') continue;
 
@@ -238,7 +238,7 @@ export class Optimizer {
         }
     }
 
-    countVariableUsage() {
+    countVariableUsage(): Map<string, number> {
         const map = new Map<string, number>();
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
@@ -255,7 +255,7 @@ export class Optimizer {
         return map;
     }
 
-    countVariableAssignments() {
+    countVariableAssignments(): Map<string, { count: number, definitions: IlValue[] }> {
         const map = new Map<string, { count: number, definitions: IlValue[] }>();
         for (const label of this.labels) {
             if (label.type !== "Label") continue;

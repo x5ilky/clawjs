@@ -16,7 +16,7 @@ export class IrParser {
         this.logger = logger;
     }
 
-    public parse() {
+    public parse(): IlNode[] {
         const nodes = [];
         while (this.lines.length) {
             if (this.lines[0].trim() === "") {
