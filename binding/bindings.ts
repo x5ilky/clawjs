@@ -312,6 +312,11 @@ export class Argument implements SingleValue, Serializable {
     }
 }
 
+
+export const Color = (hex: string): IlValue => ({
+    key: "Color",
+    hex
+})
 export class List<T extends new () => Serializable & Variable> {
     id: string;
 
@@ -645,8 +650,8 @@ export const div = makeBinaryOperatorFunction("Div");
 export const eq = makeBinaryOperatorFunction("Eq");
 export const gt = makeBinaryOperatorFunction("Gt");
 export const lt = makeBinaryOperatorFunction("Lt");
-export const gte = makeBinaryOperatorFunction("Gte");
-export const lte = makeBinaryOperatorFunction("Lte");
+export const gte = (left: Valuesque, right: Valuesque) => or(eq(left, right), gt(left, right));
+export const lte = (left: Valuesque, right: Valuesque) => or(eq(left, right), lt(left, right));
 export const mod = makeBinaryOperatorFunction("Mod");
 export const join = makeBinaryOperatorFunction("Join");
 export const letterOf = makeBinaryOperatorFunction("LetterOf");

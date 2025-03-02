@@ -354,8 +354,7 @@ export class Convertor {
                     case "Eq":
                     case "Gt":
                     case "Lt":
-                    case "Gte":
-                    case "Lte": return ({
+                    return ({
                         "OPERAND1":
                             lft,
 

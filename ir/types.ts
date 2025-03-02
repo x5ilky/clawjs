@@ -87,8 +87,6 @@ export type BinaryOperation =
     | "Eq"
     | "Gt"
     | "Lt"
-    | "Gte"
-    | "Lte"
     | "Join"
     | "LetterOf"
     | "Contains"
