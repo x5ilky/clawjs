@@ -1,4 +1,4 @@
-import { VariableClawType } from "../claw/typechecker.ts";
+import { keyPressed } from "../binding/bindings.ts";
 import { IlNode, IlValue } from "./types.ts";
 
 export class Optimizer {
@@ -17,7 +17,8 @@ export class Optimizer {
     optimize() {
         let prevLength = this.labels.length;
         while (true) {
-            this.redundantVariablePass()
+            this.redundantOperationPass();
+            this.redundantVariablePass();
 
             const newLength = this.labels.length;
             if (prevLength === newLength) break;
@@ -26,29 +27,105 @@ export class Optimizer {
     }
 
     /**
+     * check for situations such as:
+     *  say 1*1 + 1
+     * 
+     * the 1*1 is redundant, so we can just put
+     * 
+     *  say 1 + 1
+     */
+    redundantOperationPass() {
+        for (const label of this.labels) {
+            if (label.type !== "Label") continue;
+            const [id, nodes] = label.value;
+            for (const node of nodes) {
+                for (const k in node) {
+                    const K = k as keyof typeof node;
+                    if (isObjectProbablyIlValue(node[K])) {
+                        (node[K] as any) = this.cloneValue(node[K], {
+                            BinaryOperation: (v) => {
+                                if (v.key !== "BinaryOperation") return v;
+                                if (v.oper === "Mul") {
+                                    if (v.left.key === "Float" && v.left.value === 1) return v.right;
+                                    if (v.right.key === "Float" && v.right.value === 1) return v.left;
+                                    if (v.left.key === "Float" && v.left.value === 0) return v.left;
+                                    if (v.right.key === "Float" && v.right.value === 0) return v.right;
+                                }
+                                if (v.oper === "Add") {
+                                    if (v.left.key === "Float" && v.left.value === 0) return v.right;
+                                    if (v.right.key === "Float" && v.right.value === 0) return v.left;
+                                }
+                                if (v.oper === "Sub") {
+                                    if (v.left.key === "Float" && v.left.value === 0) return v.right;
+                                    if (v.right.key === "Float" && v.right.value === 0) return v.left;
+                                }
+                                return v;
+                            }
+                        })
+                    }
+                }
+            }
+        }
+    }
+    /**
      * Checks for situations such as:
      * x = 10
      * push x
      * 
      * where we can instead just substitute
-     * 
      * push 10
+     * 
+     * exceptions:
+     *  x = list[0]
+     *  push x
+     * 
+     * this will not be transformed because list[0] can change
      */
     redundantVariablePass() {
-        // const redundantVars = this.countVariableAssignments();
-        // console.log(redundantVars.values().filter(a => a.count > 0).toArray().length)
-        // for (const [k, v] of redundantVars) {
-        //     if (v.count > 1) continue;
-        //     if (v.count === 0) this.statLabel.splice(this.statLabel.findIndex(a => a.type === "CreateVar" && a.name === k), 1);
+        const redundantVars = this.countVariableAssignments();
+        for (const [k, v] of redundantVars) {
+            if (v.count > 1) continue;
+            if (v.count === 0) this.statLabel.splice(this.statLabel.findIndex(a => a.type === "CreateVar" && a.name === k), 1);
             
-        //     this.variableReplacements.set(k, v.definitions[0])
-        //     while (true) {
-        //         const count = this.countVariableUsage();
-        //         if (count.get(k)! > 0) {
-        //             this.replaceVariableUsage(k, v.definitions[0]); 
-        //         } else break;
-        //     }
-        // }
+            let referenceCount = 0;
+            this.cloneValue(v.definitions[0], {
+                SensingOperation: (v) => {
+                    referenceCount++;
+                    return v;
+                },
+                ListValue: (v) => {
+                    referenceCount++;
+                    return v;
+                },
+            });
+            if (referenceCount > 0) continue;
+            this.variableReplacements.set(k, v.definitions[0])
+        }
+        for (const [k, v] of this.variableReplacements) {
+            this.variableReplacements.set(
+                k,
+                this.replaceVariableUsageInValue(v, this.variableReplacements)
+            )
+        }
+        this.replaceVariableAllUsage(this.variableReplacements);
+        for (const [k, _v] of this.variableReplacements) {
+            this.statLabel = this.statLabel.filter(a => {
+                if (a.type === "CreateVar") {
+                    if (a.name === k) return false;
+                }
+                return true;
+            });
+            this.labels = this.labels.map(a => {
+                if (a.type !== "Label") return a;
+                a.value[1] = a.value[1].filter(b => {
+                    if (b.type === "Set" || b.type === "Change") {
+                        if (b.target === k) return false;
+                    }
+                    return true;
+                })
+                return a;
+            })
+        }
     }
 
     countVariableUsage() {
@@ -128,60 +205,162 @@ export class Optimizer {
         }
     }
 
-    replaceVariableUsage(name: string, value: IlValue) {
+
+    replaceVariableAllUsage(map: Map<string, IlValue>) {
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
             const [id, nodes] = label.value;
             for (const node of nodes) {
                 for (const k in node) {
-                    const v = node[k as keyof typeof node];
-                    if (isObjectProbablyIlValue(v)) {
-                        // deno-lint-ignore no-explicit-any
-                        node[k as keyof typeof node] = this.replaceVariableWithValueInValue(name, value, v) as any;
+                    const K = k as keyof typeof node;
+                    if (isObjectProbablyIlValue(node[K])) {
+                        (node[K] as any) = this.replaceVariableUsageInValue(node[K], map)
                     }
                 }
             }
         }
     }
-    replaceVariableWithValueInValue(name: string, value: IlValue, target: IlValue) {
-        switch(target.key) {
-            case "Integer":
-            case "Float":
+    replaceVariableUsageInValue(value: IlValue, map: Map<string, IlValue>): IlValue {
+        return this.cloneValue(value, {
+            Variable: (v) => {
+                if (v.key !== "Variable") return v;
+                if (map.has(v.name)) return map.get(v.name)!;
+                return v;
+            }
+        });
+    }
+
+    cloneValue(value: IlValue, cb: { [k in IlValue["key"]]?: (v: IlValue) => IlValue }): IlValue {
+        switch (value.key) {
+            case "Integer": 
             case "String":
+            case "Variable":
             case "Color":
             case "Argument":
             case "Costume":
             case "Sound":
-            case "Target":
-                break;
-            case "Variable":
-                if (target.name === name) {
-                    return value;
+            case "Target": 
+            case "Float": return cb?.[value.key] === undefined ? value : cb[value.key]!(value);
+            case "UnaryOperation": {
+                const c = cb["UnaryOperation"] ?? (k => k);
+                return c({
+                    key: "UnaryOperation",
+                    oper: value.oper,
+                    value: this.cloneValue(value.value, cb)
+                })
+            }
+            case "BinaryOperation": {
+                const c = cb["BinaryOperation"] ?? (k => k);
+                return c({
+                    key: "BinaryOperation",
+                    oper: value.oper,
+                    left: this.cloneValue(value.left, cb),
+                    right: this.cloneValue(value.right, cb)
+                })
+            }
+            case "DropOperation": {
+                return {
+                    key: "DropOperation",
+                    oper: value.oper,
+                    value: this.cloneValue(value.value, cb)
                 }
-                break;
-            case "UnaryOperation": 
-                target.value = this.replaceVariableWithValueInValue(name, value, target.value); 
-                break;
-            case "BinaryOperation": 
-                target.left = this.replaceVariableWithValueInValue(name, value, target.left); 
-                target.right = this.replaceVariableWithValueInValue(name, value, target.right); 
-                break;
-            case "DropOperation":
-                target.value = this.replaceVariableWithValueInValue(name, value, target.value); 
-                break;
-            case "SensingOperation":
+            }
+            case "SensingOperation": {
+                switch (value.oper.type) {
+                    case "TouchingObject": 
+                        return {
+                            key: "SensingOperation",
+                            oper: {
+                                type: "TouchingObject",
+                                target: this.cloneValue(value.oper.target, cb)
+                            }
+                        }
+                    case "TouchingColor":
+                        return {
+                            key: "SensingOperation",
+                            oper: {
+                                type: "TouchingColor",
+                                color: this.cloneValue(value.oper.color, cb)
+                            }
+                        }
+                    case "ColorIsTouchingColor":
+                        return {
+                            key: "SensingOperation",
+                            oper: {
+                                type: "ColorIsTouchingColor",
+                                color1: this.cloneValue(value.oper.color1, cb),
+                                color2: this.cloneValue(value.oper.color2, cb)
+                            }
+                        }
+                    case "DistanceTo":
+                        return {
+                            key: "SensingOperation",
+                            oper: {
+                                type: "DistanceTo",
+                                target: this.cloneValue(value.oper.target, cb),
+                            }
+                        }
+                    case "KeyPressed":
+                        return {
+                            key: "SensingOperation",
+                            oper: {
+                                type: "KeyPressed",
+                                key: this.cloneValue(value.oper.key, cb),
+                            }
+                        }
+                    case "Of":
+                        return {
+                            key: "SensingOperation",
+                            oper: {
+                                type: "Of",
+                                object: this.cloneValue(value.oper.object, cb),
+                                property: value.oper.property
+                            }
+                        }
+                    case "Current":
+                    case "DaysSince2000":
+                    case "Username":
+                    case "MouseDown":
+                    case "MouseX":
+                    case "MouseY":
+                    case "Loudness":
+                    case "Timer":
+                        return value;
+                }
+            } break;
             case "Builtin":
-            case "ListValue":
-                for (const k in target) {
-                    const v = target[k as keyof typeof target];
-                    if (isObjectProbablyIlValue(v)) {
-                        // deno-lint-ignore no-explicit-any
-                        target[k as keyof typeof target] = this.replaceVariableWithValueInValue(name, value, v) as any; 
-                    }
+                return value;
+            case "ListValue": {
+                const c = cb.ListValue ?? ((v) => v);
+                switch (value.value.key) {
+                    case "Index": return c({
+                        key: "ListValue",
+                        list: value.list,
+                        value: {
+                            key: "Index",
+                            index: this.cloneValue(value.value.index, cb)
+                        }
+                    })
+                    case "Find": return c({
+                        key: "ListValue",
+                        list: value.list,
+                        value: {
+                            key: "Find",
+                            value: this.cloneValue(value.value.value, cb)
+                        }
+                    })
+                    case "Length": return c(value);
+                    case "Contains": return c({
+                        key: "ListValue",
+                        list: value.list,
+                        value: {
+                            key: "Contains",
+                            value: this.cloneValue(value.value.value, cb)
+                        }
+                    })
                 }
-                break;
+            }
         }
-        return target;
     }
 }
 

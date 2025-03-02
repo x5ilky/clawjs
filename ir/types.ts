@@ -45,7 +45,6 @@ export function IlValueIsLiteral(v: IlValue): boolean {
             return false
     }
 }
-
 export type ListValue =
     | { key: "Index", index: IlValue }
     | { key: "Find", value: IlValue }
