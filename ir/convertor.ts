@@ -823,7 +823,12 @@ export class Convertor {
                 }
                 return [3, calculation.toString()]
             }
-                
+            case "Bool": return this.convertValue(blocks, {
+                key: "BinaryOperation",
+                oper: "Eq",
+                left: { key: "Float", value: 1 },
+                right: { key: "Float", value: +value.value }
+            }, spr) 
         }
     }
 

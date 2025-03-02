@@ -808,10 +808,6 @@ export class IrParser {
                                     return "Gt";
                                 case "lt":
                                     return "Lt";
-                                case "gte":
-                                    return "Gte";
-                                case "lte":
-                                    return "Lte";
                                 case "join":
                                     return "Join";
                                 case "letterof":

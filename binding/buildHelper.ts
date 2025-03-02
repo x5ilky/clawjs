@@ -9,13 +9,14 @@ import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { MD5 } from "../external/md5.js";
 import { $, stage } from "./bindings.ts";
-import { Optimizer } from "../ir/optimizer.ts";
+import { Optimizer, OptimizerOptions } from "../ir/optimizer.ts";
 
 export type BuildOptions = {
     resourceFolder: string,
     logBuildInfo?: boolean,
     dumpProjectJson?: string | null,
-    dumpBC?: string | null
+    dumpBC?: string | null,
+    optimizerFlags?: Partial<OptimizerOptions>
 };
 export async function build(options: BuildOptions) {
     if (stage.costumes.length === 0) {
@@ -25,7 +26,7 @@ export async function build(options: BuildOptions) {
     options.logBuildInfo ??= false;
 
     const labelData = $.labels.map(a => <IlNode>{type: "Label", value: [a.name, a.nodes]});
-    const optimizer = new Optimizer(labelData);
+    const optimizer = new Optimizer(labelData, options.optimizerFlags);
     optimizer.optimize()
     if (options.dumpBC) {
         Deno.writeTextFileSync(options.dumpBC, JSON.stringify(labelData))

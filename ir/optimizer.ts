@@ -1,24 +1,40 @@
-import { keyPressed } from "../binding/bindings.ts";
+// deno-lint-ignore-file no-explicit-any
 import { IlNode, IlValue } from "./types.ts";
+
+export type OptimizerOptions = {
+    variableReplacements: boolean,
+    redundantOperations: boolean,
+    redundantControlFlow: boolean
+}
 
 export class Optimizer {
     labels: IlNode[];
     statLabel: IlNode[];
 
     variableReplacements: Map<string, IlValue>;
+    options: OptimizerOptions;
 
-    constructor(labels: IlNode[]) {
+    constructor(labels: IlNode[], options?: Partial<OptimizerOptions>) {
         this.labels = labels;
         this.variableReplacements = new Map();
         // @ts-ignore: im not writing type assertions for this
         this.statLabel = labels.find(a => a.type === "Label" && a.value[0] === "stat")!.value[1];
+        this.options = {
+            redundantControlFlow: options?.redundantControlFlow ?? true,
+            redundantOperations: options?.redundantOperations ?? true,
+            variableReplacements: options?.variableReplacements ?? true,
+        }
     }
 
     optimize() {
+        const PASSES = 5;
         let prevLength = this.labels.length;
         while (true) {
-            this.redundantOperationPass();
-            this.redundantVariablePass();
+            for (let i = 0; i < PASSES; i++) {
+                if (this.options.redundantOperations) this.redundantOperationPass();
+                if (this.options.variableReplacements) this.redundantVariablePass();
+                if (this.options.redundantControlFlow) this.redundantControlFlowPass();
+            }
 
             const newLength = this.labels.length;
             if (prevLength === newLength) break;
@@ -37,7 +53,7 @@ export class Optimizer {
     redundantOperationPass() {
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
-            const [id, nodes] = label.value;
+            const [_id, nodes] = label.value;
             for (const node of nodes) {
                 for (const k in node) {
                     const K = k as keyof typeof node;
@@ -46,18 +62,73 @@ export class Optimizer {
                             BinaryOperation: (v) => {
                                 if (v.key !== "BinaryOperation") return v;
                                 if (v.oper === "Mul") {
+                                    if (v.left.key === "Float" && v.right.key === "Float") return {
+                                        key: "Float",
+                                        value: v.left.value * v.right.value
+                                    }
                                     if (v.left.key === "Float" && v.left.value === 1) return v.right;
                                     if (v.right.key === "Float" && v.right.value === 1) return v.left;
                                     if (v.left.key === "Float" && v.left.value === 0) return v.left;
                                     if (v.right.key === "Float" && v.right.value === 0) return v.right;
                                 }
+                                if (v.oper === "Div") {
+                                    if (v.left.key === "Float" && v.right.key === "Float") return {
+                                        key: "Float",
+                                        value: v.left.value / v.right.value
+                                    }
+                                    if (v.left.key === "Float" && v.left.value === 1) return v.right;
+                                    if (v.right.key === "Float" && v.right.value === 1) return v.left;
+                                }
                                 if (v.oper === "Add") {
+                                    if (v.left.key === "Float" && v.right.key === "Float") return {
+                                        key: "Float",
+                                        value: v.left.value + v.right.value
+                                    }
                                     if (v.left.key === "Float" && v.left.value === 0) return v.right;
                                     if (v.right.key === "Float" && v.right.value === 0) return v.left;
                                 }
                                 if (v.oper === "Sub") {
+                                    if (v.left.key === "Float" && v.right.key === "Float") return {
+                                        key: "Float",
+                                        value: v.left.value - v.right.value
+                                    }
                                     if (v.left.key === "Float" && v.left.value === 0) return v.right;
                                     if (v.right.key === "Float" && v.right.value === 0) return v.left;
+                                }
+                                if (v.oper === "Eq") {
+                                    if (v.left.key === "Float" && v.right.key === "Float") 
+                                        return {
+                                            key: "Bool",
+                                            value: v.left.value === v.right.value
+                                        };
+                                }
+                                if (v.oper === "Or") {
+                                    if (v.left.key === "Bool")
+                                        if (v.left.value)
+                                            return {
+                                                key: "Bool",
+                                                value: true
+                                            }
+                                        else return v.right
+                                    if (v.right.key === "Bool")
+                                        if (v.right.value)
+                                            return {
+                                                key: "Bool",
+                                                value: true
+                                            }
+                                        else return v.left
+                                }
+                                if (v.oper === "And") {
+                                    if (v.left.key === "Bool" && v.left.value === false)
+                                        return {
+                                            key: "Bool",
+                                            value: false
+                                        }
+                                    if (v.right.key === "Bool" && v.right.value === false)
+                                        return {
+                                            key: "Bool",
+                                            value: false
+                                        }
                                 }
                                 return v;
                             }
@@ -128,11 +199,50 @@ export class Optimizer {
         }
     }
 
+    redundantControlFlowPass() {
+        for (const label of this.labels) {
+            if (label.type !== 'Label') continue;
+
+            const [_id, nodes] = label.value;
+            const newNodes = [];
+            for (const node of nodes) {
+                if (node.type === "If") {
+                    if (node.predicate.key === "Bool") {
+                        if (node.predicate.value)  {
+                            const l = this.labels.find(a => a.type === 'Label' && a.value[0] === node.label);
+                            if (l?.type !== "Label") continue;
+                            newNodes.push(...l.value[1])
+                        }
+                    } else {
+                        newNodes.push(node);
+                    }
+                } else if (node.type === "Repeat") {
+                    if (node.amount.key === "Float") {
+                        const l = this.labels.find(a => a.type === 'Label' && a.value[0] === node.label);
+                        if (l?.type !== "Label") continue;
+                        if (node.amount.value <= 5 && l.value[1].length <= 3) {
+                            for (let i = 0; i < node.amount.value; i++) {
+                                newNodes.push(...l.value[1]);
+                            }
+                        } else {
+                            newNodes.push(node);
+                        }
+                    } else {
+                        newNodes.push(node);
+                    }
+                } else {
+                    newNodes.push(node);
+                }
+            }
+            label.value[1] = newNodes;
+        }
+    }
+
     countVariableUsage() {
         const map = new Map<string, number>();
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
-            const [id, nodes] = label.value;
+            const [_id, nodes] = label.value;
             for (const node of nodes) {
                 for (const k in node) {
                     const v = node[k as keyof typeof node];
@@ -209,7 +319,7 @@ export class Optimizer {
     replaceVariableAllUsage(map: Map<string, IlValue>) {
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
-            const [id, nodes] = label.value;
+            const [_id, nodes] = label.value;
             for (const node of nodes) {
                 for (const k in node) {
                     const K = k as keyof typeof node;
@@ -240,6 +350,7 @@ export class Optimizer {
             case "Costume":
             case "Sound":
             case "Target": 
+            case "Bool":
             case "Float": return cb?.[value.key] === undefined ? value : cb[value.key]!(value);
             case "UnaryOperation": {
                 const c = cb["UnaryOperation"] ?? (k => k);
@@ -361,6 +472,22 @@ export class Optimizer {
                 }
             }
         }
+    }
+
+    isFullyLiteral(value: IlValue): boolean {
+        let isLit = true;
+        this.cloneValue(value, {
+            ListValue: v => {
+                isLit = false
+                return v;
+            },
+            Variable: v => {
+                isLit = false;
+                return v;
+            }
+        });
+
+        return isLit;
     }
 }
 

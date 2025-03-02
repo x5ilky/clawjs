@@ -12,6 +12,7 @@ export type IlValue =
     | { key: "Integer", value: number }
     | { key: "Float", value: number }
     | { key: "String", value: string }
+    | { key: "Bool", value: boolean }
     | { key: "Variable", name: string }
     | { key: "Color", hex: string }
     | { key: "Target", value: "_mouse_" | "_random_" | "_edge_" }
@@ -29,6 +30,7 @@ export function IlValueIsLiteral(v: IlValue): boolean {
         case "Integer":
         case "Float":
         case "String":
+        case "Bool":
         case "Variable":
         case "Sound":
         case "Color":
