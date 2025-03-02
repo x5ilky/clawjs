@@ -82,7 +82,7 @@ export const Vec2 = DataClass(class {
         return atan(div(this.y, this.x))
     }
 
-    rotate(angleDegrees: Num) {
+    rotate(angleDegrees: Valuesque) {
         const n = new Vec2();    
         n.x.set(sub(
             mul(this.x, cos(angleDegrees)),
@@ -91,7 +91,15 @@ export const Vec2 = DataClass(class {
         n.y.set(sub(
             mul(this.x, sin(angleDegrees)),
             mul(this.y, cos(angleDegrees)),
-        ))
+        ));
+        return n;
+    }
+
+    static literal(x: Valuesque, y: Valuesque) {
+        const v = new Vec2();
+        v.x.set(x);
+        v.y.set(y);
+        return v;
     }
 });
 export type Vec2 = InstanceType<typeof Vec2>;

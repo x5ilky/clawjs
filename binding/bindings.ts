@@ -420,7 +420,7 @@ export class List<T extends new () => Serializable & Variable> {
     }
     nth(index: Valuesque): InstanceType<T> {
         const value = new this.type() as InstanceType<T>;
-        const values = [];
+        const values: IlValue[] = [];
         for (let i = 0; i < value.sizeof(); i++) {
             values.push(this.at(add(mul(index, value.sizeof()), i + 1)).toScratchValue())
         }
@@ -458,7 +458,7 @@ export class List<T extends new () => Serializable & Variable> {
         const v = new this.type();
         const size = v.sizeof();
         const s = v.toSerialized();
-        const values = [];
+        const values: IlValue[] = [];
         for (let i = 0; i < s.length; i++) {
             values.push(this.at(add(sub(this.length(), size), i+1)).toScratchValue());
         }
@@ -657,7 +657,10 @@ export const join = makeBinaryOperatorFunction("Join");
 export const letterOf = makeBinaryOperatorFunction("LetterOf");
 export const stringContains = makeBinaryOperatorFunction("Contains");
 export const random = makeBinaryOperatorFunction("Random");
-export const and = makeBinaryOperatorFunction("And");
+const andRaw = makeBinaryOperatorFunction("And");
+export const and = (...values: Valuesque[]) => {
+    return values.reduce((prev, cur) => andRaw(prev, cur))
+}
 export const or = makeBinaryOperatorFunction("Or");
 
 function makeUnaryOperatorFunction(name: UnaryOperation) {
@@ -697,6 +700,18 @@ export const ln = makeDropOperatorFunction("Ln");
 export const log = makeDropOperatorFunction("Log");
 export const epower = makeDropOperatorFunction("EPower");
 export const tenpower = makeDropOperatorFunction("TenPower");
+
+export const atan2 = (y: Valuesque, x: Valuesque) => 
+    add(
+        mul(gte(x, 0), atan(div(y, x))),
+        mul(
+            lt(x, 0), 
+            add(
+                mul(lt(y, 0), sub(atan(div(y, x)), Math.PI)),
+                mul(gt(y, 0), add(atan(div(y, x)), Math.PI))
+            )
+        )
+    );
 
 export const isTouchingObject = (target: Valuesque | Sprite) => {
     if (target instanceof Sprite)
@@ -1054,6 +1069,7 @@ export function return$(value: Variable | string | number) {
     if (typeof value === "number") $.returnValue?.set(value)
     else if (typeof value === "string") $.returnValue?.set(value)
     else $.returnValue?.set(value);
+    stop("ThisScript")
 }
 export function stop(type: StopType) {
     $.scope?.push({ type: "Stop", stopType: type });
