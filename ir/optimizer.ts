@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import { IlNode, IlValue } from "./types.ts";
+import type { IlNode, IlValue } from "./types.ts";
 
 export type OptimizerOptions = {
     variableReplacements: boolean,

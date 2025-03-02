@@ -3,8 +3,8 @@ import {
   TextReader,
   ZipWriter,
 } from "../vendor/deno.land/x/zipjs@v2.7.53/index.js";
-import { LogLevel, skap } from "../SkOutput.ts";
-import { logger, shape } from "./main.ts";
+import { LogLevel, type skap } from "../SkOutput.ts";
+import { logger, type shape } from "./main.ts";
 import { IrParser } from "../ir/parser.ts";
 import { Convertor } from "../ir/convertor.ts";
 import { MD5 } from "../external/md5.js";

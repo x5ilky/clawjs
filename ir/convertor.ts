@@ -1,14 +1,14 @@
 // deno-lint-ignore-file no-explicit-any
 import { MD5 } from "../external/md5.js";
-import { Logger } from "../SkOutput.ts";
-import * as path from "@std/path";
+import type { Logger } from "../SkOutput.ts";
+import * as path from "jsr:@std/path";
 
 // @deno-types="npm:@types/node-wav@0.0.3"
 import WavDecoder from "npm:wav-decoder@1.3.0";
 
 import { Buffer } from "node:buffer"
 
-import { BinaryOperation, Block, Broadcasts, BuiltinValue, Comments, DropOperation, FileFormat, IlNode, IlValue, IlValueIsLiteral, Lists, Meta, Project, ScratchArgumentType, Target, UnaryOperation } from "./types.ts";
+import { type BinaryOperation, type Block, type Broadcasts, type BuiltinValue, type Comments, type DropOperation, type FileFormat, type IlNode, type IlValue, IlValueIsLiteral, type Lists, type Meta, Project, type ScratchArgumentType, type Target, type UnaryOperation } from "./types.ts";
 export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
 export class Convertor {
     variable_map: Map<string, string>;
@@ -28,7 +28,7 @@ export class Convertor {
 
     functionArgsMaps: Map<string, string>;
     resourceFolder: string;
-    
+
     constructor(labels: IlNode[], resourcesFolderPath: string, public logger: Logger) {
         this.variable_map = new Map()
         this.list_map = new Map()
@@ -36,14 +36,14 @@ export class Convertor {
         this.variables = []
         this.sprites = new Map()
         this.project = new Project(
-            /*targets: */ [],
-            /*monitors: */ [],
-            /*extensions: */ [],
-            /* meta: */ <Meta> {
+            /*targets: */[],
+            /*monitors: */[],
+            /*extensions: */[],
+            /* meta: */ <Meta>{
                 semver: "3.0.0",
                 vm: "0.2.0",
                 agent: "",
-                platform: { 
+                platform: {
                     name: "Claw Scratch IL Converter",
                     url: "github.com/x5ilky/claw"
                 }
@@ -54,7 +54,7 @@ export class Convertor {
         this.labelConversions = new Map()
         this.labelHeads = new Map()
         this.functionArgsMaps = new Map()
-        this.options = { 
+        this.options = {
             print_variable_hashes: false,
             print_variables: false
         }
@@ -84,7 +84,7 @@ export class Convertor {
             }
         }
         this.project.fix();
-        
+
         return this.project
     }
 
@@ -100,17 +100,17 @@ export class Convertor {
             if (node.type === "InsertDef") {
                 const { func, sprites } = node;
                 const fnData = this.functions.get(func)!;
-                const argumentIds = JSON.stringify(fnData.args.entries().map(([i, _]) => MD5(`${func}:${i+1}`)).toArray());
-                const argumentNames = 
+                const argumentIds = JSON.stringify(fnData.args.entries().map(([i, _]) => MD5(`${func}:${i + 1}`)).toArray());
+                const argumentNames =
                     JSON.stringify(
                         fnData.args.entries()
-                        .map(([i, _]) => `${func}:${i+1}`)
-                        .toArray()
+                            .map(([i, _]) => `${func}:${i + 1}`)
+                            .toArray()
                     );
                 const argumentDefaults =
                     JSON.stringify(
                         fnData.args
-                        .map(t => t === "Any" ? "" : "false")
+                            .map(t => t === "Any" ? "" : "false")
                     );
                 let proccode = func.toString();
                 for (const arg of fnData.args) {
@@ -159,7 +159,7 @@ export class Convertor {
                     }
 
                     {
-                        const spr = 
+                        const spr =
                             this.project.targets.find(v => v.name === spr_name.name)!;
                         for (const [i, arg] of fnData.args.entries()) {
                             const d = this.reserveBC();
@@ -167,7 +167,7 @@ export class Convertor {
                             spr_name.func_args.set(p, d);
                             this.functionArgsMaps.set(p, d);
                             if (arg === "Any") {
-                                spr.blocks.set(d, <Block> {
+                                spr.blocks.set(d, <Block>{
                                     opcode: "argument_reporter_string_number",
                                     inputs: {},
                                     fields: {
@@ -180,7 +180,7 @@ export class Convertor {
                                     topLevel: false
                                 });
                             } else if (arg === "Boolean") {
-                                spr.blocks.set(d, <Block> {
+                                spr.blocks.set(d, <Block>{
                                     opcode: "argument_reporter_boolean",
                                     inputs: {},
                                     fields: {
@@ -219,14 +219,14 @@ export class Convertor {
         if (stat?.type !== "Label") throw new Error("No stat label, this should be impossible due to order of events");
         for (const node of stat.value[1]) {
             const add = (value: () => Block) => {
-                const {target, label} = (node as Extract<IlNode, { target: string, label: string }>);
+                const { target, label } = (node as Extract<IlNode, { target: string, label: string }>);
 
                 const spriteName = this.sprites.get(target)?.name;
-                
-                const labelNodes = 
-                    (<Extract<IlNode, {type: "Label"}>>(this.labels.find(a => a.type === "Label" && a.value[0] === label)!)).value[1];
+
+                const labelNodes =
+                    (<Extract<IlNode, { type: "Label" }>>(this.labels.find(a => a.type === "Label" && a.value[0] === label)!)).value[1];
                 this.convertLabel(labelNodes, label, target);
-                
+
                 const sprite = this.project.targets.find(a => a.name === spriteName)!;
                 const lb = this.labelConversions.get(label);
                 if (lb === undefined) {
@@ -240,7 +240,7 @@ export class Convertor {
                 sprite.blocks.set(this.reserveBC(), value());
             }
             if (node.type === "Flag" || node.type === "Clicked") {
-                const {label} = node;
+                const { label } = node;
                 add(() => <Block>{
                     opcode: node.type === "Flag" ? "event_whenflagclicked" : "event_whenthisspriteclicked",
                     next: this.labelHeads.get(label),
@@ -251,14 +251,14 @@ export class Convertor {
                     topLevel: true
                 });
             } else if (node.type === "Keypress") {
-                const {label, key} = node;
+                const { label, key } = node;
                 add(() => <Block>{
                     opcode: "event_whenkeypressed",
                     next: this.labelHeads.get(label),
                     parent: null,
                     inputs: {},
                     fields: {
-                        "KEY_OPTION": [ 
+                        "KEY_OPTION": [
                             key,
                             null
                         ]
@@ -267,7 +267,7 @@ export class Convertor {
                     topLevel: true
                 });
             } else if (node.type === "WhenBroadcast") {
-                const {label, name} = node;
+                const { label, name } = node;
                 add(() => <Block>{
                     opcode: "event_whenbroadcastreceived",
                     next: this.labelHeads.get(label),
@@ -286,7 +286,7 @@ export class Convertor {
                     topLevel: true,
                 })
             } else if (node.type === "WhenClone") {
-                const {label} = node;
+                const { label } = node;
                 add(() => <Block>{
                     opcode: "control_start_as_clone",
                     next: this.labelHeads.get(label),
@@ -316,7 +316,7 @@ export class Convertor {
             case "String": return [1, [10, value.value.toString()]]
             case "Sound": {
                 const { name } = value;
-                
+
                 const calculation = this.reserveBC();
 
                 blocks.set(calculation.toString(), {
@@ -333,51 +333,51 @@ export class Convertor {
                 return [1, calculation.toString()]
             }
             case "BinaryOperation": {
-                const {oper, left, right} = value;
+                const { oper, left, right } = value;
                 const calculation = this.reserveBC();
                 const lft = this.convertValue(blocks, left, spr);
                 const rght = this.convertValue(blocks, right, spr);
                 // if (rght[0] === 3) console.log(rght, right)
                 const inputs = ((oper: BinaryOperation) => {
                     switch (oper) {
-                    case "Add":
-                    case "Sub":
-                    case "Div":
-                    case "Mul":
-                    case "Mod": return ({
-                        "NUM1": lft,
-                        "NUM2": rght
-                    });
+                        case "Add":
+                        case "Sub":
+                        case "Div":
+                        case "Mul":
+                        case "Mod": return ({
+                            "NUM1": lft,
+                            "NUM2": rght
+                        });
 
-                    case "And":
-                    case "Or":
-                    case "Eq":
-                    case "Gt":
-                    case "Lt":
-                    return ({
-                        "OPERAND1":
-                            lft,
+                        case "And":
+                        case "Or":
+                        case "Eq":
+                        case "Gt":
+                        case "Lt":
+                            return ({
+                                "OPERAND1":
+                                    lft,
 
-                        "OPERAND2":
-                            rght
-                    });
-                    case "Join": 
-                    case "Contains": return ({
-                        "STRING1": lft,
-                        "STRING2": rght
-                    });
+                                "OPERAND2":
+                                    rght
+                            });
+                        case "Join":
+                        case "Contains": return ({
+                            "STRING1": lft,
+                            "STRING2": rght
+                        });
 
-                    case "LetterOf": return ({
-                        "LETTER": lft,
-                        "STRING": rght,
-                    })
+                        case "LetterOf": return ({
+                            "LETTER": lft,
+                            "STRING": rght,
+                        })
                     }
                 })(oper);
                 blocks.set(
                     calculation.toString(),
-                    <Block> {
+                    <Block>{
                         opcode: ((oper: BinaryOperation) => {
-                            switch(oper) {
+                            switch (oper) {
                                 case "Add": return "operator_add";
                                 case "Or": return "operator_or";
                                 case "Sub": return "operator_subtract";
@@ -413,7 +413,7 @@ export class Convertor {
                         case "Round": return { "NUM": value, };
                     }
                 })(oper)
-                blocks.set(calculation.toString(), <Block> {
+                blocks.set(calculation.toString(), <Block>{
                     opcode: ((oper: UnaryOperation) => {
                         switch (oper) {
                             case "Not": return "operator_not";
@@ -429,13 +429,13 @@ export class Convertor {
                 return [3, calculation.toString()]
             }
             case "DropOperation": {
-                const { oper, value:v } = value;
+                const { oper, value: v } = value;
                 const calculation = (this.reserveBC());
                 const val = this.convertValue(blocks, v, spr);
                 const inputs = {
                     "NUM": val
                 };
-                blocks.set(calculation.toString(), <Block> {
+                blocks.set(calculation.toString(), <Block>{
                     opcode: "operator_mathop",
                     fields: {
                         "OPERATOR": [
@@ -503,18 +503,18 @@ export class Convertor {
                     const id = this.reserveBC();
                     blocks.set(
                         id.toString(),
-                        <Block> {
+                        <Block>{
                             opcode,
                             inputs: {},
                             fields: (() => {
-                                switch(builtinType.key) {
-                                    case "Costume": 
-                                    case "Backdrop": 
-                                    return {
-                                        "NUMBER_NAME": [
-                                            builtinType.numberOrName ? "number" : "name"
-                                        ]
-                                    }
+                                switch (builtinType.key) {
+                                    case "Costume":
+                                    case "Backdrop":
+                                        return {
+                                            "NUMBER_NAME": [
+                                                builtinType.numberOrName ? "number" : "name"
+                                            ]
+                                        }
                                     default:
                                         return {};
                                 }
@@ -527,12 +527,12 @@ export class Convertor {
                 }
             };
             case "Costume": {
-                const {isBackdrop, name} = value;
+                const { isBackdrop, name } = value;
                 const id = this.reserveBC();
                 if (isBackdrop) {
                     blocks.set(
                         id.toString(),
-                        <Block> {
+                        <Block>{
                             opcode: "looks_backdrops",
                             inputs: {},
                             fields: {
@@ -548,7 +548,7 @@ export class Convertor {
                 } else {
                     blocks.set(
                         id.toString(),
-                        <Block> {
+                        <Block>{
                             opcode: "looks_costume",
                             inputs: {},
                             fields: {
@@ -571,7 +571,7 @@ export class Convertor {
                     this.logger.error(`No list called: ${list}`);
                 }
                 const id = this.reserveBC();
-                blocks.set(id.toString(), <Block> {
+                blocks.set(id.toString(), <Block>{
                     opcode: (() => {
                         switch (v.key) {
                             case "Index": return "data_itemoflist"
@@ -630,14 +630,14 @@ export class Convertor {
                         blocks.set(calc2.toString(), {
                             opcode: opcodeMenu,
                             inputs: {},
-                            fields: f,                            
+                            fields: f,
                             shadow: true,
                             topLevel: false,
                             next: null,
                             parent: calculation.toString()
                         });
                         const f2 = {} as any;
-                        f2[key] = [1, calc2.toString(), ];
+                        f2[key] = [1, calc2.toString(),];
                         blocks.set(calculation.toString(), {
                             opcode: opcodeMain,
                             fields: {},
@@ -756,7 +756,7 @@ export class Convertor {
                                 inputs: {},
                                 fields: {
                                     "OBJECT": [value.oper.object.value, null]
-                                },                            shadow: true,
+                                }, shadow: true,
                                 topLevel: false,
                                 next: null,
                                 parent: calculation.toString()
@@ -828,7 +828,7 @@ export class Convertor {
                 oper: "Eq",
                 left: { key: "Float", value: 1 },
                 right: { key: "Float", value: +value.value }
-            }, spr) 
+            }, spr)
         }
     }
 
@@ -863,11 +863,11 @@ export class Convertor {
         }
         this.labelHeads.set(name, heads.get(0)!);
         for (const [i, _] of nodes.entries()) {
-            if (heads.has(i+1)) {
-                blocks.get(heads.get(i)!)!.next = heads.get(i+1)!;
+            if (heads.has(i + 1)) {
+                blocks.get(heads.get(i)!)!.next = heads.get(i + 1)!;
             }
             if (i > 0 && heads.has(i - 1)) {
-                blocks.get(heads.get(i)!)!.parent = heads.get(i-1)!;
+                blocks.get(heads.get(i)!)!.parent = heads.get(i - 1)!;
             }
         };
 
@@ -902,7 +902,7 @@ export class Convertor {
             case "TurnRight": {
                 const { degrees } = node;
                 const value = this.convertValue(blocks, degrees, spr);
-                add(<Block> {
+                add(<Block>{
                     opcode: node.type === "TurnLeft" ? "motion_turnleft" : "motion_turnright",
                     parent: null,
                     fields: {},
@@ -1009,7 +1009,7 @@ export class Convertor {
                 });
             } break;
 
-            
+
             case "Say": {
                 add({
                     opcode: "looks_say",
@@ -1322,7 +1322,7 @@ export class Convertor {
             } break;
 
 
-            case "Broadcast": 
+            case "Broadcast":
             case "BroadcastWait": {
                 let jsonValue = this.convertValue(blocks, node.value, spr);
                 if (node.value.key === "String") {
@@ -1347,7 +1347,7 @@ export class Convertor {
                 });
             } break;
 
-            
+
             case "Wait": {
                 add({
                     opcode: "control_wait",
@@ -1391,7 +1391,7 @@ export class Convertor {
                     return heads;
                 })();
 
-                blocks.set(loc, <Block> {
+                blocks.set(loc, <Block>{
                     opcode: "control_if",
                     fields: {},
                     inputs: {
@@ -1429,7 +1429,7 @@ export class Convertor {
                     return heads;
                 })();
 
-                blocks.set(loc, <Block> {
+                blocks.set(loc, <Block>{
                     opcode: "control_if_else",
                     fields: {},
                     inputs: {
@@ -1458,7 +1458,7 @@ export class Convertor {
                     return heads;
                 })();
 
-                blocks.set(loc, <Block> {
+                blocks.set(loc, <Block>{
                     opcode: "control_repeat",
                     fields: {},
                     inputs: {
@@ -1485,7 +1485,7 @@ export class Convertor {
                     return heads;
                 })();
 
-                blocks.set(loc, <Block> {
+                blocks.set(loc, <Block>{
                     opcode: "control_repeat_until",
                     fields: {},
                     inputs: {
@@ -1512,7 +1512,7 @@ export class Convertor {
                 })();
                 const head = hds.get(0)!.toString();
 
-                blocks.set(loc, <Block> {
+                blocks.set(loc, <Block>{
                     opcode: "control_forever",
                     fields: {},
                     inputs: {
@@ -1532,7 +1532,7 @@ export class Convertor {
                     fields: {
                         STOP_OPTION: [
                             (() => {
-                                switch(node.stopType) {
+                                switch (node.stopType) {
                                     case "All": return "all";
                                     case "ThisScript": return "this script"
                                     case "OtherScripts": return "other scripts in sprite";
@@ -1669,7 +1669,7 @@ export class Convertor {
             } break;
 
             case "Set": {
-                const {target, value: v } = node;
+                const { target, value: v } = node;
                 add({
                     opcode: "data_setvariableto",
                     parent: null,
@@ -1734,7 +1734,7 @@ export class Convertor {
                     this.logger.error(`Expected ${argAmount} arguments, got ${func.args.length}`);
                     Deno.exit(1);
                 }
-                const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i+1}`)).toArray());
+                const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i + 1}`)).toArray());
                 const inputs = new Map();
                 let proccode = id;
                 for (const [i, arg] of args.entries()) {
@@ -1775,7 +1775,8 @@ export class Convertor {
                     topLevel: false,
                 })
             } break
-            case "PenStamp": { add({
+            case "PenStamp": {
+                add({
                     opcode: "pen_stamp",
                     inputs: {},
                     fields: {},
@@ -1783,7 +1784,8 @@ export class Convertor {
                     topLevel: false,
                 })
             } break
-            case "PenDown": { add({
+            case "PenDown": {
+                add({
                     opcode: "pen_penDown",
                     inputs: {},
                     fields: {},
@@ -1791,7 +1793,7 @@ export class Convertor {
                     topLevel: false,
                 })
             } break
-            case "PenUp": { 
+            case "PenUp": {
                 add({
                     opcode: "pen_penUp",
                     inputs: {},
@@ -1800,7 +1802,7 @@ export class Convertor {
                     topLevel: false,
                 })
             } break
-            case "PenSetPenColor": { 
+            case "PenSetPenColor": {
                 add({
                     opcode: "pen_setPenColorToColor",
                     inputs: {
@@ -1812,7 +1814,7 @@ export class Convertor {
                 })
             } break;
             case "PenSetValue":
-            case "PenChangeValue": { 
+            case "PenChangeValue": {
                 const opcode = node.type === "PenChangeValue" ? "pen_changePenColorParamBy" : "pen_setPenColorParamTo";
                 const menu = this.reserveBC();
 
@@ -1855,7 +1857,7 @@ export class Convertor {
 
                 }
             } break
-            case "PenChangeSize": { 
+            case "PenChangeSize": {
                 add({
                     opcode: "pen_changePenSizeBy",
                     inputs: {
@@ -1866,7 +1868,7 @@ export class Convertor {
                     topLevel: false,
                 })
             } break;
-            case "PenSetSize": { 
+            case "PenSetSize": {
                 add({
                     opcode: "pen_setPenSizeTo",
                     inputs: {
@@ -1887,29 +1889,29 @@ export class Convertor {
     }
 
     private gatherValues() {
-        const stat = this.labels.find(a => a.type === "Label" && a.value[0] === "stat") as Extract<IlNode, {type: "Label"}> | undefined;
+        const stat = this.labels.find(a => a.type === "Label" && a.value[0] === "stat") as Extract<IlNode, { type: "Label" }> | undefined;
         if (stat === undefined) {
             this.logger.error("No stat label found");
             Deno.exit(1);
         }
         const field = stat.value[1];
         for (const node of field) {
-            switch(node.type) {
+            switch (node.type) {
                 case "CreateSpr": {
                     const { id, name, isStage } = node;
                     if (isStage) {
-                        const target = <Target> {
+                        const target = <Target>{
                             isStage: true,
                             blocks: new Map(),
-                            broadcasts: <Broadcasts> {},
-                            comments: <Comments> {},
+                            broadcasts: <Broadcasts>{},
+                            comments: <Comments>{},
                             costumes: [],
                             currentCostume: 0,
                             direction: 0,
                             draggable: false,
                             visible: true,
                             layerOrder: 0,
-                            lists: <Lists> {},
+                            lists: <Lists>{},
                             name,
                             rotationStyle: "all around",
                             size: 100,
@@ -1926,7 +1928,7 @@ export class Convertor {
                         this.project.targets.splice(0, 0, target);
                         this.sprites.set(
                             id.toString(),
-                            <Sprite> {
+                            <Sprite>{
                                 name,
                                 func_args: new Map(),
                                 added_builtins: new Map(),
@@ -1935,17 +1937,17 @@ export class Convertor {
                             }
                         )
                     } else {
-                        this.sprites.set(id.toString(), <Sprite> {
+                        this.sprites.set(id.toString(), <Sprite>{
                             name,
                             func_args: new Map(),
                             added_builtins: new Map(),
                             costume_paths: [],
                             sound_paths: []
                         });
-                        this.project.targets.push(<Target> {
+                        this.project.targets.push(<Target>{
                             blocks: new Map,
-                            broadcasts: <Broadcasts> {},
-                            comments: <Comments> {},
+                            broadcasts: <Broadcasts>{},
+                            comments: <Comments>{},
                             costumes: [],
                             currentCostume: 0,
                             direction: 0,
@@ -1953,7 +1955,7 @@ export class Convertor {
                             visible: true,
                             isStage: false,
                             layerOrder: 1,
-                            lists: <Lists> {},
+                            lists: <Lists>{},
                             name,
                             rotationStyle: "all around",
                             size: 100,
@@ -2064,9 +2066,9 @@ export class Convertor {
                     this.broadcasts.set(node.name, MD5(node.name));
                 } break;
                 case "Def": {
-                    const {label, id, args, warp} = node;
+                    const { label, id, args, warp } = node;
                     for (const [i, _] of args.entries()) {
-                        const v = `${id}:${i+1}`;
+                        const v = `${id}:${i + 1}`;
                         this.variable_map.set(v, MD5(v));
                     }
                     this.functions.set(

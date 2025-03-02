@@ -1,9 +1,9 @@
-import { Logger } from "../SkOutput.ts";
-import { SensingOperation, StopType } from "./types.ts";
-import { ScratchArgumentType } from "./types.ts";
-import { FileFormat } from "./types.ts";
-import { BuiltinValue, IlNode, ListValue } from "./types.ts";
-import { IlValue } from "./types.ts";
+import type { Logger } from "../SkOutput.ts";
+import type { SensingOperation, StopType } from "./types.ts";
+import type { ScratchArgumentType } from "./types.ts";
+import type { FileFormat } from "./types.ts";
+import type { BuiltinValue, IlNode, ListValue } from "./types.ts";
+import type { IlValue } from "./types.ts";
 import { FORBIDDEN_VARIABLE_NAME_PREFIX } from "./convertor.ts";
 
 export class IrParser {

@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-import { DropOperation, ScratchArgumentType, StopType } from "../ir/types.ts";
-import { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
+import type { DropOperation, ScratchArgumentType, StopType } from "../ir/types.ts";
+import type { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
 export class Label {
     constructor(
         public name: string,

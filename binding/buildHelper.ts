@@ -4,12 +4,12 @@ import {
   ZipWriter,
 } from "../vendor/deno.land/x/zipjs@v2.7.53/index.js";
 import { Convertor } from "../ir/convertor.ts";
-import { IlNode } from "../ir/types.ts";
+import type { IlNode } from "../ir/types.ts";
 import { LogLevel } from "../SkOutput.ts";
 import { logger } from "../src/main.ts";
 import { MD5 } from "../external/md5.js";
 import { $, stage } from "./bindings.ts";
-import { Optimizer, OptimizerOptions } from "../ir/optimizer.ts";
+import { Optimizer, type OptimizerOptions } from "../ir/optimizer.ts";
 
 export type BuildOptions = {
     resourceFolder: string,

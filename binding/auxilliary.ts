@@ -1,5 +1,5 @@
-import { IlValue, IlNode } from "../ir/types.ts";
-import { abs, add, DataClass, div, eq, if$, mul, not, Num, Serializable, sqrt, sub, trig, Valuesque, Variable } from "./bindings.ts";
+import type { IlValue, IlNode } from "../ir/types.ts";
+import { abs, add, DataClass, div, eq, if$, mul, not, Num, type Serializable, sqrt, sub, trig, type Valuesque, type Variable } from "./bindings.ts";
 
 export const Vec2 = DataClass(class {
     x: Num;
