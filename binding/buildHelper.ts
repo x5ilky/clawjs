@@ -2,7 +2,7 @@ import {
   BlobWriter,
   TextReader,
   ZipWriter,
-} from "https://deno.land/x/zipjs/index.js";
+} from "../vendor/deno.land/x/zipjs@v2.7.53/index.js";
 import { Convertor } from "../ir/convertor.ts";
 import { IlNode } from "../ir/types.ts";
 import { LogLevel } from "../SkOutput.ts";

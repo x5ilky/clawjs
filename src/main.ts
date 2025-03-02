@@ -2,7 +2,7 @@ import {
   BlobWriter,
   TextReader,
   ZipWriter,
-} from "https://deno.land/x/zipjs/index.js";
+} from "../vendor/deno.land/x/zipjs@v2.7.53/index.js";
 import * as path from "@std/path"
 import { Flattener } from "../claw/flattener.ts";
 import { Interpreter } from "../claw/interpreter.ts";

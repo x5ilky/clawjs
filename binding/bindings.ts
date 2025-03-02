@@ -706,11 +706,12 @@ function makeDropOperatorFunction(name: DropOperation) {
         })
     }
 }
+type DropOperator = (left: Valuesque) => IlWrapper;
 
-export const abs = makeDropOperatorFunction("Abs");
-export const floor = makeDropOperatorFunction("Floor");
-export const ceiling = makeDropOperatorFunction("Ceiling");
-export const sqrt = makeDropOperatorFunction("Sqrt");
+export const abs: DropOperator = makeDropOperatorFunction("Abs");
+export const floor: DropOperator = makeDropOperatorFunction("Floor");
+export const ceiling: DropOperator = makeDropOperatorFunction("Ceiling");
+export const sqrt: DropOperator = makeDropOperatorFunction("Sqrt");
 
 export const trig = {
     degrees: {
@@ -754,10 +755,10 @@ export const trig = {
     },
 }
 
-export const ln = makeDropOperatorFunction("Ln");
-export const log = makeDropOperatorFunction("Log");
-export const epower = makeDropOperatorFunction("EPower");
-export const tenpower = makeDropOperatorFunction("TenPower");
+export const ln: DropOperator = makeDropOperatorFunction("Ln");
+export const log: DropOperator = makeDropOperatorFunction("Log");
+export const epower: DropOperator = makeDropOperatorFunction("EPower");
+export const tenpower: DropOperator = makeDropOperatorFunction("TenPower");
 
 /**
  * @param y degrees

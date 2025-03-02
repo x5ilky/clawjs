@@ -1,10 +1,10 @@
 // deno-lint-ignore-file no-explicit-any
 import { MD5 } from "../external/md5.js";
 import { Logger } from "../SkOutput.ts";
-import * as path from "jsr:@std/path";
+import * as path from "@std/path";
 
-// @deno-types="npm:@types/node-wav"
-import WavDecoder from "npm:wav-decoder";
+// @deno-types="npm:@types/node-wav@0.0.3"
+import WavDecoder from "npm:wav-decoder@1.3.0";
 
 import { Buffer } from "node:buffer"
 
