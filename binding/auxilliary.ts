@@ -105,10 +105,36 @@ class Vec2Raw {
         return v;
     }
 }
+
+/**
+ * ## Runtime `Vector2` type in scratch
+ * 
+ * Examples:
+ * ```ts
+ * const v = new Vec2();
+ * v.x.set(0)
+ * v.y.set(1)
+ * 
+ * const d = v.add(2); // creates new vector
+ * 
+ * ```
+ */
 export const Vec2: DataclassOutput<typeof Vec2Raw> = DataClass(Vec2Raw);
 export type Vec2 = InstanceType<typeof Vec2>;
 
-export class SizedList<T extends new () => Serializable & Variable, Size extends number> implements Serializable, Variable {
+/**
+ * ## Fixed List
+ * Equivalent to something like `int foo[5];` in C;
+ * 
+ * Examples:
+ * ```ts
+ * const ns = new FixedList(Num, 5)
+ * // creates 5 Num's under the hood, no lists
+ * 
+ * ns.nth(0).set(5) // .nth() can only have a literal argument
+ * ```
+ */
+export class FixedList<T extends new () => Serializable & Variable, Size extends number> implements Serializable, Variable {
     type: T;
     size: Size;
     values: InstanceType<T>[];
@@ -126,7 +152,7 @@ export class SizedList<T extends new () => Serializable & Variable, Size extends
       return this.size;
     }
     
-    set(values: SizedList<T, Size>): void {
+    set(values: FixedList<T, Size>): void {
         for (let i = 0; i < values.size; i++) {
             this.values[i].set(values.values[i]);
         }
