@@ -304,12 +304,26 @@ export class Str implements SingleValue, Serializable, Variable {
         }]
     }
 
-    set(value: Valuesque) {
+    set(value: Valuesque): void {
         $.scope?.push({
             type: "Set",
             target: this.id,
             value: toScratchValue(value)
         })
+    }
+
+    slice(from: Valuesque, to: Valuesque): Str {
+        const n = Str.literal(""); // no optimisations
+        for$(new Num(), v => v.set(from), v => lt(v, to), v => v.change(1), v => {
+            n.set(join(n, letterOf(v, this)));
+        })
+        return n;
+    }
+
+    static literal(s: string): Str {
+        const st = new Str();
+        st.set(s);
+        return st;
     }
 }
 export class Argument implements SingleValue, Serializable {
