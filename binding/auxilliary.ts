@@ -1,5 +1,5 @@
 import type { IlValue, IlNode } from "../ir/types.ts";
-import { abs, add, DataClass, type DataclassOutput, div, eq, if$, IlWrapper, mul, not, Num, type Serializable, sqrt, sub, trig, type Valuesque, type Variable } from "./bindings.ts";
+import { abs, add, DataClass, type DataclassOutput, div, eq, if$, type IlWrapper, mul, not, Num, type Serializable, sqrt, sub, trig, type Valuesque, type Variable } from "./bindings.ts";
 
 class Vec2Raw {
     x: Num;

@@ -13,6 +13,7 @@ import { Optimizer, type OptimizerOptions } from "../ir/optimizer.ts";
 
 export type BuildOptions = {
     resourceFolder: string,
+    outputFileName: string,
     logBuildInfo?: boolean,
     dumpProjectJson?: string | null,
     dumpBC?: string | null,
@@ -72,5 +73,5 @@ export async function build(options: BuildOptions) {
     // Retrieves the Blob object containing the zip content into `zipFileBlob`. It
     // is also returned by zipWriter.close() for more convenience.
     const zipFileBlob = await zipFileWriter.getData();
-    await Deno.writeFile("out.sb3", await zipFileBlob.bytes())
+    await Deno.writeFile(options.outputFileName, await zipFileBlob.bytes())
 }
