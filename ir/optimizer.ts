@@ -51,92 +51,83 @@ export class Optimizer {
      *  say 1 + 1
      */
     redundantOperationPass(): void {
-        for (const label of this.labels) {
-            if (label.type !== "Label") continue;
-            const [_id, nodes] = label.value;
-            for (const node of nodes) {
-                for (const k in node) {
-                    const K = k as keyof typeof node;
-                    if (isObjectProbablyIlValue(node[K])) {
-                        (node[K] as any) = this.cloneValue(node[K], {
-                            BinaryOperation: (v) => {
-                                if (v.key !== "BinaryOperation") return v;
-                                if (v.oper === "Mul") {
-                                    if (v.left.key === "Float" && v.right.key === "Float") return {
-                                        key: "Float",
-                                        value: v.left.value * v.right.value
-                                    }
-                                    if (v.left.key === "Float" && v.left.value === 1) return v.right;
-                                    if (v.right.key === "Float" && v.right.value === 1) return v.left;
-                                    if (v.left.key === "Float" && v.left.value === 0) return v.left;
-                                    if (v.right.key === "Float" && v.right.value === 0) return v.right;
-                                }
-                                if (v.oper === "Div") {
-                                    if (v.left.key === "Float" && v.right.key === "Float") return {
-                                        key: "Float",
-                                        value: v.left.value / v.right.value
-                                    }
-                                    if (v.left.key === "Float" && v.left.value === 1) return v.right;
-                                    if (v.right.key === "Float" && v.right.value === 1) return v.left;
-                                }
-                                if (v.oper === "Add") {
-                                    if (v.left.key === "Float" && v.right.key === "Float") return {
-                                        key: "Float",
-                                        value: v.left.value + v.right.value
-                                    }
-                                    if (v.left.key === "Float" && v.left.value === 0) return v.right;
-                                    if (v.right.key === "Float" && v.right.value === 0) return v.left;
-                                }
-                                if (v.oper === "Sub") {
-                                    if (v.left.key === "Float" && v.right.key === "Float") return {
-                                        key: "Float",
-                                        value: v.left.value - v.right.value
-                                    }
-                                    if (v.left.key === "Float" && v.left.value === 0) return v.right;
-                                    if (v.right.key === "Float" && v.right.value === 0) return v.left;
-                                }
-                                if (v.oper === "Eq") {
-                                    if (v.left.key === "Float" && v.right.key === "Float") 
-                                        return {
-                                            key: "Bool",
-                                            value: v.left.value === v.right.value
-                                        };
-                                }
-                                if (v.oper === "Or") {
-                                    if (v.left.key === "Bool")
-                                        if (v.left.value)
-                                            return {
-                                                key: "Bool",
-                                                value: true
-                                            }
-                                        else return v.right
-                                    if (v.right.key === "Bool")
-                                        if (v.right.value)
-                                            return {
-                                                key: "Bool",
-                                                value: true
-                                            }
-                                        else return v.left
-                                }
-                                if (v.oper === "And") {
-                                    if (v.left.key === "Bool" && v.left.value === false)
-                                        return {
-                                            key: "Bool",
-                                            value: false
-                                        }
-                                    if (v.right.key === "Bool" && v.right.value === false)
-                                        return {
-                                            key: "Bool",
-                                            value: false
-                                        }
-                                }
-                                return v;
-                            }
-                        })
+        this.replaceValueUsage(v => {
+            return this.cloneValue(v, {
+                BinaryOperation: (v) => {
+                    if (v.key !== "BinaryOperation") return v;
+                    if (v.oper === "Mul") {
+                        if (v.left.key === "Float" && v.right.key === "Float") return {
+                            key: "Float",
+                            value: v.left.value * v.right.value
+                        }
+                        if (v.left.key === "Float" && v.left.value === 1) return v.right;
+                        if (v.right.key === "Float" && v.right.value === 1) return v.left;
+                        if (v.left.key === "Float" && v.left.value === 0) return v.left;
+                        if (v.right.key === "Float" && v.right.value === 0) return v.right;
                     }
+                    if (v.oper === "Div") {
+                        if (v.left.key === "Float" && v.right.key === "Float") return {
+                            key: "Float",
+                            value: v.left.value / v.right.value
+                        }
+                        if (v.left.key === "Float" && v.left.value === 1) return v.right;
+                        if (v.right.key === "Float" && v.right.value === 1) return v.left;
+                    }
+                    if (v.oper === "Add") {
+                        if (v.left.key === "Float" && v.right.key === "Float") return {
+                            key: "Float",
+                            value: v.left.value + v.right.value
+                        }
+                        if (v.left.key === "Float" && v.left.value === 0) return v.right;
+                        if (v.right.key === "Float" && v.right.value === 0) return v.left;
+                    }
+                    if (v.oper === "Sub") {
+                        if (v.left.key === "Float" && v.right.key === "Float") return {
+                            key: "Float",
+                            value: v.left.value - v.right.value
+                        }
+                        if (v.left.key === "Float" && v.left.value === 0) return v.right;
+                        if (v.right.key === "Float" && v.right.value === 0) return v.left;
+                    }
+                    if (v.oper === "Eq") {
+                        if (v.left.key === "Float" && v.right.key === "Float") 
+                            return {
+                                key: "Bool",
+                                value: v.left.value === v.right.value
+                            };
+                    }
+                    if (v.oper === "Or") {
+                        if (v.left.key === "Bool")
+                            if (v.left.value)
+                                return {
+                                    key: "Bool",
+                                    value: true
+                                }
+                            else return v.right
+                        if (v.right.key === "Bool")
+                            if (v.right.value)
+                                return {
+                                    key: "Bool",
+                                    value: true
+                                }
+                            else return v.left
+                    }
+                    if (v.oper === "And") {
+                        if (v.left.key === "Bool" && v.left.value === false)
+                            return {
+                                key: "Bool",
+                                value: false
+                            }
+                        if (v.right.key === "Bool" && v.right.value === false)
+                            return {
+                                key: "Bool",
+                                value: false
+                            }
+                    }
+                    return v;
                 }
-            }
-        }
+            })
+        })
     }
     /**
      * Checks for situations such as:
@@ -173,10 +164,10 @@ export class Optimizer {
             this.variableReplacements.set(k, v.definitions[0])
         }
         for (const [k, v] of this.variableReplacements) {
-            this.variableReplacements.set(
-                k,
-                this.replaceVariableUsageInValue(v, this.variableReplacements)
-            )
+            // this.variableReplacements.set(
+            //     k,
+            //     this.replaceVariableUsageInValue(v, this.variableReplacements)
+            // )
         }
         this.replaceVariableAllUsage(this.variableReplacements);
         for (const [k, _v] of this.variableReplacements) {
@@ -240,18 +231,12 @@ export class Optimizer {
 
     countVariableUsage(): Map<string, number> {
         const map = new Map<string, number>();
-        for (const label of this.labels) {
-            if (label.type !== "Label") continue;
-            const [_id, nodes] = label.value;
-            for (const node of nodes) {
-                for (const k in node) {
-                    const v = node[k as keyof typeof node];
-                    if (isObjectProbablyIlValue(v)) {
-                        this.countVariableUsageInValues(v, map);
-                    }
-                }
+        this.replaceValueUsage(v => {
+            if (isObjectProbablyIlValue(v)) {
+                this.countVariableUsageInValues(v, map);
             }
-        }
+            return v;
+        })
         return map;
     }
 
@@ -317,6 +302,9 @@ export class Optimizer {
 
 
     replaceVariableAllUsage(map: Map<string, IlValue>) {
+        this.replaceValueUsage(v => this.replaceVariableUsageInValue(v, map))
+    }
+    replaceValueUsage(value: (v: IlValue) => IlValue) {
         for (const label of this.labels) {
             if (label.type !== "Label") continue;
             const [_id, nodes] = label.value;
@@ -324,12 +312,21 @@ export class Optimizer {
                 for (const k in node) {
                     const K = k as keyof typeof node;
                     if (isObjectProbablyIlValue(node[K])) {
-                        (node[K] as any) = this.replaceVariableUsageInValue(node[K], map)
+                        (node[K] as any) = value(node[K])
+                    }
+                }
+                if (node.type === "ListOper") {
+                    for (const k in node.oper) {
+                        const K = k as keyof typeof node.oper;
+                        if (isObjectProbablyIlValue(node.oper[K])) {
+                            (node.oper[K] as any) = value(node.oper[K])
+                        }
                     }
                 }
             }
         }
     }
+
     replaceVariableUsageInValue(value: IlValue, map: Map<string, IlValue>): IlValue {
         return this.cloneValue(value, {
             Variable: (v) => {
@@ -370,64 +367,66 @@ export class Optimizer {
                 })
             }
             case "DropOperation": {
-                return {
+                const c = cb["DropOperation"] ?? (k => k);
+                return c({
                     key: "DropOperation",
                     oper: value.oper,
                     value: this.cloneValue(value.value, cb)
-                }
+                })
             }
             case "SensingOperation": {
+                const c = cb["SensingOperation"] ?? (k => k);
                 switch (value.oper.type) {
                     case "TouchingObject": 
-                        return {
+                        return c({
                             key: "SensingOperation",
                             oper: {
                                 type: "TouchingObject",
                                 target: this.cloneValue(value.oper.target, cb)
                             }
-                        }
+                        })
                     case "TouchingColor":
-                        return {
+                        return c({
                             key: "SensingOperation",
                             oper: {
                                 type: "TouchingColor",
                                 color: this.cloneValue(value.oper.color, cb)
                             }
-                        }
+                        })
                     case "ColorIsTouchingColor":
-                        return {
+                        return c({
                             key: "SensingOperation",
                             oper: {
                                 type: "ColorIsTouchingColor",
                                 color1: this.cloneValue(value.oper.color1, cb),
                                 color2: this.cloneValue(value.oper.color2, cb)
                             }
-                        }
+                        })
                     case "DistanceTo":
-                        return {
+                        return c({
                             key: "SensingOperation",
                             oper: {
                                 type: "DistanceTo",
                                 target: this.cloneValue(value.oper.target, cb),
                             }
-                        }
+                        })
                     case "KeyPressed":
-                        return {
+                        return c({
                             key: "SensingOperation",
                             oper: {
                                 type: "KeyPressed",
                                 key: this.cloneValue(value.oper.key, cb),
                             }
-                        }
+                        })
                     case "Of":
-                        return {
+                        return c({
                             key: "SensingOperation",
                             oper: {
                                 type: "Of",
                                 object: this.cloneValue(value.oper.object, cb),
                                 property: value.oper.property
                             }
-                        }
+                        })
                     case "Current":
                     case "DaysSince2000":
                     case "Username":
@@ -436,7 +435,7 @@ export class Optimizer {
                     case "MouseY":
                     case "Loudness":
                     case "Timer":
-                        return value;
+                        return c(value);
                 }
             } break;
             case "Builtin":
