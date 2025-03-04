@@ -17,6 +17,7 @@ export type BuildOptions = {
     logBuildInfo?: boolean,
     dumpProjectJson?: string | null,
     dumpBC?: string | null,
+    watch: boolean,
     optimizerFlags?: Partial<OptimizerOptions>
 };
 export async function build(options: BuildOptions) {

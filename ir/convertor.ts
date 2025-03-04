@@ -5,11 +5,12 @@ import * as path from "@std/path";
 
 // @deno-types="npm:@types/node-wav@0.0.3"
 import WavDecoder from "npm:wav-decoder@1.3.0";
-
 import { Buffer } from "node:buffer"
-
 import { type BinaryOperation, type Block, type Broadcasts, type BuiltinValue, type Comments, type DropOperation, type FileFormat, type IlNode, type IlValue, IlValueIsLiteral, type Lists, type Meta, Project, type ScratchArgumentType, type Target, type UnaryOperation } from "./types.ts";
 export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
+
+export class ConvertorError extends Error {}
+
 export class Convertor {
     variable_map: Map<string, string>;
     broadcasts: Map<string, string>;
@@ -155,7 +156,7 @@ export class Convertor {
                     const spr_name = this.sprites.get(sprite);
                     if (spr_name === undefined) {
                         this.logger.error(`No sprite with id: ${sprite}`);
-                        Deno.exit(1);
+                        throw new ConvertorError();
                     }
 
                     {
@@ -231,7 +232,7 @@ export class Convertor {
                 const lb = this.labelConversions.get(label);
                 if (lb === undefined) {
                     this.logger.error(`no label called ${label}`);
-                    Deno.exit(1);
+                    throw new ConvertorError();
                 }
 
                 for (const [k, v] of lb) {
@@ -278,7 +279,7 @@ export class Convertor {
                             name,
                             this.broadcasts.has(name) ? this.broadcasts.get(name) : (() => {
                                 this.logger.error(`No broadcast called: ${name}`);
-                                Deno.exit(1);
+                                throw new ConvertorError();
                             })()
                         ]
                     },
@@ -476,7 +477,7 @@ export class Convertor {
                 const f = this.functions.get(func);
                 if (f === undefined) {
                     this.logger.error(`Unknown function ${func}`);
-                    Deno.exit(1);
+                    throw new ConvertorError();
                 }
                 const typeShit = `${func}:${number}`;
                 const sprite = this.sprites.get(spr)!;
@@ -859,7 +860,7 @@ export class Convertor {
         if (!heads.has(0)) {
             this.logger.error(`Label ${name} is empty!`);
             this.logger.error("Cannot convert empty label!");
-            Deno.exit(1);
+            throw new ConvertorError();
         }
         this.labelHeads.set(name, heads.get(0)!);
         for (const [i, _] of nodes.entries()) {
@@ -1550,7 +1551,7 @@ export class Convertor {
                 const { target } = node;
                 if (!this.sprites.has(target)) {
                     this.logger.error("no sprite called " + target);
-                    Deno.exit(1);
+                    throw new ConvertorError();
                 }
                 const id = this.reserveBC();
                 const menu = this.reserveBC();
@@ -1625,7 +1626,7 @@ export class Convertor {
                 const listMap = this.list_map.get(list);
                 if (listMap === undefined) {
                     this.logger.error(`List ${list} doesn't exist!`);
-                    Deno.exit(1);
+                    throw new ConvertorError();
                 };
                 add({
                     opcode: (() => {
@@ -1727,12 +1728,12 @@ export class Convertor {
                 const func = this.functions.get(id);
                 if (func === undefined) {
                     this.logger.error(`No function named: ${id}`);
-                    Deno.exit(1);
+                    throw new ConvertorError();
                 }
                 if (func.args.length !== argAmount) {
                     this.logger.error("Mismatching argument count");
                     this.logger.error(`Expected ${argAmount} arguments, got ${func.args.length}`);
-                    Deno.exit(1);
+                    throw new ConvertorError();
                 }
                 const argumentIds = JSON.stringify(func.args.entries().map(([i, _]) => MD5(`${id}:${i + 1}`)).toArray());
                 const inputs = new Map();
@@ -1892,7 +1893,7 @@ export class Convertor {
         const stat = this.labels.find(a => a.type === "Label" && a.value[0] === "stat") as Extract<IlNode, { type: "Label" }> | undefined;
         if (stat === undefined) {
             this.logger.error("No stat label found");
-            Deno.exit(1);
+            throw new ConvertorError();
         }
         const field = stat.value[1];
         for (const node of field) {
@@ -1976,7 +1977,7 @@ export class Convertor {
                     const sprite = this.sprites.get(id);
                     if (sprite === undefined) {
                         this.logger.error(`No sprite with id: ${id}`);
-                        Deno.exit(1);
+                        throw new ConvertorError();
                     }
                     const target = this.project.targets.find(a => a.name === sprite.name)!;
                     const fmt = format.toLowerCase();
@@ -1985,7 +1986,7 @@ export class Convertor {
                     sprite.costume_paths.push([targetPath, format]);
                     if (fr === undefined) {
                         this.logger.error(`Couldn't find file ${file}`);
-                        Deno.exit(1);
+                        throw new ConvertorError();
                     }
                     const m = MD5(Array.from(fr).map(a => String.fromCharCode(a)).join(""));
                     target.costumes.push({
@@ -2003,7 +2004,7 @@ export class Convertor {
                     const sprite = this.sprites.get(id);
                     if (sprite === undefined) {
                         this.logger.error(`No sound with id: ${id}`);
-                        Deno.exit(1);
+                        throw new ConvertorError();
                     }
                     const target = this.project.targets.find(a => a.name === sprite.name)!;
                     const fmt = format.toLowerCase();
@@ -2012,7 +2013,7 @@ export class Convertor {
                     sprite.sound_paths.push([targetPath, format]);
                     if (fr === undefined) {
                         this.logger.error(`Couldn't find file ${file}`);
-                        Deno.exit(1);
+                        throw new ConvertorError();
                     }
                     let rate = 0;
                     let sampleCount = 0;
@@ -2025,7 +2026,7 @@ export class Convertor {
                         this.logger.error("currently unsupported because i(x5ilky) for the love of god cannot figure out how to parse a mp3 header in deno");
                         this.logger.error("when i find a library for this ill add support for mp3's");
                         this.logger.error("for now, just convert your mp3's to wav's with ffmpeg/audacity");
-                        Deno.exit(1);
+                        throw new ConvertorError();
                     }
 
                     // if (rate !== 48000) {
