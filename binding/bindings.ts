@@ -510,6 +510,18 @@ export class List<T extends new () => Serializable & Variable> {
         }
         return v as InstanceType<T>;
     }
+
+    foreach(cb: (elem: InstanceType<T>, i: Num) => void): void {
+        const i = new Num();
+        i.set(0);
+        repeat$(this.length(), () => {
+            const w = this.nth(i);
+            if$(eq(1, 1), () => {
+                cb(w, i);
+            })
+            i.change(1);
+        })
+    }
 }
 
 export type DataclassOutput<T> = T & { new (...args: any[]): Serializable & Variable }

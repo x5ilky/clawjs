@@ -9,6 +9,12 @@ import { Buffer } from "node:buffer"
 import { type BinaryOperation, type Block, type Broadcasts, type BuiltinValue, type Comments, type DropOperation, type FileFormat, type IlNode, type IlValue, IlValueIsLiteral, type Lists, type Meta, Project, type ScratchArgumentType, type Target, type UnaryOperation } from "./types.ts";
 export const FORBIDDEN_VARIABLE_NAME_PREFIX = "FORBIDDEN_RETURN_VALUE_PREFIX_";
 
+export type ConvertorOptions = {
+    resourcesFolderPath: string,
+    warnOnEmptyLabels: boolean,
+    logger: Logger
+}
+
 export class ConvertorError extends Error {}
 
 export class Convertor {
@@ -23,14 +29,14 @@ export class Convertor {
     labels: Array<IlNode>;
     labelConversions: Map<string, Map<string, Block>>;
     labelHeads: Map<string, string>;
-    options: LogOptions;
+    logOptions: LogOptions;
 
     blockCounter: number;
 
     functionArgsMaps: Map<string, string>;
-    resourceFolder: string;
+    logger: Logger;
 
-    constructor(labels: IlNode[], resourcesFolderPath: string, public logger: Logger) {
+    constructor(labels: IlNode[], private options: ConvertorOptions) {
         this.variable_map = new Map()
         this.list_map = new Map()
         this.broadcasts = new Map()
@@ -55,22 +61,22 @@ export class Convertor {
         this.labelConversions = new Map()
         this.labelHeads = new Map()
         this.functionArgsMaps = new Map()
-        this.options = {
+        this.logOptions = {
             print_variable_hashes: false,
             print_variables: false
         }
-        this.blockCounter = 0
-        this.resourceFolder = resourcesFolderPath
+        this.blockCounter = 0;
+        this.logger = options.logger;
     }
 
     public create(): Project {
         this.gatherValues();
 
-        if (this.options.print_variables) {
+        if (this.logOptions.print_variables) {
             this.logger.info(this.variables);
         }
         this.generateVariableHashes();
-        if (this.options.print_variable_hashes) {
+        if (this.logOptions.print_variable_hashes) {
             this.logger.info(this.variable_map);
         }
         this.insertFunctions();
@@ -79,7 +85,7 @@ export class Convertor {
         for (const label of this.labels) {
             if (label.type === "Label") {
                 if (label.value[0] === "stat") continue;
-                if (!this.labelConversions.has(label.value[0])) {
+                if (this.options.warnOnEmptyLabels && !this.labelConversions.has(label.value[0])) {
                     this.logger.warn(`Label: ${label.value[0]} is unused! Please consider removing this label`);
                 }
             }
@@ -1981,7 +1987,7 @@ export class Convertor {
                     }
                     const target = this.project.targets.find(a => a.name === sprite.name)!;
                     const fmt = format.toLowerCase();
-                    const targetPath = path.join(this.resourceFolder, file);
+                    const targetPath = path.join(this.options.resourcesFolderPath, file);
                     const fr = Deno.readFileSync(targetPath);
                     sprite.costume_paths.push([targetPath, format]);
                     if (fr === undefined) {
@@ -2008,7 +2014,7 @@ export class Convertor {
                     }
                     const target = this.project.targets.find(a => a.name === sprite.name)!;
                     const fmt = format.toLowerCase();
-                    const targetPath = path.join(this.resourceFolder, file);
+                    const targetPath = path.join(this.options.resourcesFolderPath, file);
                     const fr = Deno.readFileSync(targetPath);
                     sprite.sound_paths.push([targetPath, format]);
                     if (fr === undefined) {

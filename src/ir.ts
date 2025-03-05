@@ -23,7 +23,11 @@ export async function irBuild(cmd: skap.SkapInfer<typeof shape>) {
         await Deno.writeTextFile(subc.debugEmitParsedIr, JSON.stringify(nodes));
     }
     logger.info("Converting");
-    const convertor = new Convertor(nodes, subc.resourcesFolder ?? "", logger)
+    const convertor = new Convertor(nodes, {
+        resourcesFolderPath: subc.resourcesFolder ?? "", 
+        logger,
+        warnOnEmptyLabels: true
+    })
     const project = convertor.create();
     
     logger.info("Creating sb3...");

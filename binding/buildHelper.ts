@@ -10,6 +10,7 @@ import { logger } from "../src/main.ts";
 import { MD5 } from "../external/md5.js";
 import { $, stage } from "./bindings.ts";
 import { Optimizer, type OptimizerOptions } from "../ir/optimizer.ts";
+import * as path from "@std/path"
 
 export type BuildOptions = {
     resourceFolder: string,
@@ -17,10 +18,41 @@ export type BuildOptions = {
     logBuildInfo?: boolean,
     dumpProjectJson?: string | null,
     dumpBC?: string | null,
-    optimizerFlags?: Partial<OptimizerOptions>
+    optimizerFlags?: Partial<OptimizerOptions>,
+    openFile?: boolean
 };
 export async function build(options: BuildOptions) {
     await buildSingle(options) 
+    if (options.openFile) {
+        const checkPaths = [];
+        if (Deno.build.os === 'windows') {
+            const LOCALAPPDATA = Deno.env.get("LOCALAPPDATA");
+            if (LOCALAPPDATA) {
+                checkPaths.push(
+                    path.join(LOCALAPPDATA, `Programs`, `Turbowarp`),
+                    path.join(LOCALAPPDATA.replace(/^C/, "D"), `Programs`, `Turbowarp`),
+                )
+            }
+            for (const p of checkPaths) {
+                try {
+                    const fl = path.join(p, `Turbowarp.exe`);
+                    await Deno.stat(fl);
+                    const command = new Deno.Command(fl, {
+                        args: [options.outputFileName]
+                    });
+                    command.spawn();
+                    break;
+                } catch (e) {
+                    if (e instanceof Deno.errors.NotFound) {
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+        } else {
+            throw new Error(`Auto-open is only implemented on windows`)
+        }
+    }
 }
 
 async function buildSingle(options: BuildOptions) {
@@ -39,7 +71,11 @@ async function buildSingle(options: BuildOptions) {
 
     if (options.logBuildInfo) logger.info(`${$.labels.length} labels`)
     if (options.logBuildInfo) logger.start(LogLevel.INFO, "converting") 
-    const convertor = new Convertor(labelData, options.resourceFolder, logger);
+    const convertor = new Convertor(labelData, {
+        resourcesFolderPath: options.resourceFolder, 
+        logger,
+        warnOnEmptyLabels: false
+    });
     const project = convertor.create()
     if (typeof options.dumpProjectJson === "string") {
         Deno.writeTextFileSync(options.dumpProjectJson, project.toJsonStringified());
@@ -78,4 +114,5 @@ async function buildSingle(options: BuildOptions) {
     // is also returned by zipWriter.close() for more convenience.
     const zipFileBlob = await zipFileWriter.getData();
     await Deno.writeFile(options.outputFileName, await zipFileBlob.bytes())
+    logger.info(`Written to ${path.normalize(options.outputFileName)}`)
 }

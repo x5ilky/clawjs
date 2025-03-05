@@ -1,3 +1,18 @@
+/**
+ * @module
+ * Module for helpful functions, classes and dataclasses that 
+ * don't have a direct translation to scratch.
+ * 
+ * @example
+ * ```ts
+ * import { Vec2 } from "claw"
+ * 
+ * const v = new Vec2()
+ * v.x.set(0)
+ * v.y.set(1) 
+ * ```
+ */
+
 // deno-lint-ignore-file no-explicit-any
 import type { IlValue, IlNode } from "../ir/types.ts";
 import { abs, add, and, DataClass, type DataclassOutput, div, eq, gt, gte, if$, type IlWrapper, join, log, lt, lte, mod, mul, not, Num, or, say, type Serializable, sqrt, stop, Str, sub, tenpower, trig, type Valuesque, type Variable, warp } from "./bindings.ts";
@@ -110,7 +125,7 @@ class Vec2Raw {
 /**
  * ## Runtime `Vector2` type in scratch
  * 
- * Examples:
+ * @example
  * ```ts
  * const v = new Vec2();
  * v.x.set(0)
@@ -127,7 +142,7 @@ export type Vec2 = InstanceType<typeof Vec2>;
  * ## Fixed List
  * Equivalent to something like `int foo[5];` in C;
  * 
- * Examples:
+ * @example
  * ```ts
  * const ns = new FixedList(Num, 5)
  * // creates 5 Num's under the hood, no lists
@@ -180,7 +195,19 @@ export class FixedList<T extends new () => Serializable & Variable, Size extends
     }
 }
 
+/**
+ * Literal `max` function 
+ * @param a 
+ * @param b 
+ * @returns Max of the two numbers using only arithmetic
+ */
 export const litMax: (a: Valuesque, b: Valuesque) => IlWrapper = (a: Valuesque, b: Valuesque) => div(add(add(a, b), abs(sub(a, b))), 2)
+/**
+ * Literal `min` function 
+ * @param a 
+ * @param b 
+ * @returns Min of the two numbers using only arithmetic
+ */
 export const litMin: (a: Valuesque, b: Valuesque) => IlWrapper = (a: Valuesque, b: Valuesque) => div(sub(add(a, b), abs(sub(a, b))), 2)
 const panicVariable = new Str();
 const panicInner = warp([Str], (message) => {
@@ -188,11 +215,33 @@ const panicInner = warp([Str], (message) => {
   say(panicVariable);
   stop("OtherScripts")
 })
+/**
+ * Quits the scratch program and outputs an error message 
+ * @param message Panic message
+ */
 export function panic(message: string): void {
   panicInner(Str.literal(message));
 }
 export const sign: (x: Valuesque) => IlWrapper = (x: Valuesque) => mul(not(eq(x, 0)), div(x, abs(x)));
+/**
+ * Power (exponent) function
+ * @param base Base (cannot be negative)
+ * @param exponent Exponent
+ * @returns `base`^`exponent`
+ */
 export const pow: (base: Valuesque, exponent: Valuesque) => IlWrapper = (base: Valuesque, exponent: Valuesque) => (tenpower(mul(exponent, log(abs(base)))));
+
+/**
+ * **Op**erator shorthand
+ * 
+ * @example
+ * ```ts
+ * const a = new Num();
+ * a.set(op`${a} + 5`); // instead of add(a, 5)
+ * a.set(op`${a} ^ 7 + 3`); // operator precedence *is* implemented
+ * ```
+ * @returns Shorthand for operations
+ */
 export function op(values: TemplateStringsArray, ...rest: Valuesque[]): Valuesque {
   let toParsed = "";
   const vMap = new Map();
