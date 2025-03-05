@@ -10,7 +10,6 @@ import { logger } from "../src/main.ts";
 import { MD5 } from "../external/md5.js";
 import { $, stage } from "./bindings.ts";
 import { Optimizer, type OptimizerOptions } from "../ir/optimizer.ts";
-import * as path from "@std/path"
 
 export type BuildOptions = {
     resourceFolder: string,
@@ -18,39 +17,10 @@ export type BuildOptions = {
     logBuildInfo?: boolean,
     dumpProjectJson?: string | null,
     dumpBC?: string | null,
-    watch?: boolean,
-    watchIgnoreGlobs?: string[],
     optimizerFlags?: Partial<OptimizerOptions>
 };
 export async function build(options: BuildOptions) {
-    if (options.watch) {
-        const watcher = Deno.watchFs(Deno.cwd());
-        try {
-            await buildSingle(options);
-        } catch (e) {
-            logger.error("Failed to build: " + e);
-        }
-        let delay = Date.now();
-        for await (const event of watcher) {
-            if (Date.now() - delay < 100) continue;
-            if (
-                event.kind === "modify" && 
-                !event.paths.some(a => a.endsWith(options.outputFileName)) && 
-                !(options.watchIgnoreGlobs ?? []).some(a => path.globToRegExp(a).test(event.paths[0]))) {
-                
-                logger.info(`File ${event.paths[0]} changed, rebuilding...`)
-                try {
-                    await buildSingle(options);
-                } catch (e) {
-                    logger.error("Failed to build: " + e);
-                }
-                delay = Date.now();
-            }
-        }
-        watcher.close()
-    } else {
-        buildSingle(options) 
-    }
+    await buildSingle(options) 
 }
 
 async function buildSingle(options: BuildOptions) {
