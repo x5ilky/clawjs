@@ -164,10 +164,10 @@ export class Optimizer {
             this.variableReplacements.set(k, v.definitions[0])
         }
         for (const [k, v] of this.variableReplacements) {
-            // this.variableReplacements.set(
-            //     k,
-            //     this.replaceVariableUsageInValue(v, this.variableReplacements)
-            // )
+            this.variableReplacements.set(
+                k,
+                this.replaceVariableUsageInValue(v, this.variableReplacements)
+            )
         }
         this.replaceVariableAllUsage(this.variableReplacements);
         for (const [k, _v] of this.variableReplacements) {
@@ -322,6 +322,9 @@ export class Optimizer {
                             (node.oper[K] as any) = value(node.oper[K])
                         }
                     }
+                }
+                if (node.type === "Run") {
+                    node.args = node.args.map(a => value(a));
                 }
             }
         }

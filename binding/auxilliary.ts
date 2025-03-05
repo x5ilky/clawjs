@@ -1,5 +1,5 @@
 import type { IlValue, IlNode } from "../ir/types.ts";
-import { abs, add, DataClass, type DataclassOutput, div, eq, if$, type IlWrapper, mul, not, Num, type Serializable, sqrt, sub, trig, type Valuesque, type Variable } from "./bindings.ts";
+import { abs, add, DataClass, type DataclassOutput, div, eq, if$, type IlWrapper, join, mul, not, Num, say, type Serializable, sqrt, stop, Str, sub, trig, type Valuesque, type Variable, warp } from "./bindings.ts";
 
 class Vec2Raw {
     x: Num;
@@ -181,3 +181,13 @@ export class FixedList<T extends new () => Serializable & Variable, Size extends
 
 export const litMax: (a: Valuesque, b: Valuesque) => IlWrapper = (a: Valuesque, b: Valuesque) => div(add(add(a, b), abs(sub(a, b))), 2)
 export const litMin: (a: Valuesque, b: Valuesque) => IlWrapper = (a: Valuesque, b: Valuesque) => div(sub(add(a, b), abs(sub(a, b))), 2)
+const panicVariable = new Str();
+const panicInner = warp([Str], (message) => {
+  panicVariable.set(join(message, ", at:" + new Error().stack));
+  say(panicVariable);
+  stop("OtherScripts")
+})
+export function panic(message: string): void {
+  panicInner(Str.literal(message));
+}
+export const sign: (x: Valuesque) => IlWrapper = (x: Valuesque) => mul(not(eq(x, 0)), div(x, abs(x)));
