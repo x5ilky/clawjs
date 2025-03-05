@@ -197,13 +197,12 @@ export function op(values: TemplateStringsArray, ...rest: Valuesque[]): Valuesqu
   let toParsed = "";
   const vMap = new Map();
   let inc = 0;
-  for (const v of values) {
-    if (v === "") {
-      const v = `v${inc}`;
-      vMap.set(v, rest[inc++]);
-      toParsed += v;
-    } else {
-      toParsed += v;
+  for (const [v, r] of values.map((a, i) => [a, rest[i]])) {
+    toParsed += v;
+    if (r) {
+      const va = `v${inc}`;
+      vMap.set(va, rest[inc++]);
+      toParsed += va;
     }
   }
   toParsed = toParsed.replace(/&&/g, " and ");
@@ -211,7 +210,6 @@ export function op(values: TemplateStringsArray, ...rest: Valuesque[]): Valuesqu
   toParsed = toParsed.replace(/!=/g, "notequal");
   toParsed = toParsed.replace(/!/g, " not ");
   toParsed = toParsed.replace(/notequal/g, " != ");
-  console.log(toParsed)
   const parsed = mathjs.parse(toParsed);
   const expor = function (n: mathjs.MathNode): Valuesque {
     switch (n.type) {
