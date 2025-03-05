@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import type { IlValue, IlNode } from "../ir/types.ts";
 import { abs, add, and, DataClass, type DataclassOutput, div, eq, gt, gte, if$, type IlWrapper, join, log, lt, lte, mod, mul, not, Num, or, say, type Serializable, sqrt, stop, Str, sub, tenpower, trig, type Valuesque, type Variable, warp } from "./bindings.ts";
-import * as mathjs from "npm:mathjs";
+import * as mathjs from "mathjs";
 class Vec2Raw {
     x: Num;
     y: Num;
