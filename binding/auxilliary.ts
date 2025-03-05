@@ -1,6 +1,7 @@
+// deno-lint-ignore-file no-explicit-any
 import type { IlValue, IlNode } from "../ir/types.ts";
-import { abs, add, DataClass, type DataclassOutput, div, eq, if$, type IlWrapper, join, mul, not, Num, say, type Serializable, sqrt, stop, Str, sub, trig, type Valuesque, type Variable, warp } from "./bindings.ts";
-
+import { abs, add, and, DataClass, type DataclassOutput, div, eq, gt, gte, if$, type IlWrapper, join, log, lt, lte, mod, mul, not, Num, or, say, type Serializable, sqrt, stop, Str, sub, tenpower, trig, type Valuesque, type Variable, warp } from "./bindings.ts";
+import * as mathjs from "npm:mathjs";
 class Vec2Raw {
     x: Num;
     y: Num;
@@ -191,3 +192,72 @@ export function panic(message: string): void {
   panicInner(Str.literal(message));
 }
 export const sign: (x: Valuesque) => IlWrapper = (x: Valuesque) => mul(not(eq(x, 0)), div(x, abs(x)));
+export const pow: (base: Valuesque, exponent: Valuesque) => IlWrapper = (base: Valuesque, exponent: Valuesque) => (tenpower(mul(exponent, log(abs(base)))));
+export function op(values: TemplateStringsArray, ...rest: Valuesque[]): Valuesque {
+  let toParsed = "";
+  const vMap = new Map();
+  let inc = 0;
+  for (const v of values) {
+    if (v === "") {
+      const v = `v${inc}`;
+      vMap.set(v, rest[inc++]);
+      toParsed += v;
+    } else {
+      toParsed += v;
+    }
+  }
+  toParsed = toParsed.replace(/&&/g, " and ");
+  toParsed = toParsed.replace(/\|\|/g, " or ");
+  toParsed = toParsed.replace(/!=/g, "notequal");
+  toParsed = toParsed.replace(/!/g, " not ");
+  toParsed = toParsed.replace(/notequal/g, " != ");
+  console.log(toParsed)
+  const parsed = mathjs.parse(toParsed);
+  const expor = function (n: mathjs.MathNode): Valuesque {
+    switch (n.type) {
+      case "OperatorNode": {
+        const node = n as mathjs.OperatorNode;
+        const map = {
+          "divide": div,
+          "multiply": mul,
+          "add": add,
+          "subtract": sub,
+          "and": and,
+          "or": or,
+          "not": not,
+          "largerEq": gte,
+          "smallerEq": lte,
+          "larger": gt,
+          "smaller": lt,
+          "pow": pow,
+          "equal": eq,
+          "unequal": (a: Valuesque, b: Valuesque) => not(eq(a, b)),
+          "unaryMinus": (a: Valuesque) => mul(a, -1),
+          "unaryPlus": (a: Valuesque) => a,
+          "mod": mod
+        };
+        console.log(node.fn);
+        const args = node.args.map(a => expor(a));
+        return (map[node.fn as keyof typeof map] as any)(...args);
+      }
+      case "ParenthesisNode": {
+        const node = n as mathjs.ParenthesisNode;
+        return expor(node.content)
+      }
+      case "SymbolNode": {
+        const node = n as mathjs.SymbolNode;
+        return vMap.get(node.name)!;
+      }
+      case "BlockNode": {
+        const node = n as mathjs.BlockNode;
+        return node.blocks.map(a => expor(a.node))[0]
+      }
+      case "ConstantNode": {
+        const node = n as mathjs.ConstantNode;
+        return typeof node.value === "number" ? node.value : typeof node.value === "string" ? vMap.get(node.value)! : node.value;
+      }
+      default: throw "unknown: " + n.type
+    }
+  }
+  return expor(parsed)
+}
