@@ -241,7 +241,7 @@ export interface Meta {
 
 export type IlNode =
   | { type: "Label"; value: [string, IlNode[]] }
-  | { type: "CreateVar"; name: string }
+  | { type: "CreateVar"; name: string, nooptimize: boolean }
   | { type: "CreateList"; name: string }
   | { type: "ListOper"; list: string; oper: ListOper }
   | { type: "CreateSpr"; id: string; name: string; isStage: boolean }

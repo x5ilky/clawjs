@@ -4,7 +4,8 @@ import type { IlNode, IlValue } from "./types.ts";
 export type OptimizerOptions = {
     variableReplacements: boolean,
     redundantOperations: boolean,
-    redundantControlFlow: boolean
+    redundantControlFlow: boolean,
+    repeatsPerPass: number
 }
 
 export class Optimizer {
@@ -13,6 +14,7 @@ export class Optimizer {
 
     variableReplacements: Map<string, IlValue>;
     options: OptimizerOptions;
+    noOptimizeVariables: Set<string>;
 
     constructor(labels: IlNode[], options?: Partial<OptimizerOptions>) {
         this.labels = labels;
@@ -23,14 +25,16 @@ export class Optimizer {
             redundantControlFlow: options?.redundantControlFlow ?? true,
             redundantOperations: options?.redundantOperations ?? true,
             variableReplacements: options?.variableReplacements ?? true,
+            repeatsPerPass: options?.repeatsPerPass ?? 5
         }
+        this.noOptimizeVariables = new Set();
     }
 
     optimize(): void {
-        const PASSES = 5;
+        this.passStat();
         let prevLength = this.labels.length;
         while (true) {
-            for (let i = 0; i < PASSES; i++) {
+            for (let i = 0; i < this.options.repeatsPerPass; i++) {
                 if (this.options.redundantOperations) this.redundantOperationPass();
                 if (this.options.variableReplacements) this.redundantVariablePass();
                 if (this.options.redundantControlFlow) this.redundantControlFlowPass();
@@ -39,6 +43,14 @@ export class Optimizer {
             const newLength = this.labels.length;
             if (prevLength === newLength) break;
             prevLength = newLength;
+        }
+    }
+
+    passStat(): void {
+        for (const n of this.statLabel) {
+            if (n.type === "CreateVar") {
+                if (n.nooptimize) this.noOptimizeVariables.add(n.name);
+            }
         }
     }
 
@@ -146,8 +158,10 @@ export class Optimizer {
     redundantVariablePass(): void {
         const redundantVars = this.countVariableAssignments();
         for (const [k, v] of redundantVars) {
+            if (this.noOptimizeVariables.has(k)) continue;
             if (v.count > 1) continue;
             if (v.count === 0) this.statLabel.splice(this.statLabel.findIndex(a => a.type === "CreateVar" && a.name === k), 1);
+
             
             let referenceCount = 0;
             this.cloneValue(v.definitions[0], {
@@ -159,6 +173,12 @@ export class Optimizer {
                     referenceCount++;
                     return v;
                 },
+                Variable: (v) => {
+                    if (v.key !== "Variable") return v;
+                    if (this.noOptimizeVariables.has(v.name)) referenceCount++;
+                    if (v.name === k) referenceCount++;
+                    return v;
+                }
             });
             if (referenceCount > 0) continue;
             this.variableReplacements.set(k, v.definitions[0])

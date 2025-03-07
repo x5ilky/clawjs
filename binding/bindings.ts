@@ -224,12 +224,14 @@ export class IlWrapper implements SingleValue {
 }
 export class Num implements SingleValue, Serializable, Variable {
     id: string;
+    #intcreationobj: IlNode;
     
     constructor() {
         this.id = reserveCount();
-        statLabel.push({
+        statLabel.push(this.#intcreationobj = {
             type: "CreateVar",
-            name: this.id
+            name: this.id,
+            nooptimize: false
         })
     }
     sizeof(): number {
@@ -273,15 +275,22 @@ export class Num implements SingleValue, Serializable, Variable {
         v.set(value);
         return v;
     }
+
+    nooptimize() {
+        if (this.#intcreationobj.type !== "CreateVar") return;
+        this.#intcreationobj.nooptimize = true;
+    }
 }
 export class Str implements SingleValue, Serializable, Variable {
     id: string;
+    #intcreationobj: IlNode;
     constructor() {
         this.id = reserveCount();
-        statLabel.push({
+        statLabel.push(this.#intcreationobj = {
             type: "CreateVar",
-            name: this.id
-        })
+            name: this.id,
+            nooptimize: false
+        } satisfies IlNode)
     }
     sizeof(): number {
       return 1
@@ -324,6 +333,11 @@ export class Str implements SingleValue, Serializable, Variable {
         const st = new Str();
         st.set(s);
         return st;
+    }
+    
+    nooptimize() {
+        if (this.#intcreationobj.type !== "CreateVar") return;
+        this.#intcreationobj.nooptimize = true;
     }
 }
 export class Argument implements SingleValue, Serializable {

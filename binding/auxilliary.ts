@@ -193,6 +193,12 @@ export class FixedList<T extends new () => Serializable & Variable, Size extends
         }
         return out;
     }
+    literal(...values: InstanceType<T>[]) {
+      if (this.size !== values.length) throw new Error(`literal function took different argument length compared to specified FixedArray size`);
+      for (let i = 0; i < this.size; i++) {
+        this.nth(i).set(values[i]);
+      }
+    }
 }
 
 /**
