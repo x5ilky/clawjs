@@ -289,7 +289,6 @@ export function op(values: TemplateStringsArray, ...rest: Valuesque[]): Valuesqu
           "unaryPlus": (a: Valuesque) => a,
           "mod": mod
         };
-        console.log(node.fn);
         const args = node.args.map(a => expor(a));
         return (map[node.fn as keyof typeof map] as any)(...args);
       }
