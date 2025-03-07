@@ -619,42 +619,42 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): Datacl
     } 
 }
 
-export type Argumentify<T extends Serializable> = 
-      T extends Num ? Argument
-    : T extends Str ? Argument
-    : T extends (...inputs: any[]) => any ? T
-    : T & { [k in keyof T]: T[k] extends Serializable ? Argumentify<T[k]> : T[k] };
+// export type Argumentify<T extends Serializable> = 
+//       T extends Num ? Argument
+//     : T extends Str ? Argument
+//     : T extends (...inputs: any[]) => any ? T
+//     : T & { [k in keyof T]: T[k] extends Serializable ? Argumentify<T[k]> : T[k] };
 
-export function Argumentify<T extends Serializable>(value: T, index: number): [Argumentify<T>, number] {
-    const newValue = value as any;
-    if (value instanceof Num) {
-        return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
-    }
-    if (value instanceof Str) {
-        return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
-    }
-    for (const k in value) {
-        if (value[k] instanceof Num) [newValue[k], index] = Argumentify(value[k], index);
-        else if (value[k] instanceof Str) [newValue[k], index] = Argumentify(value[k], index);
-        else [newValue[k], index] = Argumentify(value[k] as Serializable, index);
-    }
-    return [newValue, index];
-}
+// export function Argumentify<T extends Serializable>(value: T, index: number): [Argumentify<T>, number] {
+//     const newValue = value as any;
+//     if (value instanceof Num) {
+//         return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
+//     }
+//     if (value instanceof Str) {
+//         return [new Argument(index, $.currentFunc!) as Argumentify<T>, ++index]
+//     }
+//     for (const k in value) {
+//         if (value[k] instanceof Num) [newValue[k], index] = Argumentify(value[k], index);
+//         else if (value[k] instanceof Str) [newValue[k], index] = Argumentify(value[k], index);
+//         else [newValue[k], index] = Argumentify(value[k] as Serializable, index);
+//     }
+//     return [newValue, index];
+// }
 export function def
     <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R):
+    (argTypes: T, fn: (...args: { [K in keyof T]: InstanceType<T[K]> } ) => void, returnType?: R):
         (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, false);
 }
 export function warp
     <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType?: R):
+    (argTypes: T, fn: (...args: { [K in keyof T]: InstanceType<T[K]> } ) => void, returnType?: R):
         (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, true);
 }
 function defRaw
     <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: Argumentify<InstanceType<T[K]>> } ) => void, returnType: R | undefined, warp: boolean):
+    (argTypes: T, fn: (...args: { [K in keyof T]: InstanceType<T[K]> } ) => void, returnType: R | undefined, warp: boolean):
         (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
@@ -676,22 +676,33 @@ function defRaw
     const args: any = [];
     let totalSize = 0;
     let index = 1;
+    let setup: IlNode[] = [];
     for (const arg of argTypes) {
         const a = new arg();
         const size = a.sizeof();
 
         totalSize += size;
 
+        const v = [];
         for (let i = 0; i < size; i++) {
+            v.push({
+                key: "Argument",
+                funcName: $.currentFunc,
+                index: index++
+            } satisfies IlValue);
             out.args.push("Any");
         }
         out.argAmount += size;
-        const [ag, newi] = Argumentify(a, index)
-        index = newi;
-        args.push(ag);
+        setup = [...setup, ...a.fromSerialized(v)];
+        args.push(a);
     }
 
-    const label = labelify(fn, ...args);
+    const label = labelify(() => {
+        $.scope?.nodes.push(...setup);
+        if$(eq(1, 1), () => {
+            fn(...args)
+        })
+    })
     $.labels.push(label);
     out.label = label.name;
     statLabel.push(out);
