@@ -173,6 +173,10 @@ export class FixedList<T extends new () => Serializable & Variable, Size extends
             this.values[i].set(values.values[i]);
         }
     }
+    nooptimize(): this {
+      this.values.map(a => a.nooptimize())
+      return this;
+    }
 
     nth(count: number): InstanceType<T> {
         return this.values[count];

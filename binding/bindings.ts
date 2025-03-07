@@ -196,6 +196,7 @@ export interface Serializable {
 }
 export interface Variable {
     set(...args: any[]): void;
+    nooptimize(): this;
 }
 export type Valuesque = SingleValue | number | string | IlValue;
 export function toScratchValue(value: Valuesque): IlValue {
@@ -338,8 +339,9 @@ export class Str implements SingleValue, Serializable, Variable {
     }
     
     nooptimize() {
-        if (this.#intcreationobj.type !== "CreateVar") return;
+        if (this.#intcreationobj.type !== "CreateVar") return this;
         this.#intcreationobj.nooptimize = true;
+        return this;
     }
 }
 export class Argument implements SingleValue, Serializable {
@@ -550,8 +552,24 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): Datacl
                 if (typeof(v) !== "object") {
                     throw new Error("Class member not serializable");
                 }
+                if (!("set" in v)) {
+                    throw new Error("Class member doesnt implement Variable interface");
+                }
                 (this[key as keyof typeof this] as any).set(v);
             } 
+        }
+        nooptimize(): this {
+            for (const key in this) {
+                const v = this[key] as any;
+                if (typeof(v) !== "object") {
+                    throw new Error("Class member not implementing Variable");
+                }
+                if (!("nooptimize" in v)) {
+                    throw new Error("Class member not implementing Variable");
+                }
+                (this[key as keyof typeof this] as any).nooptimize();
+            } 
+            return this;
         }
         sizeof(): number {
             let out = 0;
