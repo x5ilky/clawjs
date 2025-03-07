@@ -338,7 +338,7 @@ export class Str implements SingleValue, Serializable, Variable {
         return st;
     }
     
-    nooptimize() {
+    nooptimize(): this {
         if (this.#intcreationobj.type !== "CreateVar") return this;
         this.#intcreationobj.nooptimize = true;
         return this;
