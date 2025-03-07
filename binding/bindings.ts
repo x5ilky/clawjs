@@ -276,9 +276,11 @@ export class Num implements SingleValue, Serializable, Variable {
         return v;
     }
 
-    nooptimize() {
-        if (this.#intcreationobj.type !== "CreateVar") return;
+    nooptimize(): this {
+        if (this.#intcreationobj.type !== "CreateVar") return this;
         this.#intcreationobj.nooptimize = true;
+        console.log(this.#intcreationobj.nooptimize)
+        return this;
     }
 }
 export class Str implements SingleValue, Serializable, Variable {
