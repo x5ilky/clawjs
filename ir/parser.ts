@@ -71,7 +71,8 @@ export class IrParser {
         switch (instr.toLowerCase()) {
             case "createvar": return {
                 type: "CreateVar",
-                name: this.getIdentifier(chars)
+                name: this.getIdentifier(chars),
+                nooptimize: this.getIdentifier(chars) === "nooptimize"
             };
             case "createinstance": return {
                 type: "CreateInstanceVar",
