@@ -662,7 +662,7 @@ function defRaw
     const oldrv = $.returnValue;
     let ret = null;
     if (returnType !== undefined) {
-        ret = new returnType();
+        ret = new returnType().nooptimize();
         $.returnValue = ret;
     }
     const out = {
