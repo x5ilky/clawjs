@@ -347,7 +347,7 @@ export class Str implements SingleValue, Serializable, Variable {
         return stringLength(this);
     }
 
-    at(index: Valuesque) {
+    at(index: Valuesque): IlWrapper {
         return letterOf(add(index, 1), this);
     }
 }
