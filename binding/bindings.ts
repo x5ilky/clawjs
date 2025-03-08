@@ -280,7 +280,6 @@ export class Num implements SingleValue, Serializable, Variable {
     nooptimize(): this {
         if (this.#intcreationobj.type !== "CreateVar") return this;
         this.#intcreationobj.nooptimize = true;
-        console.log(this.#intcreationobj.nooptimize)
         return this;
     }
 }
@@ -342,6 +341,14 @@ export class Str implements SingleValue, Serializable, Variable {
         if (this.#intcreationobj.type !== "CreateVar") return this;
         this.#intcreationobj.nooptimize = true;
         return this;
+    }
+
+    length(): IlWrapper {
+        return stringLength(this);
+    }
+
+    at(index: Valuesque) {
+        return letterOf(add(index, 1), this);
     }
 }
 export class Argument implements SingleValue, Serializable {
