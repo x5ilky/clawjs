@@ -465,7 +465,7 @@ export class List<T extends new () => Serializable & Variable> {
         });
     }
 
-    length(): IlWrapper {
+    rawLength(): IlWrapper {
         return new IlWrapper({
             key: "ListValue",
             list: this.id,
@@ -473,6 +473,11 @@ export class List<T extends new () => Serializable & Variable> {
                 key: "Length"
             }
         });
+    }
+    length(): IlWrapper {
+        const v = new this.type();
+        const size = v.sizeof();
+        return div(this.rawLength(), size)
     }
     at(index: Valuesque): IlWrapper {
         return new IlWrapper({
@@ -526,12 +531,12 @@ export class List<T extends new () => Serializable & Variable> {
         const s = v.toSerialized();
         const values: IlValue[] = [];
         for (let i = 0; i < s.length; i++) {
-            values.push(this.at(add(sub(this.length(), size), i+1)).toScratchValue());
+            values.push(this.at(add(sub(this.rawLength(), size), i+1)).toScratchValue());
         }
         const nodes = v.fromSerialized(values);
         $.scope?.nodes.push(...nodes);
         for (let i = 0; i < s.length; i++) {
-            this.removeAt(this.length())
+            this.removeAt(this.rawLength())
         }
         return v as InstanceType<T>;
     }
