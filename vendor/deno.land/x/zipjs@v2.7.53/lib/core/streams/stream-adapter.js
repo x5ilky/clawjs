@@ -7,8 +7,8 @@
  1. Redistributions of source code must retain the above copyright notice,
  this list of conditions and the following disclaimer.
 
- 2. Redistributions in binary form must reproduce the above copyright 
- notice, this list of conditions and the following disclaimer in 
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in
  the documentation and/or other materials provided with the distribution.
 
  3. The names of the authors may not be used to endorse or promote products
@@ -28,28 +28,25 @@
 
 /* global TransformStream */
 
-export {
-	StreamAdapter
-};
+export { StreamAdapter };
 
 class StreamAdapter {
-
-	constructor(Codec) {
-		return class extends TransformStream {
-			constructor(_format, options) {
-				const codec = new Codec(options);
-				super({
-					transform(chunk, controller) {
-						controller.enqueue(codec.append(chunk));
-					},
-					flush(controller) {
-						const chunk = codec.flush();
-						if (chunk) {
-							controller.enqueue(chunk);
-						}
-					}
-				});
-			}
-		};
-	}
+    constructor(Codec) {
+        return class extends TransformStream {
+            constructor(_format, options) {
+                const codec = new Codec(options);
+                super({
+                    transform(chunk, controller) {
+                        controller.enqueue(codec.append(chunk));
+                    },
+                    flush(controller) {
+                        const chunk = codec.flush();
+                        if (chunk) {
+                            controller.enqueue(chunk);
+                        }
+                    },
+                });
+            }
+        };
+    }
 }

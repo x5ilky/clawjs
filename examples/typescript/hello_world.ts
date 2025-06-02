@@ -10,14 +10,13 @@ spr.addCostume(pop);
 
 spr.onFlag(() => {
     sayFor("Hello, world!", 5);
-})
-
+});
 
 // provide resources folder here:
 build({
     outputFileName: "hello_world.sb3",
-    resourceFolder: "resources"
-})
+    resourceFolder: "resources",
+});
 
 // how to run:
 //  $ cd ./examples/typescript

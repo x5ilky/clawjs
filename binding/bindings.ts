@@ -1,12 +1,21 @@
 // deno-lint-ignore-file no-explicit-any
-import type { DropOperation, ScratchArgumentType, StopType } from "../ir/types.ts";
-import type { BinaryOperation, FileFormat, IlNode, IlValue, UnaryOperation } from "../ir/types.ts";
+import type {
+    DropOperation,
+    ScratchArgumentType,
+    StopType,
+} from "../ir/types.ts";
+import type {
+    BinaryOperation,
+    FileFormat,
+    IlNode,
+    IlValue,
+    UnaryOperation,
+} from "../ir/types.ts";
 export class Label {
     constructor(
         public name: string,
         public nodes: IlNode[],
     ) {
-
     }
 
     push(node: IlNode) {
@@ -21,7 +30,7 @@ export const $: {
     currentSprite: Sprite | null;
     returnValue: Variable | null;
     functionsToAdd: string[];
-    breakVariable: Variable | null
+    breakVariable: Variable | null;
 } = {
     COUNTER: 0,
     labels: new Array<Label>(new Label("stat", [])),
@@ -30,9 +39,9 @@ export const $: {
     currentSprite: null,
     returnValue: null,
     functionsToAdd: [],
-    breakVariable: null
+    breakVariable: null,
 };
-const statLabel = $.labels.find(a => a.name === "stat")!;
+const statLabel = $.labels.find((a) => a.name === "stat")!;
 
 export type Body = (...args: any[]) => void;
 function labelify(body: Body, ...args: any[]) {
@@ -68,17 +77,17 @@ export class Sprite {
             type: "CreateSpr",
             isStage,
             id: this.id,
-            name: isStage ? "Stage" : this.id
-        })
+            name: isStage ? "Stage" : this.id,
+        });
     }
 
     addCostume(costume: Costume) {
-        this.costumes.push(costume)
+        this.costumes.push(costume);
         statLabel.push({
             type: "AddSprCostume",
             ...costume,
-            id: this.id
-        })
+            id: this.id,
+        });
     }
 
     onFlag(body: Body) {
@@ -89,7 +98,7 @@ export class Sprite {
             statLabel.push({
                 type: "Flag",
                 label: b.name,
-                target: this.id
+                target: this.id,
             });
             $.labels.push(b);
         }
@@ -103,7 +112,7 @@ export class Sprite {
                 type: "Keypress",
                 key,
                 label: b.name,
-                target: this.id
+                target: this.id,
             });
             $.labels.push(b);
         }
@@ -116,7 +125,7 @@ export class Sprite {
             statLabel.push({
                 type: "Clicked",
                 label: b.name,
-                target: this.id
+                target: this.id,
             });
             $.labels.push(b);
         }
@@ -125,8 +134,8 @@ export class Sprite {
     clone() {
         $.scope?.push({
             type: "Clone",
-            target: this.id
-        })
+            target: this.id,
+        });
     }
     onClone(body: Body) {
         $.currentSprite = this;
@@ -136,7 +145,7 @@ export class Sprite {
             statLabel.push({
                 type: "WhenClone",
                 label: b.name,
-                target: this.id
+                target: this.id,
             });
             $.labels.push(b);
         }
@@ -151,19 +160,24 @@ export class Sprite {
                 type: "WhenBroadcast",
                 label: b.name,
                 target: this.id,
-                name: broadcast.id
+                name: broadcast.id,
             });
             $.labels.push(b);
         }
     }
-} 
+}
 export class Costume {
     name: string;
     format: FileFormat;
     file: string;
     anchorX: number;
     anchorY: number;
-    constructor(format: FileFormat, file: string, anchorX: number, anchorY: number) {
+    constructor(
+        format: FileFormat,
+        file: string,
+        anchorX: number,
+        anchorY: number,
+    ) {
         this.name = reserveCount();
         this.format = format;
         this.file = file;
@@ -175,15 +189,18 @@ export class Costume {
         let type: FileFormat;
         if (path.endsWith(".svg")) type = "SVG";
         else if (path.endsWith(".png")) type = "PNG";
-        else throw new Error("unknown file extension: " + path + ", please manually create a Costume");
-        
+        else {throw new Error(
+                "unknown file extension: " + path +
+                    ", please manually create a Costume",
+            );}
+
         return new Costume(type, path, anchorX ?? 0, anchorY ?? 0);
     }
 }
 export const stage: Sprite = new Sprite(true);
 
 export function reserveCount(): string {
-    return "BC_" + ($.COUNTER++).toString()
+    return "BC_" + ($.COUNTER++).toString();
 }
 
 export interface SingleValue {
@@ -204,71 +221,72 @@ export function toScratchValue(value: Valuesque): IlValue {
     if (typeof value === "number") {
         return {
             key: "Float",
-            value
-        } 
+            value,
+        };
     } else if (typeof value === "string") {
         return {
             key: "String",
-            value
-        } 
+            value,
+        };
     } else return (value as SingleValue).toScratchValue();
 }
 
 export class IlWrapper implements SingleValue {
     constructor(private value: IlValue) {
-
     }
 
     toScratchValue(): IlValue {
-      return this.value
+        return this.value;
     }
 }
 export class Num implements SingleValue, Serializable, Variable {
     id: string;
     #intcreationobj: IlNode;
-    
+
     constructor() {
         this.id = reserveCount();
-        statLabel.push(this.#intcreationobj = {
-            type: "CreateVar",
-            name: this.id,
-            nooptimize: false
-        })
+        statLabel.push(
+            this.#intcreationobj = {
+                type: "CreateVar",
+                name: this.id,
+                nooptimize: false,
+            },
+        );
     }
     sizeof(): number {
-      return 1
+        return 1;
     }
     toScratchValue(): IlValue {
-      return {
-        key: "Variable",
-        name: this.id
-      }
+        return {
+            key: "Variable",
+            name: this.id,
+        };
     }
 
     toSerialized(): IlValue[] {
-      return [this.toScratchValue()];
+        return [this.toScratchValue()];
     }
     fromSerialized(values: IlValue[]): IlNode[] {
         return [{
             type: "Set",
             target: this.id,
-            value: values.shift()!
-        }]
+            value: values.shift()!,
+        }];
     }
 
     set(value: Valuesque): void {
         $.scope?.push({
             type: "Set",
             target: this.id,
-            value: toScratchValue(value)
-        })
+            value: toScratchValue(value),
+        });
     }
     change(value: Valuesque): void {
         $.scope?.push({
             type: "Change",
             target: this.id,
-            value: toScratchValue(value)
-        })
+            value: toScratchValue(value),
+        });
     }
 
     static literal(value: Valuesque): Num {
@@ -288,46 +306,54 @@ export class Str implements SingleValue, Serializable, Variable {
     #intcreationobj: IlNode;
     constructor() {
         this.id = reserveCount();
-        statLabel.push(this.#intcreationobj = {
-            type: "CreateVar",
-            name: this.id,
-            nooptimize: false
-        } satisfies IlNode)
+        statLabel.push(
+            this.#intcreationobj = {
+                type: "CreateVar",
+                name: this.id,
+                nooptimize: false,
+            } satisfies IlNode,
+        );
     }
     sizeof(): number {
-      return 1
+        return 1;
     }
     toScratchValue(): IlValue {
-      return {
-        key: "Variable",
-        name: this.id
-      }
+        return {
+            key: "Variable",
+            name: this.id,
+        };
     }
 
     toSerialized(): IlValue[] {
-      return [this.toScratchValue()];
+        return [this.toScratchValue()];
     }
     fromSerialized(values: IlValue[]): IlNode[] {
         return [{
             type: "Set",
             target: this.id,
-            value: values.shift()!
-        }]
+            value: values.shift()!,
+        }];
     }
 
     set(value: Valuesque): void {
         $.scope?.push({
             type: "Set",
             target: this.id,
-            value: toScratchValue(value)
-        })
+            value: toScratchValue(value),
+        });
     }
 
     slice(from: Valuesque, to: Valuesque): Str {
         const n = Str.literal(""); // no optimisations
-        for$(new Num(), v => v.set(from), v => lt(v, to), v => v.change(1), v => {
-            n.set(join(n, letterOf(v, this)));
-        })
+        for$(
+            new Num(),
+            (v) => v.set(from),
+            (v) => lt(v, to),
+            (v) => v.change(1),
+            (v) => {
+                n.set(join(n, letterOf(v, this)));
+            },
+        );
         return n;
     }
 
@@ -336,7 +362,7 @@ export class Str implements SingleValue, Serializable, Variable {
         st.set(s);
         return st;
     }
-    
+
     nooptimize(): this {
         if (this.#intcreationobj.type !== "CreateVar") return this;
         this.#intcreationobj.nooptimize = true;
@@ -358,31 +384,30 @@ export class Argument implements SingleValue, Serializable {
     }
 
     toScratchValue(): IlValue {
-      return {
-        key: "Argument",
-        funcName: this.funcName,
-        index: this.index
-      }
+        return {
+            key: "Argument",
+            funcName: this.funcName,
+            index: this.index,
+        };
     }
 
     fromSerialized(values: IlValue[]): IlNode[] {
-      values.shift();
-      return [];
+        values.shift();
+        return [];
     }
 
     toSerialized(): IlValue[] {
-      return [this.toScratchValue()];
+        return [this.toScratchValue()];
     }
     sizeof(): number {
-      return 1;
+        return 1;
     }
 }
 
-
 export const Color = (hex: string): IlValue => ({
     key: "Color",
-    hex
-})
+    hex,
+});
 export class List<T extends new () => Serializable & Variable> {
     id: string;
 
@@ -392,10 +417,10 @@ export class List<T extends new () => Serializable & Variable> {
         this.id = reserveCount();
         statLabel.push({
             type: "CreateList",
-            name: this.id
+            name: this.id,
         });
     }
-    
+
     push(value: InstanceType<T>): void {
         for (const v of value.toSerialized()) {
             $.scope?.push({
@@ -403,10 +428,10 @@ export class List<T extends new () => Serializable & Variable> {
                 list: this.id,
                 oper: {
                     key: "Push",
-                    value: v
-                }
+                    value: v,
+                },
             });
-        }    
+        }
     }
     pushRaw(value: Valuesque): void {
         $.scope?.push({
@@ -414,8 +439,8 @@ export class List<T extends new () => Serializable & Variable> {
             list: this.id,
             oper: {
                 key: "Push",
-                value: toScratchValue(value)
-            }
+                value: toScratchValue(value),
+            },
         });
     }
     insert(value: InstanceType<T>, index: Valuesque): void {
@@ -426,8 +451,8 @@ export class List<T extends new () => Serializable & Variable> {
                 oper: {
                     key: "Insert",
                     index: toScratchValue(index),
-                    value: v
-                }
+                    value: v,
+                },
             });
         }
     }
@@ -439,9 +464,13 @@ export class List<T extends new () => Serializable & Variable> {
                 list: this.id,
                 oper: {
                     key: "Replace",
-                    index: add(mul(toScratchValue(index), value.sizeof()), i+1).toScratchValue(),
-                    value: serd[i]
-                }
+                    index: add(
+                        mul(toScratchValue(index), value.sizeof()),
+                        i + 1,
+                    )
+                        .toScratchValue(),
+                    value: serd[i],
+                },
             });
         }
     }
@@ -450,9 +479,9 @@ export class List<T extends new () => Serializable & Variable> {
             type: "ListOper",
             list: this.id,
             oper: {
-                key: "Clear"
-            }
-        })
+                key: "Clear",
+            },
+        });
     }
     removeAt(index: Valuesque): void {
         $.scope?.push({
@@ -460,8 +489,8 @@ export class List<T extends new () => Serializable & Variable> {
             list: this.id,
             oper: {
                 key: "RemoveIndex",
-                index: toScratchValue(index)
-            }
+                index: toScratchValue(index),
+            },
         });
     }
 
@@ -470,14 +499,14 @@ export class List<T extends new () => Serializable & Variable> {
             key: "ListValue",
             list: this.id,
             value: {
-                key: "Length"
-            }
+                key: "Length",
+            },
         });
     }
     length(): IlWrapper {
         const v = new this.type();
         const size = v.sizeof();
-        return div(this.rawLength(), size)
+        return div(this.rawLength(), size);
     }
     at(index: Valuesque): IlWrapper {
         return new IlWrapper({
@@ -485,15 +514,18 @@ export class List<T extends new () => Serializable & Variable> {
             list: this.id,
             value: {
                 key: "Index",
-                index: toScratchValue(index)
-            }
+                index: toScratchValue(index),
+            },
         });
     }
     nth(index: Valuesque): InstanceType<T> {
         const value = new this.type() as InstanceType<T>;
         const values: IlValue[] = [];
         for (let i = 0; i < value.sizeof(); i++) {
-            values.push(this.at(add(mul(index, value.sizeof()), i + 1)).toScratchValue())
+            values.push(
+                this.at(add(mul(index, value.sizeof()), i + 1))
+                    .toScratchValue(),
+            );
         }
         const nodes = value.fromSerialized(values);
         $.scope?.nodes.push(...nodes);
@@ -506,8 +538,8 @@ export class List<T extends new () => Serializable & Variable> {
             list: this.id,
             value: {
                 key: "Contains",
-                value: toScratchValue(item)
-            }
+                value: toScratchValue(item),
+            },
         });
     }
     indexOf(item: Valuesque): IlWrapper {
@@ -516,8 +548,8 @@ export class List<T extends new () => Serializable & Variable> {
             list: this.id,
             value: {
                 key: "Find",
-                value: toScratchValue(item)
-            }
+                value: toScratchValue(item),
+            },
         });
     }
 
@@ -531,12 +563,15 @@ export class List<T extends new () => Serializable & Variable> {
         const s = v.toSerialized();
         const values: IlValue[] = [];
         for (let i = 0; i < s.length; i++) {
-            values.push(this.at(add(sub(this.rawLength(), size), i+1)).toScratchValue());
+            values.push(
+                this.at(add(sub(this.rawLength(), size), i + 1))
+                    .toScratchValue(),
+            );
         }
         const nodes = v.fromSerialized(values);
         $.scope?.nodes.push(...nodes);
         for (let i = 0; i < s.length; i++) {
-            this.removeAt(this.rawLength())
+            this.removeAt(this.rawLength());
         }
         return v as InstanceType<T>;
     }
@@ -548,90 +583,96 @@ export class List<T extends new () => Serializable & Variable> {
             const w = this.nth(i);
             if$(eq(1, 1), () => {
                 cb(w, i);
-            })
+            });
             i.change(1);
-        })
+        });
     }
 }
 
-export type DataclassOutput<T> = T & { new (...args: any[]): Serializable & Variable }
+export type DataclassOutput<T> = T & {
+    new (...args: any[]): Serializable & Variable;
+};
 // deno-lint-ignore ban-types
-export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): DataclassOutput<T> {
+export function DataClass<T extends { new (...args: any[]): {} }>(
+    cl: T,
+): DataclassOutput<T> {
     return class extends cl implements Serializable, Variable {
         set(value: InstanceType<DataclassOutput<T>>): void {
             for (const key in value) {
                 const v = value[key] as any;
-                if (typeof(v) !== "object") {
+                if (typeof v !== "object") {
                     throw new Error("Class member not serializable");
                 }
                 if (!("set" in v)) {
-                    throw new Error("Class member doesnt implement Variable interface");
+                    throw new Error(
+                        "Class member doesnt implement Variable interface",
+                    );
                 }
                 (this[key as keyof typeof this] as any).set(v);
-            } 
+            }
         }
         nooptimize(): this {
             for (const key in this) {
                 const v = this[key] as any;
-                if (typeof(v) !== "object") {
+                if (typeof v !== "object") {
                     throw new Error("Class member not implementing Variable");
                 }
                 if (!("nooptimize" in v)) {
                     throw new Error("Class member not implementing Variable");
                 }
                 (this[key as keyof typeof this] as any).nooptimize();
-            } 
+            }
             return this;
         }
         sizeof(): number {
             let out = 0;
             for (const key in this) {
                 const v = this[key] as any;
-                if (typeof(v) !== "object") {
+                if (typeof v !== "object") {
                     throw new Error("Class member not serializable");
                 }
                 if (!("sizeof" in v)) {
                     throw new Error("Class member not serializable");
                 }
                 out += v.sizeof();
-            } 
+            }
             return out;
         }
         toSerialized(): IlValue[] {
-            const out: IlValue[] = []
+            const out: IlValue[] = [];
             for (const key in this) {
                 const v = this[key] as any;
-                if (typeof(v) !== "object") {
+                if (typeof v !== "object") {
                     throw new Error("Class member not serializable");
                 }
                 if (!("toSerialized" in v)) {
                     throw new Error("Class member not serializable");
                 }
                 out.push(...v.toSerialized());
-            } 
+            }
             return out;
         }
         fromSerialized(values: IlValue[]): IlNode[] {
-            const out: IlNode[] = []
+            const out: IlNode[] = [];
             for (const key in this) {
                 const v = this[key] as any;
-                if (typeof(v) !== "object") {
+                if (typeof v !== "object") {
                     throw new Error("Class member not serializable");
                 }
                 if (!("fromSerialized" in v)) {
                     throw new Error("Class member not serializable");
                 }
                 out.push(...v.fromSerialized(values));
-            } 
+            }
             return out;
         }
         constructor(...args: any[]) {
-            super(...args)
+            super(...args);
         }
-    } 
+    };
 }
 
-// export type Argumentify<T extends Serializable> = 
+// export type Argumentify<T extends Serializable> =
 //       T extends Num ? Argument
 //     : T extends Str ? Argument
 //     : T extends (...inputs: any[]) => any ? T
@@ -652,22 +693,25 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): Datacl
 //     }
 //     return [newValue, index];
 // }
-export function def
-    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable, F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void>
-    (argTypes: T, fn: F, returnType?: R):
-        F {
+export function def<
+    const T extends (new () => Serializable)[],
+    R extends new () => Serializable & Variable,
+    F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
+>(argTypes: T, fn: F, returnType?: R): F {
     return defRaw(argTypes, fn, returnType, false);
 }
-export function warp
-    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable, F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void>
-    (argTypes: T, fn: F, returnType?: R):
-        F {
+export function warp<
+    const T extends (new () => Serializable)[],
+    R extends new () => Serializable & Variable,
+    F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
+>(argTypes: T, fn: F, returnType?: R): F {
     return defRaw(argTypes, fn, returnType, true);
 }
-function defRaw
-    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable, F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void>
-    (argTypes: T, fn: F, returnType: R | undefined, warp: boolean):
-        F {
+function defRaw<
+    const T extends (new () => Serializable)[],
+    R extends new () => Serializable & Variable,
+    F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
+>(argTypes: T, fn: F, returnType: R | undefined, warp: boolean): F {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
 
@@ -683,7 +727,7 @@ function defRaw
         argAmount: 0,
         args: [] as ScratchArgumentType[],
         id: $.currentFunc,
-        warp
+        warp,
     } satisfies IlNode;
     const args: any = [];
     let totalSize = 0;
@@ -697,11 +741,13 @@ function defRaw
 
         const v = [];
         for (let i = 0; i < size; i++) {
-            v.push({
-                key: "Argument",
-                funcName: $.currentFunc,
-                index: index++
-            } satisfies IlValue);
+            v.push(
+                {
+                    key: "Argument",
+                    funcName: $.currentFunc,
+                    index: index++,
+                } satisfies IlValue,
+            );
             out.args.push("Any");
         }
         out.argAmount += size;
@@ -712,9 +758,9 @@ function defRaw
     const label = labelify(() => {
         $.scope?.nodes.push(...setup);
         if$(eq(1, 1), () => {
-            fn(...args)
-        })
-    })
+            fn(...args);
+        });
+    });
     $.labels.push(label);
     out.label = label.name;
     statLabel.push(out);
@@ -724,25 +770,28 @@ function defRaw
     return ((...args: { [K in keyof T]: InstanceType<T[K]> }) => {
         $.functionsToAdd.push(id);
         if ($.currentSprite !== null) {
-            for (const id of $.functionsToAdd) 
+            for (const id of $.functionsToAdd) {
                 if (!$.currentSprite?.implementedFunctions.has(id)) {
                     $.currentSprite?.implementedFunctions.add(id);
                     statLabel.push({
                         type: "InsertDef",
                         func: id,
-                        sprites: [$.currentSprite!.id]
-                    })
-                };
+                        sprites: [$.currentSprite!.id],
+                    });
+                }
+            }
             $.functionsToAdd = [];
-        }            
+        }
 
-        $.scope?.nodes.push({
-            type: "Run",
-            id,
-            argAmount: totalSize,
-            args: args.map(a => a.toSerialized()).flat()
-        } satisfies IlNode);
-        return ret as InstanceType<R>
+        $.scope?.nodes.push(
+            {
+                type: "Run",
+                id,
+                argAmount: totalSize,
+                args: args.map((a) => a.toSerialized()).flat(),
+            } satisfies IlNode,
+        );
+        return ret as InstanceType<R>;
     }) as unknown as F;
 }
 
@@ -752,9 +801,9 @@ function makeBinaryOperatorFunction(name: BinaryOperation): BinaryOperator {
             key: "BinaryOperation",
             oper: name,
             left: toScratchValue(left),
-            right: toScratchValue(right)
-        })
-    }
+            right: toScratchValue(right),
+        });
+    };
 }
 export type BinaryOperator = (left: Valuesque, right: Valuesque) => IlWrapper;
 export const add: BinaryOperator = makeBinaryOperatorFunction("Add");
@@ -764,32 +813,44 @@ export const div: BinaryOperator = makeBinaryOperatorFunction("Div");
 export const eq: BinaryOperator = makeBinaryOperatorFunction("Eq");
 export const gt: BinaryOperator = makeBinaryOperatorFunction("Gt");
 export const lt: BinaryOperator = makeBinaryOperatorFunction("Lt");
-export const gte: (left: Valuesque, right: Valuesque) => Valuesque = (left: Valuesque, right: Valuesque) => or(eq(left, right), gt(left, right));
-export const lte: (left: Valuesque, right: Valuesque) => Valuesque = (left: Valuesque, right: Valuesque) => or(eq(left, right), lt(left, right));
+export const gte: (left: Valuesque, right: Valuesque) => Valuesque = (
+    left: Valuesque,
+    right: Valuesque,
+) => or(eq(left, right), gt(left, right));
+export const lte: (left: Valuesque, right: Valuesque) => Valuesque = (
+    left: Valuesque,
+    right: Valuesque,
+) => or(eq(left, right), lt(left, right));
 export const mod: BinaryOperator = makeBinaryOperatorFunction("Mod");
 export const join: BinaryOperator = makeBinaryOperatorFunction("Join");
 export const letterOf: BinaryOperator = makeBinaryOperatorFunction("LetterOf");
-export const stringContains: BinaryOperator = makeBinaryOperatorFunction("Contains");
+export const stringContains: BinaryOperator = makeBinaryOperatorFunction(
+    "Contains",
+);
 export const random: BinaryOperator = makeBinaryOperatorFunction("Random");
 const andRaw: BinaryOperator = makeBinaryOperatorFunction("And");
-export const and: (...values: Valuesque[]) => Valuesque = (...values: Valuesque[]) => {
-    return values.reduce((prev, cur) => andRaw(prev, cur))
-}
+export const and: (...values: Valuesque[]) => Valuesque = (
+    ...values: Valuesque[]
+) => {
+    return values.reduce((prev, cur) => andRaw(prev, cur));
+};
 const orRaw: BinaryOperator = makeBinaryOperatorFunction("Or");
-export const or: (...values: Valuesque[]) => Valuesque = (...values: Valuesque[]) => {
-    return values.reduce((prev, cur) => orRaw(prev, cur))
-}
+export const or: (...values: Valuesque[]) => Valuesque = (
+    ...values: Valuesque[]
+) => {
+    return values.reduce((prev, cur) => orRaw(prev, cur));
+};
 
 function makeUnaryOperatorFunction(name: UnaryOperation): UnaryOperator {
     return (left: Valuesque): IlWrapper => {
         return new IlWrapper({
             key: "UnaryOperation",
             oper: name,
-            value: toScratchValue(left)
-        })
-    }
+            value: toScratchValue(left),
+        });
+    };
 }
-export type UnaryOperator = (left: Valuesque) => IlWrapper; 
+export type UnaryOperator = (left: Valuesque) => IlWrapper;
 export const not: UnaryOperator = makeUnaryOperatorFunction("Not");
 export const stringLength: UnaryOperator = makeUnaryOperatorFunction("Length");
 export const round: UnaryOperator = makeUnaryOperatorFunction("Round");
@@ -799,9 +860,9 @@ function makeDropOperatorFunction(name: DropOperation) {
         return new IlWrapper({
             key: "DropOperation",
             oper: name,
-            value: toScratchValue(left)
-        })
-    }
+            value: toScratchValue(left),
+        });
+    };
 }
 type DropOperator = (left: Valuesque) => IlWrapper;
 
@@ -830,7 +891,7 @@ export const trig: {
         acos: (left: Valuesque) => IlWrapper;
         atan: (left: Valuesque) => IlWrapper;
         atan2: (y: Valuesque, x: Valuesque) => IlWrapper;
-    }
+    };
 } = {
     degrees: {
         sin: makeDropOperatorFunction("Sin"),
@@ -839,39 +900,49 @@ export const trig: {
         asin: makeDropOperatorFunction("Asin"),
         acos: makeDropOperatorFunction("Acos"),
         atan: makeDropOperatorFunction("Atan"),
-        atan2: (y: Valuesque, x: Valuesque) => 
+        atan2: (y: Valuesque, x: Valuesque) =>
             add(
                 mul(
-                    eq(x, 0), 
+                    eq(x, 0),
                     add(
-                        mul(gt(y, 0), Math.PI/2),
-                        mul(lt(y, 0), -Math.PI/2)
-                    )
+                        mul(gt(y, 0), Math.PI / 2),
+                        mul(lt(y, 0), -Math.PI / 2),
+                    ),
                 ),
                 add(
                     mul(gt(x, 0), trig.degrees.atan(div(y, x))),
                     mul(
-                        lt(x, 0), 
+                        lt(x, 0),
                         add(
-                            mul(lt(y, 0), sub(trig.degrees.atan(div(y, x)), Math.PI)),
-                            mul(gt(y, 0), add(trig.degrees.atan(div(y, x)), Math.PI))
-                        )
-                    )
-                )
-            )
+                            mul(
+                                lt(y, 0),
+                                sub(trig.degrees.atan(div(y, x)), Math.PI),
+                            ),
+                            mul(
+                                gt(y, 0),
+                                add(trig.degrees.atan(div(y, x)), Math.PI),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
     },
-    DEG2RAD: (deg: Valuesque) => mul(deg, Math.PI/180),
-    RAD2DEG: (rad: Valuesque) => mul(rad, 180/Math.PI),
+    DEG2RAD: (deg: Valuesque) => mul(deg, Math.PI / 180),
+    RAD2DEG: (rad: Valuesque) => mul(rad, 180 / Math.PI),
     radians: {
         sin: (x: Valuesque) => trig.DEG2RAD(trig.degrees.sin(trig.RAD2DEG(x))),
         cos: (x: Valuesque) => trig.DEG2RAD(trig.degrees.cos(trig.RAD2DEG(x))),
         tan: (x: Valuesque) => trig.DEG2RAD(trig.degrees.tan(trig.RAD2DEG(x))),
-        asin: (x: Valuesque) => trig.DEG2RAD(trig.degrees.asin(trig.RAD2DEG(x))),
-        acos: (x: Valuesque) => trig.DEG2RAD(trig.degrees.acos(trig.RAD2DEG(x))),
-        atan: (x: Valuesque) => trig.DEG2RAD(trig.degrees.atan(trig.RAD2DEG(x))),
-        atan2: (y: Valuesque, x: Valuesque) => trig.DEG2RAD(trig.degrees.atan2(trig.RAD2DEG(y), trig.RAD2DEG(x))),
+        asin: (x: Valuesque) =>
+            trig.DEG2RAD(trig.degrees.asin(trig.RAD2DEG(x))),
+        acos: (x: Valuesque) =>
+            trig.DEG2RAD(trig.degrees.acos(trig.RAD2DEG(x))),
+        atan: (x: Valuesque) =>
+            trig.DEG2RAD(trig.degrees.atan(trig.RAD2DEG(x))),
+        atan2: (y: Valuesque, x: Valuesque) =>
+            trig.DEG2RAD(trig.degrees.atan2(trig.RAD2DEG(y), trig.RAD2DEG(x))),
     },
-}
+};
 
 export const ln: DropOperator = makeDropOperatorFunction("Ln");
 export const log: DropOperator = makeDropOperatorFunction("Log");
@@ -884,74 +955,85 @@ export const tenpower: DropOperator = makeDropOperatorFunction("TenPower");
  * @returns degrees
  */
 
-export const isTouchingObject: (target: Valuesque | Sprite) => IlWrapper = (target: Valuesque | Sprite) => {
-    if (target instanceof Sprite)
+export const isTouchingObject: (target: Valuesque | Sprite) => IlWrapper = (
+    target: Valuesque | Sprite,
+) => {
+    if (target instanceof Sprite) {
         return new IlWrapper({
             key: "SensingOperation",
             oper: {
                 type: "TouchingObject",
                 target: {
                     key: "String",
-                    value: target.id
-                }
-            }
+                    value: target.id,
+                },
+            },
         });
+    }
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "TouchingObject",
-            target: toScratchValue(target)
-        }
+            target: toScratchValue(target),
+        },
     });
-}
-export const isTouchingColor: (color: Valuesque) => IlWrapper = (color: Valuesque) => {
+};
+export const isTouchingColor: (color: Valuesque) => IlWrapper = (
+    color: Valuesque,
+) => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "TouchingColor",
-            color: toScratchValue(color)
-        }
+            color: toScratchValue(color),
+        },
     });
-}
-export const ColorIsTouchingColor: (color: Valuesque, color2: Valuesque) => IlWrapper = (color: Valuesque, color2: Valuesque) => {
+};
+export const ColorIsTouchingColor: (
+    color: Valuesque,
+    color2: Valuesque,
+) => IlWrapper = (color: Valuesque, color2: Valuesque) => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "ColorIsTouchingColor",
             color1: toScratchValue(color),
-            color2: toScratchValue(color2)
-        }
+            color2: toScratchValue(color2),
+        },
     });
-}
-export const distanceTo: (target: Valuesque | Sprite) => IlWrapper = (target: Valuesque | Sprite) => {
-    if (target instanceof Sprite)
+};
+export const distanceTo: (target: Valuesque | Sprite) => IlWrapper = (
+    target: Valuesque | Sprite,
+) => {
+    if (target instanceof Sprite) {
         return new IlWrapper({
             key: "SensingOperation",
             oper: {
                 type: "DistanceTo",
                 target: {
                     key: "String",
-                    value: target.id
-                }
-            }
+                    value: target.id,
+                },
+            },
         });
+    }
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "DistanceTo",
-            target: toScratchValue(target)
-        }
+            target: toScratchValue(target),
+        },
     });
-}
+};
 export const keyPressed: (key: Valuesque) => IlWrapper = (key: Valuesque) => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "KeyPressed",
-            key: toScratchValue(key)
-        }
+            key: toScratchValue(key),
+        },
     });
-}
+};
 export const mouse: {
     down: () => IlWrapper;
     x: () => IlWrapper;
@@ -962,7 +1044,7 @@ export const mouse: {
             key: "SensingOperation",
             oper: {
                 type: "MouseDown",
-            }
+            },
         });
     },
     x: () => {
@@ -970,7 +1052,7 @@ export const mouse: {
             key: "SensingOperation",
             oper: {
                 type: "MouseX",
-            }
+            },
         });
     },
     y: () => {
@@ -978,57 +1060,61 @@ export const mouse: {
             key: "SensingOperation",
             oper: {
                 type: "MouseY",
-            }
+            },
         });
-    }
-}
+    },
+};
 export const loudness: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "Loudness",
-        }
+        },
     });
-}
+};
 export const timer: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "Timer",
-        }
+        },
     });
-}
-export const propertyOf: (property: string, object: Valuesque | Sprite) => IlWrapper = (property: string, object: Valuesque | Sprite) => {
-    const obj = object instanceof Sprite ?
-        {
+};
+export const propertyOf: (
+    property: string,
+    object: Valuesque | Sprite,
+) => IlWrapper = (property: string, object: Valuesque | Sprite) => {
+    const obj = object instanceof Sprite
+        ? {
             key: "String",
-            value: object.id
-        } satisfies IlValue : toScratchValue(object);
+            value: object.id,
+        } satisfies IlValue
+        : toScratchValue(object);
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "Of",
             property,
-            object: obj
-        }
+            object: obj,
+        },
     });
-}
+};
 export const daysSince2000: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "DaysSince2000",
-        }
+        },
     });
-}
+};
 export const username: () => IlWrapper = () => {
     return new IlWrapper({
         key: "SensingOperation",
         oper: {
             type: "Username",
-        }
+        },
     });
-}
+};
 
 export const position: {
     x: () => IlWrapper;
@@ -1038,13 +1124,30 @@ export const position: {
 } = {
     x: () => new IlWrapper({ key: "Builtin", value: { key: "XPosition" } }),
     y: () => new IlWrapper({ key: "Builtin", value: { key: "YPosition" } }),
-    direction: () => new IlWrapper({ key: "Builtin", value: { key: "Direction" } }),
+    direction: () =>
+        new IlWrapper({ key: "Builtin", value: { key: "Direction" } }),
     size: () => new IlWrapper({ key: "Builtin", value: { key: "Size" } }),
-}
-export const costumeNumber: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: true }})
-export const costumeName: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Costume", numberOrName: false }})
-export const backdropNumber: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: true }})
-export const backdropName: () => IlWrapper = () => new IlWrapper({ key: "Builtin", value: { key: "Backdrop", numberOrName: false }})
+};
+export const costumeNumber: () => IlWrapper = () =>
+    new IlWrapper({
+        key: "Builtin",
+        value: { key: "Costume", numberOrName: true },
+    });
+export const costumeName: () => IlWrapper = () =>
+    new IlWrapper({
+        key: "Builtin",
+        value: { key: "Costume", numberOrName: false },
+    });
+export const backdropNumber: () => IlWrapper = () =>
+    new IlWrapper({
+        key: "Builtin",
+        value: { key: "Backdrop", numberOrName: true },
+    });
+export const backdropName: () => IlWrapper = () =>
+    new IlWrapper({
+        key: "Builtin",
+        value: { key: "Backdrop", numberOrName: false },
+    });
 
 export function steps(steps: Valuesque) {
     $.scope?.push({
@@ -1069,7 +1172,7 @@ export function goto(x: Valuesque, y: Valuesque) {
     $.scope?.push({
         type: "GotoXY",
         x: toScratchValue(x),
-        y: toScratchValue(y)
+        y: toScratchValue(y),
     });
 }
 export function setRotation(degrees: Valuesque) {
@@ -1143,7 +1246,8 @@ export function switchCostume(costume: Valuesque) {
 
 export function nextCostume() {
     $.scope?.push({
-        type: "NextCostume" });
+        type: "NextCostume",
+    });
 }
 
 export function switchBackdrop(backdrop: Valuesque) {
@@ -1155,7 +1259,8 @@ export function switchBackdrop(backdrop: Valuesque) {
 
 export function nextBackdrop() {
     $.scope?.push({
-        type: "NextBackdrop" });
+        type: "NextBackdrop",
+    });
 }
 
 export function changeSize(value: Valuesque) {
@@ -1199,10 +1304,18 @@ export function stopAllSounds() {
 }
 
 export function changeEffect(effect: "PAN" | "PITCH", amount: Valuesque) {
-    $.scope?.push({ type: "ChangeEffectBy", effect, amount: toScratchValue(amount) });
+    $.scope?.push({
+        type: "ChangeEffectBy",
+        effect,
+        amount: toScratchValue(amount),
+    });
 }
 export function setEffect(effect: "PAN" | "PITCH", amount: Valuesque) {
-    $.scope?.push({ type: "SetEffectTo", effect, amount: toScratchValue(amount) });
+    $.scope?.push({
+        type: "SetEffectTo",
+        effect,
+        amount: toScratchValue(amount),
+    });
 }
 export function clearEffects() {
     $.scope?.push({ type: "ClearEffects" });
@@ -1225,31 +1338,53 @@ export function if$(predicate: Valuesque, body: Body, elseBody?: Body) {
     if (elseBody === undefined) {
         const label = labelify(body);
         $.labels.push(label);
-        $.scope?.push({ type: "If", label: label.name, predicate: toScratchValue(predicate) });
+        $.scope?.push({
+            type: "If",
+            label: label.name,
+            predicate: toScratchValue(predicate),
+        });
     } else {
         const label = labelify(body);
         const elseLabel = labelify(elseBody);
         $.labels.push(label);
         $.labels.push(elseLabel);
-        $.scope?.push({ type: "IfElse", label: label.name, label2: elseLabel.name, predicate: toScratchValue(predicate) });
+        $.scope?.push({
+            type: "IfElse",
+            label: label.name,
+            label2: elseLabel.name,
+            predicate: toScratchValue(predicate),
+        });
     }
 }
 export function if_then_continue$(predicate: Valuesque, action?: Body) {
     const newLabel = new Label(reserveCount(), []);
-    $.labels.push(newLabel)
+    $.labels.push(newLabel);
     if (action === undefined) {
-        $.scope?.push({ type: "If", label: newLabel.name, predicate: toScratchValue(not(predicate)) });
+        $.scope?.push({
+            type: "If",
+            label: newLabel.name,
+            predicate: toScratchValue(not(predicate)),
+        });
     } else {
         const ac = labelify(action);
-        $.labels.push(ac)
-        $.scope?.push({ type: "IfElse", label: ac.name, label2: newLabel.name, predicate: toScratchValue(predicate) });
+        $.labels.push(ac);
+        $.scope?.push({
+            type: "IfElse",
+            label: ac.name,
+            label2: newLabel.name,
+            predicate: toScratchValue(predicate),
+        });
     }
     $.scope = newLabel;
 }
 export function repeat$(times: Valuesque, body: Body) {
     const label = labelify(body);
     $.labels.push(label);
-    $.scope?.push({ type: "Repeat", label: label.name, amount: toScratchValue(times) });
+    $.scope?.push({
+        type: "Repeat",
+        label: label.name,
+        amount: toScratchValue(times),
+    });
 }
 export function while$(predicate: Valuesque, body: Body) {
     const toBreak = new Num();
@@ -1257,20 +1392,24 @@ export function while$(predicate: Valuesque, body: Body) {
     $.breakVariable = toBreak;
     const label = labelify(body);
     $.labels.push(label);
-    $.scope?.push({ type: "RepeatUntil", label: label.name, predicate: toScratchValue(or(not(predicate), eq(toBreak, 1))) });
+    $.scope?.push({
+        type: "RepeatUntil",
+        label: label.name,
+        predicate: toScratchValue(or(not(predicate), eq(toBreak, 1))),
+    });
 }
 export function for$<T>(
-    variable: T, 
-    initialiser: (v: T) => void, 
-    predicate: (v: T) => Valuesque, 
-    post: (v: T) => void, 
-    body: (v: T) => void
+    variable: T,
+    initialiser: (v: T) => void,
+    predicate: (v: T) => Valuesque,
+    post: (v: T) => void,
+    body: (v: T) => void,
 ) {
     initialiser(variable);
     while$(predicate(variable), () => {
         if$(eq(1, 1), () => {
             body(variable);
-        })
+        });
 
         post(variable);
     });
@@ -1287,10 +1426,10 @@ export function continue$() {
 }
 
 export function return$(value: Variable | string | number) {
-    if (typeof value === "number") $.returnValue?.set(value)
-    else if (typeof value === "string") $.returnValue?.set(value)
+    if (typeof value === "number") $.returnValue?.set(value);
+    else if (typeof value === "string") $.returnValue?.set(value);
     else $.returnValue?.set(value);
-    stop("ThisScript")
+    stop("ThisScript");
 }
 export function stop(type: StopType) {
     $.scope?.push({ type: "Stop", stopType: type });
@@ -1304,13 +1443,13 @@ export function broadcast(value: Valuesque | Broadcast) {
             type: "Broadcast",
             value: {
                 key: "String",
-                value: value.id
-            }
-        })
-    } else $.scope?.push({
-        type: "Broadcast",
-        value: toScratchValue(value)
-    });
+                value: value.id,
+            },
+        });
+    } else {$.scope?.push({
+            type: "Broadcast",
+            value: toScratchValue(value),
+        });}
 }
 
 export function broadcastWait(value: Valuesque): void;
@@ -1321,13 +1460,13 @@ export function broadcastWait(value: Valuesque | Broadcast) {
             type: "BroadcastWait",
             value: {
                 key: "String",
-                value: value.id
-            }
-        })
-    } else $.scope?.push({
-        type: "BroadcastWait",
-        value: toScratchValue(value)
-    });
+                value: value.id,
+            },
+        });
+    } else {$.scope?.push({
+            type: "BroadcastWait",
+            value: toScratchValue(value),
+        });}
 }
 
 export const pen: {
@@ -1344,53 +1483,53 @@ export const pen: {
     clear: (): void => {
         $.scope?.push({
             type: "PenEraseAll",
-        })
+        });
     },
     stamp: (): void => {
         $.scope?.push({
             type: "PenStamp",
-        })
+        });
     },
     down: (): void => {
         $.scope?.push({
             type: "PenDown",
-        })
+        });
     },
     up: (): void => {
         $.scope?.push({
             type: "PenUp",
-        })
+        });
     },
     setColor: (value: Valuesque): void => {
         $.scope?.push({
             type: "PenSetPenColor",
-            color: toScratchValue(value)
-        })
+            color: toScratchValue(value),
+        });
     },
     setParam: (param: Valuesque, amount: Valuesque): void => {
         $.scope?.push({
             type: "PenSetValue",
             value: toScratchValue(param),
             amount: toScratchValue(amount),
-        })
+        });
     },
     changeParam: (param: Valuesque, amount: Valuesque): void => {
         $.scope?.push({
             type: "PenChangeValue",
             value: toScratchValue(param),
             amount: toScratchValue(amount),
-        })
+        });
     },
     changeSize: (amount: Valuesque): void => {
         $.scope?.push({
             type: "PenChangeSize",
             value: toScratchValue(amount),
-        })
+        });
     },
     setSize: (amount: Valuesque): void => {
         $.scope?.push({
             type: "PenSetSize",
             value: toScratchValue(amount),
-        })
-    }
-}
+        });
+    },
+};

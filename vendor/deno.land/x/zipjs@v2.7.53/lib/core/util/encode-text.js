@@ -7,8 +7,8 @@
  1. Redistributions of source code must retain the above copyright notice,
  this list of conditions and the following disclaimer.
 
- 2. Redistributions in binary form must reproduce the above copyright 
- notice, this list of conditions and the following disclaimer in 
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in
  the documentation and/or other materials provided with the distribution.
 
  3. The names of the authors may not be used to endorse or promote products
@@ -30,19 +30,17 @@
 
 import { UNDEFINED_TYPE } from "../constants.js";
 
-export {
-	encodeText
-};
+export { encodeText };
 
 function encodeText(value) {
-	if (typeof TextEncoder == UNDEFINED_TYPE) {
-		value = unescape(encodeURIComponent(value));
-		const result = new Uint8Array(value.length);
-		for (let i = 0; i < result.length; i++) {
-			result[i] = value.charCodeAt(i);
-		}
-		return result;
-	} else {
-		return new TextEncoder().encode(value);
-	}
+    if (typeof TextEncoder == UNDEFINED_TYPE) {
+        value = unescape(encodeURIComponent(value));
+        const result = new Uint8Array(value.length);
+        for (let i = 0; i < result.length; i++) {
+            result[i] = value.charCodeAt(i);
+        }
+        return result;
+    } else {
+        return new TextEncoder().encode(value);
+    }
 }

@@ -34,9 +34,9 @@ import { terminateWorkers } from "./core/codec-pool.js";
 
 let baseURL;
 try {
-	baseURL = import.meta.url;
+    baseURL = import.meta.url;
 } catch (_error) {
-	// ignored
+    // ignored
 }
 configure({ baseURL });
 configureWebWorker(configure);
@@ -45,9 +45,4 @@ export * from "./core/io.js";
 export * from "./core/zip-reader.js";
 export * from "./core/zip-writer.js";
 export * from "./core/zip-fs-core.js";
-export {
-	configure,
-	getMimeType,
-	initShimAsyncCodec,
-	terminateWorkers
-};
+export { configure, getMimeType, initShimAsyncCodec, terminateWorkers };

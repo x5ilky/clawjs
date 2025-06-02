@@ -7,8 +7,8 @@
  1. Redistributions of source code must retain the above copyright notice,
  this list of conditions and the following disclaimer.
 
- 2. Redistributions in binary form must reproduce the above copyright 
- notice, this list of conditions and the following disclaimer in 
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in
  the documentation and/or other materials provided with the distribution.
 
  3. The names of the authors may not be used to endorse or promote products
@@ -28,36 +28,37 @@
 
 const table = [];
 for (let i = 0; i < 256; i++) {
-	let t = i;
-	for (let j = 0; j < 8; j++) {
-		if (t & 1) {
-			t = (t >>> 1) ^ 0xEDB88320;
-		} else {
-			t = t >>> 1;
-		}
-	}
-	table[i] = t;
+    let t = i;
+    for (let j = 0; j < 8; j++) {
+        if (t & 1) {
+            t = (t >>> 1) ^ 0xEDB88320;
+        } else {
+            t = t >>> 1;
+        }
+    }
+    table[i] = t;
 }
 
 class Crc32 {
+    constructor(crc) {
+        this.crc = crc || -1;
+    }
 
-	constructor(crc) {
-		this.crc = crc || -1;
-	}
+    append(data) {
+        let crc = this.crc | 0;
+        for (
+            let offset = 0, length = data.length | 0;
+            offset < length;
+            offset++
+        ) {
+            crc = (crc >>> 8) ^ table[(crc ^ data[offset]) & 0xFF];
+        }
+        this.crc = crc;
+    }
 
-	append(data) {
-		let crc = this.crc | 0;
-		for (let offset = 0, length = data.length | 0; offset < length; offset++) {
-			crc = (crc >>> 8) ^ table[(crc ^ data[offset]) & 0xFF];
-		}
-		this.crc = crc;
-	}
-
-	get() {
-		return ~this.crc;
-	}
+    get() {
+        return ~this.crc;
+    }
 }
 
-export {
-	Crc32
-};
+export { Crc32 };

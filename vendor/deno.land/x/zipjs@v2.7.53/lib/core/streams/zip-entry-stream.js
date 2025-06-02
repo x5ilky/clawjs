@@ -7,8 +7,8 @@
  1. Redistributions of source code must retain the above copyright notice,
  this list of conditions and the following disclaimer.
 
- 2. Redistributions in binary form must reproduce the above copyright 
- notice, this list of conditions and the following disclaimer in 
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in
  the documentation and/or other materials provided with the distribution.
 
  3. The names of the authors may not be used to endorse or promote products
@@ -31,135 +31,190 @@
 
 import { Crc32Stream } from "./crc32-stream.js";
 import {
-	AESEncryptionStream,
-	AESDecryptionStream
+    AESDecryptionStream,
+    AESEncryptionStream,
 } from "./aes-crypto-stream.js";
 import {
-	ZipCryptoEncryptionStream,
-	ZipCryptoDecryptionStream
+    ZipCryptoDecryptionStream,
+    ZipCryptoEncryptionStream,
 } from "./zip-crypto-stream.js";
 import {
-	ERR_INVALID_PASSWORD,
-	ERR_INVALID_SIGNATURE,
-	ERR_ABORT_CHECK_PASSWORD
+    ERR_ABORT_CHECK_PASSWORD,
+    ERR_INVALID_PASSWORD,
+    ERR_INVALID_SIGNATURE,
 } from "./common-crypto.js";
 
 const COMPRESSION_FORMAT = "deflate-raw";
 
 class DeflateStream extends TransformStream {
-
-	constructor(options, { chunkSize, CompressionStream, CompressionStreamNative }) {
-		super({});
-		const { compressed, encrypted, useCompressionStream, zipCrypto, signed, level } = options;
-		const stream = this;
-		let crc32Stream, encryptionStream;
-		let readable = filterEmptyChunks(super.readable);
-		if ((!encrypted || zipCrypto) && signed) {
-			crc32Stream = new Crc32Stream();
-			readable = pipeThrough(readable, crc32Stream);
-		}
-		if (compressed) {
-			readable = pipeThroughCommpressionStream(readable, useCompressionStream, { level, chunkSize }, CompressionStreamNative, CompressionStream);
-		}
-		if (encrypted) {
-			if (zipCrypto) {
-				readable = pipeThrough(readable, new ZipCryptoEncryptionStream(options));
-			} else {
-				encryptionStream = new AESEncryptionStream(options);
-				readable = pipeThrough(readable, encryptionStream);
-			}
-		}
-		setReadable(stream, readable, () => {
-			let signature;
-			if (encrypted && !zipCrypto) {
-				signature = encryptionStream.signature;
-			}
-			if ((!encrypted || zipCrypto) && signed) {
-				signature = new DataView(crc32Stream.value.buffer).getUint32(0);
-			}
-			stream.signature = signature;
-		});
-	}
+    constructor(
+        options,
+        { chunkSize, CompressionStream, CompressionStreamNative },
+    ) {
+        super({});
+        const {
+            compressed,
+            encrypted,
+            useCompressionStream,
+            zipCrypto,
+            signed,
+            level,
+        } = options;
+        const stream = this;
+        let crc32Stream, encryptionStream;
+        let readable = filterEmptyChunks(super.readable);
+        if ((!encrypted || zipCrypto) && signed) {
+            crc32Stream = new Crc32Stream();
+            readable = pipeThrough(readable, crc32Stream);
+        }
+        if (compressed) {
+            readable = pipeThroughCommpressionStream(
+                readable,
+                useCompressionStream,
+                { level, chunkSize },
+                CompressionStreamNative,
+                CompressionStream,
+            );
+        }
+        if (encrypted) {
+            if (zipCrypto) {
+                readable = pipeThrough(
+                    readable,
+                    new ZipCryptoEncryptionStream(options),
+                );
+            } else {
+                encryptionStream = new AESEncryptionStream(options);
+                readable = pipeThrough(readable, encryptionStream);
+            }
+        }
+        setReadable(stream, readable, () => {
+            let signature;
+            if (encrypted && !zipCrypto) {
+                signature = encryptionStream.signature;
+            }
+            if ((!encrypted || zipCrypto) && signed) {
+                signature = new DataView(crc32Stream.value.buffer).getUint32(0);
+            }
+            stream.signature = signature;
+        });
+    }
 }
 
 class InflateStream extends TransformStream {
-
-	constructor(options, { chunkSize, DecompressionStream, DecompressionStreamNative }) {
-		super({});
-		const { zipCrypto, encrypted, signed, signature, compressed, useCompressionStream } = options;
-		let crc32Stream, decryptionStream;
-		let readable = filterEmptyChunks(super.readable);
-		if (encrypted) {
-			if (zipCrypto) {
-				readable = pipeThrough(readable, new ZipCryptoDecryptionStream(options));
-			} else {
-				decryptionStream = new AESDecryptionStream(options);
-				readable = pipeThrough(readable, decryptionStream);
-			}
-		}
-		if (compressed) {
-			readable = pipeThroughCommpressionStream(readable, useCompressionStream, { chunkSize }, DecompressionStreamNative, DecompressionStream);
-		}
-		if ((!encrypted || zipCrypto) && signed) {
-			crc32Stream = new Crc32Stream();
-			readable = pipeThrough(readable, crc32Stream);
-		}
-		setReadable(this, readable, () => {
-			if ((!encrypted || zipCrypto) && signed) {
-				const dataViewSignature = new DataView(crc32Stream.value.buffer);
-				if (signature != dataViewSignature.getUint32(0, false)) {
-					throw new Error(ERR_INVALID_SIGNATURE);
-				}
-			}
-		});
-	}
+    constructor(
+        options,
+        { chunkSize, DecompressionStream, DecompressionStreamNative },
+    ) {
+        super({});
+        const {
+            zipCrypto,
+            encrypted,
+            signed,
+            signature,
+            compressed,
+            useCompressionStream,
+        } = options;
+        let crc32Stream, decryptionStream;
+        let readable = filterEmptyChunks(super.readable);
+        if (encrypted) {
+            if (zipCrypto) {
+                readable = pipeThrough(
+                    readable,
+                    new ZipCryptoDecryptionStream(options),
+                );
+            } else {
+                decryptionStream = new AESDecryptionStream(options);
+                readable = pipeThrough(readable, decryptionStream);
+            }
+        }
+        if (compressed) {
+            readable = pipeThroughCommpressionStream(
+                readable,
+                useCompressionStream,
+                { chunkSize },
+                DecompressionStreamNative,
+                DecompressionStream,
+            );
+        }
+        if ((!encrypted || zipCrypto) && signed) {
+            crc32Stream = new Crc32Stream();
+            readable = pipeThrough(readable, crc32Stream);
+        }
+        setReadable(this, readable, () => {
+            if ((!encrypted || zipCrypto) && signed) {
+                const dataViewSignature = new DataView(
+                    crc32Stream.value.buffer,
+                );
+                if (signature != dataViewSignature.getUint32(0, false)) {
+                    throw new Error(ERR_INVALID_SIGNATURE);
+                }
+            }
+        });
+    }
 }
 
 export {
-	DeflateStream,
-	InflateStream,
-	ERR_INVALID_PASSWORD,
-	ERR_INVALID_SIGNATURE,
-	ERR_ABORT_CHECK_PASSWORD
+    DeflateStream,
+    ERR_ABORT_CHECK_PASSWORD,
+    ERR_INVALID_PASSWORD,
+    ERR_INVALID_SIGNATURE,
+    InflateStream,
 };
 
 function filterEmptyChunks(readable) {
-	return pipeThrough(readable, new TransformStream({
-		transform(chunk, controller) {
-			if (chunk && chunk.length) {
-				controller.enqueue(chunk);
-			}
-		}
-	}));
+    return pipeThrough(
+        readable,
+        new TransformStream({
+            transform(chunk, controller) {
+                if (chunk && chunk.length) {
+                    controller.enqueue(chunk);
+                }
+            },
+        }),
+    );
 }
 
 function setReadable(stream, readable, flush) {
-	readable = pipeThrough(readable, new TransformStream({ flush }));
-	Object.defineProperty(stream, "readable", {
-		get() {
-			return readable;
-		}
-	});
+    readable = pipeThrough(readable, new TransformStream({ flush }));
+    Object.defineProperty(stream, "readable", {
+        get() {
+            return readable;
+        },
+    });
 }
 
-function pipeThroughCommpressionStream(readable, useCompressionStream, options, CodecStreamNative, CodecStream) {
-	try {
-		const CompressionStream = useCompressionStream && CodecStreamNative ? CodecStreamNative : CodecStream;
-		readable = pipeThrough(readable, new CompressionStream(COMPRESSION_FORMAT, options));
-	} catch (error) {
-		if (useCompressionStream) {
-			try {
-				readable = pipeThrough(readable, new CodecStream(COMPRESSION_FORMAT, options));
-			} catch (error) {
-				return readable;
-			}
-		} else {
-			return readable;
-		}
-	}
-	return readable;
+function pipeThroughCommpressionStream(
+    readable,
+    useCompressionStream,
+    options,
+    CodecStreamNative,
+    CodecStream,
+) {
+    try {
+        const CompressionStream = useCompressionStream && CodecStreamNative
+            ? CodecStreamNative
+            : CodecStream;
+        readable = pipeThrough(
+            readable,
+            new CompressionStream(COMPRESSION_FORMAT, options),
+        );
+    } catch (error) {
+        if (useCompressionStream) {
+            try {
+                readable = pipeThrough(
+                    readable,
+                    new CodecStream(COMPRESSION_FORMAT, options),
+                );
+            } catch (error) {
+                return readable;
+            }
+        } else {
+            return readable;
+        }
+    }
+    return readable;
 }
 
 function pipeThrough(readable, transformStream) {
-	return readable.pipeThrough(transformStream);
+    return readable.pipeThrough(transformStream);
 }

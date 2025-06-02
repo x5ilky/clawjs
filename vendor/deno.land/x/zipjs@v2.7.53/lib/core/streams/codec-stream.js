@@ -7,8 +7,8 @@
  1. Redistributions of source code must retain the above copyright notice,
  this list of conditions and the following disclaimer.
 
- 2. Redistributions in binary form must reproduce the above copyright 
- notice, this list of conditions and the following disclaimer in 
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in
  the documentation and/or other materials provided with the distribution.
 
  3. The names of the authors may not be used to endorse or promote products
@@ -37,11 +37,11 @@
 // deno-lint-ignore-file no-this-alias
 
 import {
-	ERR_INVALID_PASSWORD,
-	ERR_INVALID_SIGNATURE,
-	ERR_ABORT_CHECK_PASSWORD,
-	InflateStream,
-	DeflateStream
+    DeflateStream,
+    ERR_ABORT_CHECK_PASSWORD,
+    ERR_INVALID_PASSWORD,
+    ERR_INVALID_SIGNATURE,
+    InflateStream,
 } from "./zip-entry-stream.js";
 
 const MESSAGE_EVENT_TYPE = "message";
@@ -54,101 +54,102 @@ const CODEC_DEFLATE = "deflate";
 const CODEC_INFLATE = "inflate";
 
 export {
-	CODEC_DEFLATE,
-	CODEC_INFLATE,
-	MESSAGE_EVENT_TYPE,
-	MESSAGE_START,
-	MESSAGE_PULL,
-	MESSAGE_DATA,
-	MESSAGE_ACK_DATA,
-	MESSAGE_CLOSE,
-	ERR_INVALID_PASSWORD,
-	ERR_INVALID_SIGNATURE,
-	ERR_ABORT_CHECK_PASSWORD,
-	CodecStream,
-	ChunkStream
+    ChunkStream,
+    CODEC_DEFLATE,
+    CODEC_INFLATE,
+    CodecStream,
+    ERR_ABORT_CHECK_PASSWORD,
+    ERR_INVALID_PASSWORD,
+    ERR_INVALID_SIGNATURE,
+    MESSAGE_ACK_DATA,
+    MESSAGE_CLOSE,
+    MESSAGE_DATA,
+    MESSAGE_EVENT_TYPE,
+    MESSAGE_PULL,
+    MESSAGE_START,
 };
 
 class CodecStream extends TransformStream {
-
-	constructor(options, config) {
-		super({});
-		const codec = this;
-		const { codecType } = options;
-		let Stream;
-		if (codecType.startsWith(CODEC_DEFLATE)) {
-			Stream = DeflateStream;
-		} else if (codecType.startsWith(CODEC_INFLATE)) {
-			Stream = InflateStream;
-		}
-		let outputSize = 0;
-		let inputSize = 0;
-		const stream = new Stream(options, config);
-		const readable = super.readable;
-		const inputSizeStream = new TransformStream({
-			transform(chunk, controller) {
-				if (chunk && chunk.length) {
-					inputSize += chunk.length;
-					controller.enqueue(chunk);
-				}
-			},
-			flush() {
-				Object.assign(codec, {
-					inputSize
-				});
-			}
-		});
-		const outputSizeStream = new TransformStream({
-			transform(chunk, controller) {
-				if (chunk && chunk.length) {
-					outputSize += chunk.length;
-					controller.enqueue(chunk);
-				}
-			},
-			flush() {
-				const { signature } = stream;
-				Object.assign(codec, {
-					signature,
-					outputSize,
-					inputSize
-				});
-			}
-		});
-		Object.defineProperty(codec, "readable", {
-			get() {
-				return readable.pipeThrough(inputSizeStream).pipeThrough(stream).pipeThrough(outputSizeStream);
-			}
-		});
-	}
+    constructor(options, config) {
+        super({});
+        const codec = this;
+        const { codecType } = options;
+        let Stream;
+        if (codecType.startsWith(CODEC_DEFLATE)) {
+            Stream = DeflateStream;
+        } else if (codecType.startsWith(CODEC_INFLATE)) {
+            Stream = InflateStream;
+        }
+        let outputSize = 0;
+        let inputSize = 0;
+        const stream = new Stream(options, config);
+        const readable = super.readable;
+        const inputSizeStream = new TransformStream({
+            transform(chunk, controller) {
+                if (chunk && chunk.length) {
+                    inputSize += chunk.length;
+                    controller.enqueue(chunk);
+                }
+            },
+            flush() {
+                Object.assign(codec, {
+                    inputSize,
+                });
+            },
+        });
+        const outputSizeStream = new TransformStream({
+            transform(chunk, controller) {
+                if (chunk && chunk.length) {
+                    outputSize += chunk.length;
+                    controller.enqueue(chunk);
+                }
+            },
+            flush() {
+                const { signature } = stream;
+                Object.assign(codec, {
+                    signature,
+                    outputSize,
+                    inputSize,
+                });
+            },
+        });
+        Object.defineProperty(codec, "readable", {
+            get() {
+                return readable.pipeThrough(inputSizeStream).pipeThrough(stream)
+                    .pipeThrough(outputSizeStream);
+            },
+        });
+    }
 }
 
 class ChunkStream extends TransformStream {
+    constructor(chunkSize) {
+        let pendingChunk;
+        super({
+            transform,
+            flush(controller) {
+                if (pendingChunk && pendingChunk.length) {
+                    controller.enqueue(pendingChunk);
+                }
+            },
+        });
 
-	constructor(chunkSize) {
-		let pendingChunk;
-		super({
-			transform,
-			flush(controller) {
-				if (pendingChunk && pendingChunk.length) {
-					controller.enqueue(pendingChunk);
-				}
-			}
-		});
-
-		function transform(chunk, controller) {
-			if (pendingChunk) {
-				const newChunk = new Uint8Array(pendingChunk.length + chunk.length);
-				newChunk.set(pendingChunk);
-				newChunk.set(chunk, pendingChunk.length);
-				chunk = newChunk;
-				pendingChunk = null;
-			}
-			if (chunk.length > chunkSize) {
-				controller.enqueue(chunk.slice(0, chunkSize));
-				transform(chunk.slice(chunkSize), controller);
-			} else {
-				pendingChunk = chunk;
-			}
-		}
-	}
+        function transform(chunk, controller) {
+            if (pendingChunk) {
+                const newChunk = new Uint8Array(
+                    pendingChunk.length + chunk.length,
+                );
+                newChunk.set(pendingChunk);
+                newChunk.set(chunk, pendingChunk.length);
+                chunk = newChunk;
+                pendingChunk = null;
+            }
+            if (chunk.length > chunkSize) {
+                controller.enqueue(chunk.slice(0, chunkSize));
+                transform(chunk.slice(chunkSize), controller);
+            } else {
+                pendingChunk = chunk;
+            }
+        }
+    }
 }
