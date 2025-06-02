@@ -653,21 +653,21 @@ export function DataClass<T extends { new (...args: any[]): {} }>(cl: T): Datacl
 //     return [newValue, index];
 // }
 export function def
-    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: InstanceType<T[K]> } ) => void, returnType?: R):
-        (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
+    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable, F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void>
+    (argTypes: T, fn: F, returnType?: R):
+        F {
     return defRaw(argTypes, fn, returnType, false);
 }
 export function warp
-    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: InstanceType<T[K]> } ) => void, returnType?: R):
-        (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
+    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable, F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void>
+    (argTypes: T, fn: F, returnType?: R):
+        F {
     return defRaw(argTypes, fn, returnType, true);
 }
 function defRaw
-    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable>
-    (argTypes: T, fn: (...args: { [K in keyof T]: InstanceType<T[K]> } ) => void, returnType: R | undefined, warp: boolean):
-        (...args: { [K in keyof T]: InstanceType<T[K]>; }) => InstanceType<R> {
+    <const T extends (new () => Serializable)[], R extends new () => Serializable & Variable, F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void>
+    (argTypes: T, fn: F, returnType: R | undefined, warp: boolean):
+        F {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
 
@@ -721,7 +721,7 @@ function defRaw
 
     $.currentFunc = oldFunc;
     $.returnValue = oldrv;
-    return (...args: { [K in keyof T]: InstanceType<T[K]> }) => {
+    return ((...args: { [K in keyof T]: InstanceType<T[K]> }) => {
         $.functionsToAdd.push(id);
         if ($.currentSprite !== null) {
             for (const id of $.functionsToAdd) 
@@ -743,7 +743,7 @@ function defRaw
             args: args.map(a => a.toSerialized()).flat()
         } satisfies IlNode);
         return ret as InstanceType<R>
-    }
+    }) as unknown as F;
 }
 
 function makeBinaryOperatorFunction(name: BinaryOperation): BinaryOperator {
