@@ -697,21 +697,21 @@ export function def<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
     F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
->(argTypes: T, fn: F, returnType?: R): F {
+>(argTypes: T, fn: F, returnType?: R): (...params: Parameters<F>) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, false);
 }
 export function warp<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
     F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
->(argTypes: T, fn: F, returnType?: R): F {
+>(argTypes: T, fn: F, returnType?: R): (...params: Parameters<F>) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, true);
 }
 function defRaw<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
     F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
->(argTypes: T, fn: F, returnType: R | undefined, warp: boolean): F {
+>(argTypes: T, fn: F, returnType: R | undefined, warp: boolean): (...params: Parameters<F>) => InstanceType<R> {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
 
@@ -792,7 +792,7 @@ function defRaw<
             } satisfies IlNode,
         );
         return ret as InstanceType<R>;
-    }) as unknown as F;
+    });
 }
 
 function makeBinaryOperatorFunction(name: BinaryOperation): BinaryOperator {
