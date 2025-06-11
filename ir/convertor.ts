@@ -2581,7 +2581,26 @@ export class Convertor {
                         const tt = this.project.targets.find((a) =>
                             a.name === this.sprites.get(node.target)!.name
                         );
-                        tt!.variables.set(nameHash, [name, 0]);
+                        tt!.variables.set(nameHash, [node.varName, 0]);
+                    }
+                    break;
+                case "CreateInstanceList":
+                    {
+                        if (
+                            node.varName.startsWith(
+                                FORBIDDEN_VARIABLE_NAME_PREFIX,
+                            )
+                        ) {
+                            this.logger.warn(
+                                `Variable names probably shouldn't start with ${FORBIDDEN_VARIABLE_NAME_PREFIX}`,
+                            );
+                        }
+                        const nameHash = MD5(node.varName);
+                        const tt = this.project.targets.find((a) =>
+                            a.name === this.sprites.get(node.target)!.name
+                        );
+                        if (tt) tt.lists[nameHash] = <const>[node.varName, []];
+                        this.list_map.set(node.varName, nameHash);
                     }
                     break;
                 case "CreateList":

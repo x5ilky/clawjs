@@ -81,6 +81,12 @@ export class IrParser {
                     target: this.getIdentifier(chars),
                     varName: this.getIdentifier(chars),
                 };
+            case "createinstancelist":
+                return {
+                    type: "CreateInstanceList",
+                    target: this.getIdentifier(chars),
+                    varName: this.getIdentifier(chars),
+                };
             case "createbroadcast":
                 return {
                     type: "CreateBroadcast",

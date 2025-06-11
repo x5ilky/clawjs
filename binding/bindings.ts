@@ -243,10 +243,14 @@ export class Num implements SingleValue, Serializable, Variable {
     id: string;
     #intcreationobj: IlNode;
 
-    constructor() {
+    constructor(instance?: Sprite) {
         this.id = reserveCount();
         statLabel.push(
-            this.#intcreationobj = {
+            this.#intcreationobj = instance ? {
+                type: "CreateInstanceVar",
+                target: instance.id,
+                varName: this.id,
+            } : {
                 type: "CreateVar",
                 name: this.id,
                 nooptimize: false,
@@ -304,14 +308,18 @@ export class Num implements SingleValue, Serializable, Variable {
 export class Str implements SingleValue, Serializable, Variable {
     id: string;
     #intcreationobj: IlNode;
-    constructor() {
+    constructor(instance?: Sprite) {
         this.id = reserveCount();
         statLabel.push(
-            this.#intcreationobj = {
+            this.#intcreationobj = instance ? {
+                type: "CreateInstanceVar",
+                target: instance.id,
+                varName: this.id,
+            } : {
                 type: "CreateVar",
                 name: this.id,
                 nooptimize: false,
-            } satisfies IlNode,
+            },
         );
     }
     sizeof(): number {
@@ -412,10 +420,14 @@ export class List<T extends new () => Serializable & Variable> {
     id: string;
 
     type: T;
-    constructor(type: T) {
+    constructor(type: T, instance?: Sprite) {
         this.type = type;
         this.id = reserveCount();
-        statLabel.push({
+        statLabel.push(instance ? {
+            type: "CreateInstanceList",
+            varName: this.id,
+            target: instance.id
+        } : {
             type: "CreateList",
             name: this.id,
         });

@@ -177,8 +177,8 @@ export interface Sound {
 }
 export type Variable = [string, number];
 
-export interface Lists {
-    // todo
+export type Lists = {
+    [key: string]: [string, never[]]
 }
 export interface Broadcasts {
     // todo
@@ -337,6 +337,7 @@ export type IlNode =
     | { type: "WhenClone"; target: string; label: string }
     | { type: "DeleteClone" }
     | { type: "CreateInstanceVar"; varName: string; target: string }
+    | { type: "CreateInstanceList"; varName: string; target: string }
     | { type: "CloneMyself" }
     // sensing
     | { type: "AskAndWait"; prompt: IlValue }
