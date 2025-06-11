@@ -1,4 +1,5 @@
 import {
+    BlobReader,
     BlobWriter,
     TextReader,
     ZipWriter,
@@ -100,19 +101,21 @@ async function buildSingle(options: BuildOptions) {
 
     for (const [_, spr] of convertor.sprites) {
         for (const [path, format] of spr.costume_paths) {
-            const file = Deno.readTextFileSync(path);
-            const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+            const file = Deno.readFileSync(path);
+            const fileName = `${MD5(Array.from(file).map((a) => String.fromCharCode(a))
+                                .join(""),)}.${format.toLowerCase()}`;
             try {
-                await zipWriter.add(fileName, new TextReader(file));
+                await zipWriter.add(fileName, new BlobReader(new Blob([file])));
             } catch {
                 //
             }
         }
         for (const [path, format] of spr.sound_paths) {
-            const file = Deno.readTextFileSync(path);
-            const fileName = `${MD5(file)}.${format.toLowerCase()}`;
+            const file = Deno.readFileSync(path);
+            const fileName = `${MD5(Array.from(file).map((a) => String.fromCharCode(a))
+                                .join(""),)}.${format.toLowerCase()}`;
             try {
-                await zipWriter.add(fileName, new TextReader(file));
+                await zipWriter.add(fileName, new BlobReader(new Blob([file])));
             } catch {
                 //
             }
