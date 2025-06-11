@@ -693,6 +693,25 @@ export function DataClass<T extends { new (...args: any[]): {} }>(
 //     }
 //     return [newValue, index];
 // }
+
+
+/**
+ * Define a function WITH block delays
+ * @example
+ * ```ts
+ * const fn = def([Num], (foo) => {
+ *   say(foo);
+ *   wait(1);
+ *   foo.change(2); // this doesn't change the argument provided, only a copy of the value provided
+ *   wait(2);
+ * })
+ * ```
+ * 
+ * @param argTypes Constructors of variable types
+ * @param fn Actual function for you to write
+ * @param returnType Optional return type of function
+ * @returns Instance of your function to call in other places
+ */
 export function def<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
@@ -700,6 +719,22 @@ export function def<
 >(argTypes: T, fn: F, returnType?: R): (...params: Parameters<F>) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, false);
 }
+
+/**
+ * Define a function WITHOUT block delays
+ * @example
+ * ```ts
+ * const fn = warp([Num], (foo) => {
+ *   say(foo);
+ *   foo.change(2); // this doesn't change the argument provided, only a copy of the value provided
+ * })
+ * ```
+ * 
+ * @param argTypes Constructors of variable types
+ * @param fn Actual function for you to write
+ * @param returnType Optional return type of function
+ * @returns Instance of your function to call in other places
+ */
 export function warp<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
@@ -707,6 +742,16 @@ export function warp<
 >(argTypes: T, fn: F, returnType?: R): (...params: Parameters<F>) => InstanceType<R> {
     return defRaw(argTypes, fn, returnType, true);
 }
+
+
+/**
+ * This function has some interesting types but basically, 
+ * it takes in a list of variable constructors and an optional return type,
+ * then you provide the function. It maps the arguments of the function
+ * to the InstanceType (which is the variable itself) and returns the
+ * value back to you, this is basically a runtime version of type information
+ * without having to write your types twice.
+ */
 function defRaw<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,

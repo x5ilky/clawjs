@@ -21,7 +21,7 @@ export class Optimizer {
         this.variableReplacements = new Map();
         // @ts-ignore: im not writing type assertions for this
         this.statLabel =
-            labels.find((a) => a.type === "Label" && a.value[0] === "stat")!
+            (labels.find((a) => a.type === "Label" && a.value[0] === "stat")! as any)
                 .value[1];
         this.options = {
             redundantControlFlow: options?.redundantControlFlow ?? true,
