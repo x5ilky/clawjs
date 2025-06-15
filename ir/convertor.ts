@@ -1934,6 +1934,18 @@ export class Convertor {
                     });
                 }
                 break;
+            case "DeleteClone": 
+                {
+                    add({
+                        opcode: "control_delete_this_clone",
+                        parent: null,
+                        fields: {},
+                        inputs: {},
+                        shadow: false,
+                        topLevel: false,
+                    });
+                }
+                break;
             case "Clone":
                 {
                     const { target } = node;
