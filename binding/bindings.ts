@@ -1491,6 +1491,10 @@ export function return$(value: Variable | string | number) {
 export function stop(type: StopType) {
     $.scope?.push({ type: "Stop", stopType: type });
 }
+export function deleteThisClone() {
+    $.scope?.push({ type: "DeleteClone", });
+}
+export const deleteClone: typeof deleteThisClone = deleteThisClone;
 
 export function broadcast(value: Valuesque): void;
 export function broadcast(value: Broadcast): void;
