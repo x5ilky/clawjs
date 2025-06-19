@@ -31,6 +31,7 @@ export const $: {
     returnValue: Variable | null;
     functionsToAdd: string[];
     breakVariable: Variable | null;
+    labelify: (body: Body, ...args: any[]) => Label
 } = {
     COUNTER: 0,
     labels: new Array<Label>(new Label("stat", [])),
@@ -40,6 +41,7 @@ export const $: {
     returnValue: null,
     functionsToAdd: [],
     breakVariable: null,
+    labelify: null as unknown as (typeof $)["labelify"]
 };
 const statLabel = $.labels.find((a) => a.name === "stat")!;
 
@@ -54,6 +56,7 @@ function labelify(body: Body, ...args: any[]) {
     $.breakVariable = oldBreak;
     return newScope;
 }
+$.labelify = labelify;
 
 export class Broadcast {
     id: string;
@@ -728,7 +731,7 @@ export function def<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
     F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
->(argTypes: T, fn: F, returnType?: R): (...params: Parameters<F>) => InstanceType<R> {
+>(argTypes: T, fn: F, returnType?: R): ScratchDef<(...params: Parameters<F>) => InstanceType<R>> {
     return defRaw(argTypes, fn, returnType, false);
 }
 
@@ -751,10 +754,15 @@ export function warp<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
     F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
->(argTypes: T, fn: F, returnType?: R): (...params: Parameters<F>) => InstanceType<R> {
+>(argTypes: T, fn: F, returnType?: R): ScratchDef<(...params: Parameters<F>) => InstanceType<R>> {
     return defRaw(argTypes, fn, returnType, true);
 }
 
+export type ScratchDef<T> = T & {
+    argAmount: number,
+    id: string,
+    callRaw: (...values: (Valuesque)[]) => void
+}
 
 /**
  * This function has some interesting types but basically, 
@@ -768,7 +776,7 @@ function defRaw<
     const T extends (new () => Serializable)[],
     R extends new () => Serializable & Variable,
     F extends (...args: { [K in keyof T]: InstanceType<T[K]> }) => void,
->(argTypes: T, fn: F, returnType: R | undefined, warp: boolean): (...params: Parameters<F>) => InstanceType<R> {
+>(argTypes: T, fn: F, returnType: R | undefined, warp: boolean): ScratchDef<(...params: Parameters<F>) => InstanceType<R>> {
     const oldFunc = $.currentFunc;
     const id = $.currentFunc = reserveCount();
 
@@ -824,7 +832,7 @@ function defRaw<
 
     $.currentFunc = oldFunc;
     $.returnValue = oldrv;
-    return ((...args: { [K in keyof T]: InstanceType<T[K]> }) => {
+    const fnraw = ((...args: { [K in keyof T]: InstanceType<T[K]> }) => {
         $.functionsToAdd.push(id);
         if ($.currentSprite !== null) {
             for (const id of $.functionsToAdd) {
@@ -850,6 +858,35 @@ function defRaw<
         );
         return ret as InstanceType<R>;
     });
+    const fnd: ScratchDef<typeof fnraw> = fnraw as ScratchDef<typeof fnraw>;
+    fnd.argAmount = totalSize;
+    fnd.id = id;
+    fnd.callRaw = (...values) => {
+        $.functionsToAdd.push(id);
+        if ($.currentSprite !== null) {
+            for (const id of $.functionsToAdd) {
+                if (!$.currentSprite?.implementedFunctions.has(id)) {
+                    $.currentSprite?.implementedFunctions.add(id);
+                    statLabel.push({
+                        type: "InsertDef",
+                        func: id,
+                        sprites: [$.currentSprite!.id],
+                    });
+                }
+            }
+            $.functionsToAdd = [];
+        }
+
+        $.scope?.nodes.push(
+            {
+                type: "Run",
+                id,
+                argAmount: totalSize,
+                args: values.map(a => toScratchValue(a)),
+            } satisfies IlNode,
+        );
+    };
+    return fnd;
 }
 
 function makeBinaryOperatorFunction(name: BinaryOperation): BinaryOperator {
