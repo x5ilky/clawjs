@@ -607,11 +607,16 @@ export class Optimizer {
 }
 
 function isObjectProbablyIlValue(t: any): t is IlValue {
-    return typeof t === "object" && "key" in t && t.key === "Integer" ||
+    if (t === undefined || t === null) {
+        console.warn("internal: received t = undefined | null, this shouldn't really happen")    
+        console.warn("internal: there is a failsafe but it shouldn't be used")    
+    }
+
+    return (typeof t === "object") && ("key" in t) && (t.key === "Integer" ||
         t.key === "Float" || t.key === "String" || t.key === "Variable" ||
         t.key === "Color" || t.key === "Target" || t.key === "UnaryOperation" ||
         t.key === "BinaryOperation" || t.key === "DropOperation" ||
         t.key === "SensingOperation" || t.key === "Argument" ||
         t.key === "Builtin" || t.key === "Costume" || t.key === "Sound" ||
-        t.key === "ListValue";
+        t.key === "ListValue");
 }

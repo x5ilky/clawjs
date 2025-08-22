@@ -189,18 +189,23 @@ export class FixedList<
     type: T;
     size: Size;
     values: InstanceType<T>[];
+    _sizeof: number;
 
     constructor(type: T, size: Size) {
         this.type = type;
         this.size = size;
         this.values = [];
+        
+        this._sizeof = 0
         for (let i = 0; i < size; i++) {
-            this.values.push(new type() as InstanceType<T>);
+            const v = new type() as InstanceType<T>;
+            this.values.push(v);
+            this._sizeof += v.sizeof();
         }
     }
 
     sizeof(): number {
-        return this.size;
+        return this._sizeof;
     }
 
     set(values: FixedList<T, Size>): void {
